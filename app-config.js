@@ -15,17 +15,10 @@
 // =====================================================================
 
 window.TT_FIREBASE_CONFIG = {
-  apiKey: "AQ.Ab8RN6KlIhzPQv0VMBt2GmVN4R1TAh_eMxTi_N_i6U0xCu8F3g",
-  authDomain: "DAN_AUTH_DOMAIN_VAO_DAY",
-  projectId: "DAN_PROJECT_ID_VAO_DAY",
-  storageBucket: "DAN_STORAGE_BUCKET_VAO_DAY",
-  messagingSenderId: "DAN_SENDER_ID_VAO_DAY",
-  appId: "const firebaseConfig = {
   apiKey: "AIzaSyB7niChz8TdT9j4jboo1Kb89ZAy2GdrbAU",
   authDomain: "luyentruyentin.firebaseapp.com",
   projectId: "luyentruyentin",
   storageBucket: "luyentruyentin.firebasestorage.app",
   messagingSenderId: "438987737278",
   appId: "1:438987737278:web:f678bbe5fbfb0eedfdf6ef"
-};"
 };
