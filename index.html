@@ -738,14 +738,18 @@ function genSentence(min, max){
   if (pool.length) return pick(pool);
   return pick(BANK);
 }
-function genRandom(min, max){
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+function genRandom(min, max, lvl){
+  /* Dưới mức Nâng cao: chỉ chữ cái. Nâng cao: chữ + số. */
+  const chars = lvl === "adv" ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" : "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const total = min + rnd(max - min + 1);
   let groups = [], left = total;
   while (left > 0){ const g = Math.min(5, left); let s = ""; for (let i=0;i<g;i++) s += chars[rnd(chars.length)]; groups.push(s); left -= g; }
   return groups.join(" ");
 }
-function genMixed(min, max){
+function genMixed(min, max, lvl){
+  /* Kết hợp chữ + số CHỈ ở mức Nâng cao; dưới Nâng cao, kiểu
+     Hỗn hợp cho ra câu chữ thuần như kiểu Câu có nghĩa. */
+  if (lvl !== "adv"){ const e = genSentence(min, max); return { text: e.s, theme: THEMES[e.t] }; }
   for (let t = 0; t < 60; t++){
     const e = pick(BANK), c = convLen(e.s);
     const need = Math.max(2, min - c), room = max - c;
@@ -758,28 +762,73 @@ function genMixed(min, max){
   const e = genSentence(min, max);
   return { text: e.s, theme: THEMES[e.t] };
 }
-/* Nâng cao: câu ngân hàng + một nhóm số, tổng dài sau chuyển đổi
-   nằm trong dải 31–40 ký tự (bản tin kết hợp chữ và số). */
+/* Nâng cao (31–40 ký tự): luân phiên hai cách — ghép hai câu
+   ngân hàng (chữ thuần) hoặc một câu + một nhóm số; kết hợp số
+   là CÓ THỂ, không bắt buộc ở mọi bản tin. */
 function genAdvanced(min, max){
-  for (let t = 0; t < 80; t++){
-    const e = pick(BANK), c = convLen(e.s);
-    const rest = (min - c) + rnd((max - c) - (min - c) + 1);
-    if (rest < 3 || rest > 12) continue;
-    let digits = ""; for (let i = 0; i < rest; i++) digits += String(rnd(10));
-    return { text: e.s + " " + digits, theme: THEMES[e.t] };
-  }
+  const byPair = () => {
+    for (let t = 0; t < 60; t++){
+      const a = pick(BANK), b = pick(BANK);
+      if (a === b) continue;
+      const L = convLen(a.s) + convLen(b.s);
+      if (L >= min && L <= max) return { text: a.s + " " + b.s, theme: THEMES[a.t] };
+    }
+    return null;
+  };
+  const byDigits = () => {
+    for (let t = 0; t < 80; t++){
+      const e = pick(BANK), c = convLen(e.s);
+      const rest = (min - c) + rnd((max - c) - (min - c) + 1);
+      if (rest < 3 || rest > 12) continue;
+      let digits = ""; for (let i = 0; i < rest; i++) digits += String(rnd(10));
+      return { text: e.s + " " + digits, theme: THEMES[e.t] };
+    }
+    return null;
+  };
+  const out = Math.random() < 0.5 ? (byDigits() || byPair()) : (byPair() || byDigits());
+  if (out) return out;
   const e = pick(BANK);
-  return { text: e.s + " 2026", theme: THEMES[e.t] };
+  return { text: e.s + " " + pick(BANK).s, theme: THEMES[e.t] };
+}
+/* ============================================================
+   CỬA KIỂM TRA CUỐI — MỌI bản tin do nút Tạo bản tin sinh ra đều
+   phải qua cửa này trước khi dùng, nên luôn đúng mức độ đã cài:
+   - Độ dài sau chuyển đổi nằm trong dải của mức (quá dài: cắt bớt
+     từ ở cuối; quá ngắn: thêm từ ngắn / nhóm số cho đủ).
+   - Dưới mức Nâng cao: loại mọi nhóm số (chỉ chữ thuần) và không
+     bao giờ dài quá 30 ký tự (dải của 3 mức này vốn ≤ 30).
+   - Chỉ Nâng cao mới được dài 31–40 và mới có thể có nhóm số.
+   ============================================================ */
+function forceBand(text, lvl){
+  const [min, max] = RANGES[lvl];
+  let words = String(text || "").trim().replace(/\s+/g, " ").split(" ").filter(Boolean);
+  if (lvl !== "adv") words = words.filter(w => !/^\d+$/.test(w));
+  if (!words.length) words = ["HỌC", "TẬP", "TỐT"];
+  while (words.length > 2 && convLen(words.join(" ")) > max) words.pop();
+  let t = words.join(" ");
+  let guard = 0;
+  while (convLen(t) < min && guard++ < 10){
+    if (lvl === "adv" && guard % 2 === 0){
+      let d = ""; const dl = 2 + rnd(3);
+      for (let i = 0; i < dl; i++) d += String(rnd(10));
+      t += " " + d;
+    } else {
+      t += " " + pick(["TỐT", "HAY", "ĐẸP", "VUI", "GIỎI"]);
+    }
+  }
+  return t;
 }
 function generateMessage(){
   const lvl = $("diffSel").value;
   const [min, max] = RANGES[lvl];
   const type = $("typeSel").value;
-  if (type === "random") return { text: genRandom(min, max), theme: null };
-  if (lvl === "adv") return genAdvanced(min, max);
-  if (type === "mixed") return genMixed(min, max);
-  const e = genSentence(min, max);
-  return { text: e.s, theme: THEMES[e.t] };
+  let out;
+  if (type === "random") out = { text: genRandom(min, max, lvl), theme: null };
+  else if (lvl === "adv") out = genAdvanced(min, max);
+  else if (type === "mixed") out = genMixed(min, max, lvl);
+  else { const e = genSentence(min, max); out = { text: e.s, theme: THEMES[e.t] }; }
+  out.text = forceBand(out.text, lvl);
+  return out;
 }
 
 /* ============================================================
@@ -2294,7 +2343,7 @@ renderHistory();
 </script>
 
 
-  <script src="app-config.js?v=13"></script>
-<script type="module" src="auth-layer.js?v=13"></script>
+  <script src="app-config.js?v=14"></script>
+<script type="module" src="auth-layer.js?v=14"></script>
 </body>
 </html>

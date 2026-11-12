@@ -509,6 +509,19 @@ function buildChip() {
   gMode.appendChild(mkIco("ttIcoLuyen", "🖊️", "Chế độ Luyện tập", "modeLuyen"));
   gMode.appendChild(mkIco("ttIcoKiem", "📋", "Chế độ Kiểm tra", "modeKiem"));
   chip.appendChild(gMode);
+  /* Nút Cài đặt ngay trên thanh ghim, chỉ hiện hình bánh răng */
+  const bSetIco = document.createElement("button");
+  bSetIco.className = "tt-icobtn";
+  bSetIco.textContent = "⚙️";
+  bSetIco.title = "Cài đặt";
+  bSetIco.setAttribute("aria-label", "Cài đặt");
+  bSetIco.addEventListener("click", () => {
+    const d = $("settingsDrawer");
+    if (!d) return;
+    d.classList.toggle("hidden");
+    if (!d.classList.contains("hidden")) d.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  chip.appendChild(bSetIco);
   /* MENU NGƯỜI DÙNG (ẩn mặc định, bấm vào tên thì mở) */
   const menu = document.createElement("div");
   menu.id = "tt-menu";
@@ -537,12 +550,6 @@ function buildChip() {
     item("🛠 Quản trị", openAdminPanel);
     item("📊 Dung lượng", openUsagePanel);
   }
-  item("⚙️ Cài đặt", () => {
-    const d = $("settingsDrawer");
-    if (!d) return;
-    d.classList.toggle("hidden");
-    if (!d.classList.contains("hidden")) d.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
   item("🚪 Đăng xuất", doLogout);
   chip.appendChild(menu);
   info.addEventListener("click", (e) => { e.stopPropagation(); menu.classList.toggle("hidden"); });
@@ -1041,7 +1048,7 @@ async function aiCandidates(theme, level) {
   const mod = await import("https://www.gstatic.com/firebasejs/12.4.0/firebase-ai.js");
   const ai = mod.getAI(app, { backend: new mod.GoogleAIBackend() });
   const words = level === "de" ? "3 đến 5 từ" : level === "tb" ? "5 đến 7 từ" : level === "kho" ? "7 đến 10 từ" : "9 đến 12 từ";
-  const numReq = level === "nc" ? " Mỗi câu phải kèm đúng một nhóm số viết bằng chữ số (ví dụ: 25, 150, 2026)." : "";
+  const numReq = level === "nc" ? " Mỗi câu phải kèm đúng một nhóm số viết bằng chữ số (ví dụ: 25, 150, 2026)." : " Câu không chứa bất kỳ chữ số nào.";
   const prompt = `Bạn là giáo viên tiểu học Việt Nam. Viết 4 câu tiếng Việt, mỗi câu đúng một dòng, không đánh số, không dấu ngoặc kép, không dấu chấm cuối câu, viết hoa chữ cái đầu câu. Nội dung tích cực, phù hợp học sinh tiểu học, chủ đề: ${theme}. Mỗi câu khoảng ${words}.${numReq} Bốn câu phải khác nhau hoàn toàn về nội dung. Chỉ in ra 4 câu, không giải thích.`;
   const models = ["gemini-2.0-flash", "gemini-2.5-flash"];
   let lastErr = null;
@@ -1057,21 +1064,30 @@ async function aiCandidates(theme, level) {
 }
 
 /* Ép một câu về đúng dải độ dài của mức đã cài: quá dài thì cắt
-   bớt từ ở cuối câu, quá ngắn thì thêm một nhóm số ngắn. Nhờ hàm này,
-   bản tin do AI tạo ra LUÔN đúng mức độ theo cài đặt — kể cả khi AI
-   viết câu dài hơn yêu cầu hoặc phải dùng bộ tạo dự phòng. */
-function fitToBand(text, band) {
+   bớt từ ở cuối câu, quá ngắn thì thêm từ ngắn (riêng Nâng cao có
+   thể thêm nhóm số). QUY TẮC MỨC ĐỘ: dưới Nâng cao, bản tin chỉ
+   gồm chữ (loại mọi nhóm số) và không bao giờ quá 30 ký tự; chỉ
+   Nâng cao (nc) mới dài 31–40 và mới được kết hợp chữ + số.
+   Nhờ hàm này, bản tin do AI tạo ra LUÔN đúng mức độ theo cài
+   đặt — kể cả khi AI viết câu dài/ngắn hơn yêu cầu, có lẫn số,
+   hoặc phải dùng bộ tạo dự phòng. */
+function fitToBand(text, band, level) {
   let words = String(text || "").trim().replace(/\s+/g, " ").split(" ").filter(Boolean);
+  if (level !== "nc") words = words.filter(w => !/^\d+$/.test(w));
   if (!words.length) words = ["HỌC", "TẬP", "TỐT"];
   while (words.length > 2 && convertedLength(words.join(" ")) > band.max) words.pop();
   let t = words.join(" ");
   let guard = 0;
   while (convertedLength(t) < band.min && guard++ < 8) {
-    const need = band.min - convertedLength(t);
-    const dlen = Math.min(4, Math.max(2, need));
-    let d = "";
-    for (let i = 0; i < dlen; i++) d += String(Math.floor(Math.random() * 10));
-    t = t + " " + d;
+    if (level === "nc" && guard % 2 === 0) {
+      const need = band.min - convertedLength(t);
+      const dlen = Math.min(4, Math.max(2, need));
+      let d = "";
+      for (let i = 0; i < dlen; i++) d += String(Math.floor(Math.random() * 10));
+      t = t + " " + d;
+    } else {
+      t = t + " " + ["TỐT", "HAY", "ĐẸP", "VUI", "GIỎI"][Math.floor(Math.random() * 5)];
+    }
   }
   return t;
 }
@@ -1098,7 +1114,7 @@ async function generateMessageSmart(theme, level) {
      dải của mức đã cài (cắt bớt từ cuối / thêm nhóm số) thay vì
      bỏ hẳn — bản tin AI luôn đúng mức độ theo cài đặt. */
   for (const c of cands) {
-    const f = fitToBand(c, band);
+    const f = fitToBand(c, band, level);
     const conv = convertText(f);
     const len = convertedLength(f);
     if (len >= band.min && len <= band.max && !seen.has(conv)) {
@@ -1108,7 +1124,7 @@ async function generateMessageSmart(theme, level) {
   }
   const mkCand = () => level === "nc" ? fallbackSentence() + " " + String(100 + Math.floor(Math.random() * 9900)) : fallbackSentence();
   for (let i = 0; i < 80; i++) {
-    const c = fitToBand(mkCand(), band);
+    const c = fitToBand(mkCand(), band, level);
     const conv = convertText(c);
     const len = convertedLength(c);
     if (len >= band.min && len <= band.max && !seen.has(conv)) {
@@ -1117,7 +1133,7 @@ async function generateMessageSmart(theme, level) {
     }
   }
   /* Đường cuối cũng qua fitToBand: không bao giờ trả câu ngoài dải. */
-  const c = fitToBand(mkCand(), band);
+  const c = fitToBand(mkCand(), band, level);
   rememberSeen(convertText(c));
   return { text: c, ai: usedAi };
 }
@@ -1179,8 +1195,17 @@ function mountAiButton() {
       const level = ds && ds.value === "easy" ? "de" : ds && ds.value === "hard" ? "kho" : ds && ds.value === "adv" ? "nc" : "tb";
       const r = await generateMessageSmart(theme, level);
       let outText = r.text;
-      /* Kiểu "Hỗn hợp": bản tin AI phải kèm một nhóm số như cài đặt */
-      if (typeVal === "mixed" && !/\d/.test(outText)) {
+      /* Kiểm tra lại lần cuối ngay tại nút bấm: nếu kết quả vẫn
+         lệch dải của mức đã cài (bất kể từ đường nào), ép lại
+         bằng fitToBand trước khi đưa vào ô nhập. */
+      {
+        const band = LEVEL_BANDS[level];
+        const L = convertedLength(outText);
+        if (L < band.min || L > band.max) outText = fitToBand(outText, band, level);
+      }
+      /* Kiểu "Hỗn hợp" + mức Nâng cao: bản tin AI kèm một nhóm số
+         (dưới Nâng cao thì không kết hợp số — đúng quy tắc mức độ) */
+      if (typeVal === "mixed" && level === "nc" && !/\d/.test(outText)) {
         const band = LEVEL_BANDS[level];
         const extra = " " + String(100 + Math.floor(Math.random() * 900));
         if (convertedLength(outText + extra) <= band.max) outText += extra;
