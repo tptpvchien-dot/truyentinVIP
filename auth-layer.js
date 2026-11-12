@@ -64,6 +64,16 @@ style.textContent = `
 #tab-main .segbtns button{min-height:36px;padding:3px 4px;font-size:.9rem;border-radius:8px;border-width:1.5px}
 #ttAiBtn{margin-top:8px}
 #ttAiNote{font-size:12.5px;color:#205c20;margin-top:6px;line-height:1.45}
+.tt-rainbow{background:linear-gradient(90deg,#ff2d2d,#ff8a00,#e6c300,#00c853,#0091ea,#7c4dff,#ff2d95,#ff2d2d);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:800;animation:ttRainbow 3.2s linear infinite}
+@keyframes ttRainbow{to{background-position:220% 0}}
+#tt-panel .tt-box.wide{max-width:1180px}
+.tt-table{width:100%;border-collapse:collapse;font-size:13.5px}
+.tt-table th,.tt-table td{border:1px solid #dfe4ee;padding:6px 7px;text-align:left;vertical-align:middle}
+.tt-table th{background:#eef2fa;cursor:pointer;user-select:none;white-space:nowrap}
+.tt-table tbody tr:nth-child(even) td{background:#f8fafd}
+.tt-table .tt-acts button{padding:4px 8px;font-size:12.5px}
+.tt-table select{max-width:140px;padding:4px}
+.tt-detailrow td{background:#fbfcfe}
 .tt-acts{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .tt-acts button{background:#e8f1fa;color:#0b4a80;border:1px solid #bcd4ee;border-radius:7px;padding:5px 9px;cursor:pointer;font-size:12.5px;font-weight:600}
 .tt-acts button.danger{background:#fdecea;color:#a12622;border-color:#f0c4c0}
@@ -316,7 +326,6 @@ function showAuthForms() {
   <div id="tt-form-reg" style="display:none">
     <div class="tt-field"><label>Họ và tên</label><input id="rg-name" placeholder="vd: Nguyễn Văn An"></div>
     <div class="tt-field"><label>Lớp</label><input id="rg-class" placeholder="vd: 6A1"></div>
-    <div class="tt-field"><label>Biệt danh (không bắt buộc — nếu có sẽ hiển thị thay họ tên)</label><input id="rg-nick" placeholder="vd: An béo"></div>
     <div class="tt-field"><label>Tên đăng nhập (chữ thường không dấu, 3–30 ký tự)</label><input id="rg-user" autocomplete="username" placeholder="vd: an6a1"></div>
     <div class="tt-field"><label>Mật khẩu (ít nhất 6 ký tự)</label><input id="rg-pass" type="password" autocomplete="new-password"></div>
     <button class="tt-btn" id="btn-reg">Đăng ký</button>
@@ -341,7 +350,6 @@ function showAuthForms() {
   });
   $("btn-reg").addEventListener("click", async () => {
     const name = $("rg-name").value.trim(), cls = $("rg-class").value.trim();
-    const nick = $("rg-nick").value.trim();
     const u = $("rg-user").value, p = $("rg-pass").value;
     if (!name || !cls) { showErr("Em điền đủ Họ và tên và Lớp nhé."); return; }
     if (!usernameOk(u)) { showErr("Tên đăng nhập không hợp lệ (chữ thường không dấu, số, dấu . _ -, 3–30 ký tự)."); return; }
@@ -350,7 +358,7 @@ function showAuthForms() {
     try {
       const cred = await createUserWithEmailAndPassword(auth, emailFor(u), p);
       await setDoc(doc(db, "profiles", cred.user.uid), {
-        username: u.trim().toLowerCase(), name, className: cls, nickname: nick, aiEnabled: false,
+        username: u.trim().toLowerCase(), name, className: cls, nickname: "", aiEnabled: false,
         role: "member", status: "pending", expiry: null, createdAt: serverTimestamp()
       });
     } catch (e) { showErr(errText(e.code)); btn.disabled = false; btn.textContent = "Đăng ký"; }
@@ -371,10 +379,17 @@ function grantAccess() {
   const sn = $("stuName"), sc = $("stuClass");
   if (sn && myProfile.name) { sn.value = myProfile.name; sn.dispatchEvent(new Event("input", { bubbles: true })); }
   if (sc && myProfile.className) { sc.value = myProfile.className; sc.dispatchEvent(new Event("input", { bubbles: true })); }
+  // Tài khoản GV: không hiển thị ô Lớp trong bài kiểm tra (gán sẵn "GV" để qua bước kiểm tra của ứng dụng)
+  if (sc && myProfile.role === "GV") {
+    sc.value = "GV";
+    const f = sc.closest(".field");
+    if (f) f.style.display = "none";
+  }
   buildChip();
   mountAiButton();
   syncHistory();
   setInterval(syncHistory, 20000);
+  startHistWatch();
 }
 
 function buildChip() {
@@ -387,8 +402,22 @@ function buildChip() {
   chip.style.display = "flex";
   chip.innerHTML = "";
   const label = document.createElement("span");
-  label.textContent = "👤 " + displayName(myProfile);
+  label.textContent = "👤 ";
+  const nm = document.createElement("span");
+  nm.textContent = displayName(myProfile);
+  if (aiAllowed()) nm.className = "tt-rainbow";
+  label.appendChild(nm);
   chip.appendChild(label);
+  const bHist = document.createElement("button");
+  bHist.textContent = "🕘 Lịch sử";
+  bHist.addEventListener("click", openMyHistory);
+  chip.appendChild(bHist);
+  if (myProfile && myProfile.role === "GV" && myProfile.schoolId) {
+    const bSch = document.createElement("button");
+    bSch.textContent = "🏫 Học sinh trường";
+    bSch.addEventListener("click", openSchoolPanel);
+    chip.appendChild(bSch);
+  }
   if (myIsAdmin) {
     const bAd = document.createElement("button");
     bAd.textContent = "🛠 Quản trị";
@@ -422,8 +451,10 @@ async function syncHistory() {
       const key = entryHash(entry);
       if (done.has(key)) continue;
       if (added >= 10) break;
+      const meta = metaFor(entry);
       await addDoc(collection(db, "history"), {
-        uid: currentUser.uid, username: myProfile.username || "", entry, at: serverTimestamp()
+        uid: currentUser.uid, username: myProfile.username || "", entry, at: serverTimestamp(),
+        kindLabel: meta.kindLabel, speedLabel: meta.speedLabel, dname: displayName(myProfile)
       });
       done.add(key); added++;
     }
@@ -432,8 +463,71 @@ async function syncHistory() {
   syncing = false;
 }
 
+/* ---------------- Lịch sử: nhãn dạng/tốc độ + đồng bộ ngay khi nộp bài ---------------- */
+const KIND_NAMES = { "nhan-morse": "Nhận Morse", "nhan-sem": "Nhận Semaphore", "phat-morse": "Phát Morse", "phat-sem": "Phát Semaphore" };
+function metaFor(entry) {
+  const k = (entry && entry.kind) || "";
+  let speedLabel = "";
+  if (k.indexOf("morse") >= 0) { const w = $("wpmRange"); if (w) speedLabel = w.value + " WPM"; }
+  else if (k.indexOf("sem") >= 0) { const s = $("semRange"); if (s) speedLabel = String(s.value).replace(".", ",") + " giây/chữ"; }
+  return { kindLabel: KIND_NAMES[k] || k, speedLabel };
+}
+function fmtScore(s) { const n = Number(s); return isNaN(n) ? String(s ?? "") : n.toFixed(1).replace(".", ","); }
+function loadLocalHist() { try { return JSON.parse(localStorage.getItem("ltmt_history") || "[]"); } catch (e) { return []; } }
+let lastHistLen = -1;
+function startHistWatch() {
+  lastHistLen = loadLocalHist().length;
+  setInterval(() => {
+    const n = loadLocalHist().length;
+    if (n !== lastHistLen) { lastHistLen = n; syncHistory(); }
+  }, 2500);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") syncHistory(); });
+}
+function histTableHTML(rows, firstColLabel, nameOf) {
+  if (!rows.length) return "<p>Chưa có bài kiểm tra nào được lưu.</p>";
+  return `<div style="overflow-x:auto"><table class="tt-table"><thead><tr><th>${esc(firstColLabel)}</th><th>Thời gian làm bài</th><th>Dạng truyền tin</th><th>Tốc độ</th><th>Số điểm</th></tr></thead><tbody>${
+    rows.map((r) => {
+      const e = r.entry || {};
+      return `<tr><td>${esc(nameOf(r))}</td><td>${esc(e.date || "")}</td><td>${esc(r.kindLabel || metaFor(e).kindLabel)}</td><td>${esc(r.speedLabel || "—")}</td><td><b>${esc(fmtScore(e.score))}/10</b> <span style="color:#666">(đúng ${esc(e.correct ?? "")}/${esc(e.total ?? "")})</span></td></tr>`;
+    }).join("")
+  }</tbody></table></div>`;
+}
+async function openMyHistory() {
+  const body = openPanel("🕘 Lịch sử làm bài", true);
+  body.innerHTML = "<p>Đang tải lịch sử…</p>";
+  let rows = [];
+  try {
+    const snap = await getDocs(query(collection(db, "history"), where("uid", "==", currentUser.uid)));
+    snap.forEach((d) => { const h = d.data(); rows.push({ entry: h.entry || {}, kindLabel: h.kindLabel || "", speedLabel: h.speedLabel || "", at: (h.at && h.at.seconds) || 0 }); });
+  } catch (e) { /* mất mạng thì xem bản lưu trên máy */ }
+  if (!rows.length) rows = loadLocalHist().map((e) => ({ entry: e, kindLabel: "", speedLabel: "", at: 0 }));
+  rows.sort((a, b) => b.at - a.at);
+  body.innerHTML = histTableHTML(rows, "Họ tên", (r) => (r.entry && r.entry.name) || displayName(myProfile))
+    + `<p class="tt-note">Lịch sử được lưu theo tài khoản trên máy chủ: nộp bài xong là lưu, đăng nhập máy khác vẫn xem lại được.</p>`;
+}
+async function openSchoolPanel() {
+  const body = openPanel("🏫 Học sinh trường của thầy/cô", true);
+  body.innerHTML = "<p>Đang tải…</p>";
+  try {
+    const ps = await getDocs(query(collection(db, "profiles"), where("schoolId", "==", myProfile.schoolId)));
+    const mates = [];
+    ps.forEach((d) => { if (d.id !== currentUser.uid) mates.push({ uid: d.id, ...d.data() }); });
+    if (!mates.length) { body.innerHTML = "<p>Trường chưa có thành viên nào khác.</p>"; return; }
+    const rows = [];
+    for (const m of mates.slice(0, 30)) {
+      const hs = await getDocs(query(collection(db, "history"), where("uid", "==", m.uid)));
+      hs.forEach((d) => { const h = d.data(); rows.push({ who: displayName(m), entry: h.entry || {}, kindLabel: h.kindLabel || "", speedLabel: h.speedLabel || "", at: (h.at && h.at.seconds) || 0 }); });
+    }
+    rows.sort((a, b) => b.at - a.at);
+    body.innerHTML = histTableHTML(rows, "Học sinh", (r) => r.who)
+      + `<p class="tt-note">Chỉ gồm các bài đã đồng bộ lên máy chủ của học sinh cùng trường với thầy/cô.</p>`;
+  } catch (e) {
+    body.innerHTML = `<div class="tt-err" style="display:block">${esc(errText(e.code))}</div><p class="tt-note">Nếu báo lỗi quyền truy cập, thầy/cô báo quản trị dán lại Rules mới nhất trong Firebase Console rồi thử lại.</p>`;
+  }
+}
+
 /* ---------------- Khung panel dùng chung ---------------- */
-function openPanel(title) {
+function openPanel(title, wide) {
   let panel = $("tt-panel");
   if (!panel) {
     panel = document.createElement("div");
@@ -443,6 +537,7 @@ function openPanel(title) {
     document.body.appendChild(panel);
     panel.querySelector("#tt-pclose").addEventListener("click", () => { panel.style.display = "none"; });
   }
+  panel.querySelector(".tt-box").classList.toggle("wide", !!wide);
   panel.querySelector("h2").textContent = title;
   panel.style.display = "flex";
   return panel.querySelector(".tt-pbody");
@@ -452,45 +547,107 @@ function esc(s) {
 }
 
 /* ---------------- Quản trị ---------------- */
+let admState = { q: "", k: "name", dir: 1 };
+function roleOf(m, adminsSet) { return adminsSet.has(m.uid) ? "QT" : (m.role === "GV" ? "GV" : "HS"); }
+
 async function openAdminPanel() {
-  const body = openPanel("🛠 Quản trị thành viên");
+  const body = openPanel("🛠 Quản trị thành viên", true);
   body.innerHTML = `<p>Đang tải danh sách…</p>`;
   try {
     const snap = await getDocs(collection(db, "profiles"));
     const members = [];
     snap.forEach((d) => members.push({ uid: d.id, ...d.data() }));
     members.sort((a, b) => (a.username || "").localeCompare(b.username || ""));
-    renderAdminList(body, members);
+    let schools = [];
+    try { const ss = await getDocs(collection(db, "schools")); ss.forEach((d) => schools.push({ id: d.id, name: (d.data() || {}).name || "" })); } catch (e) {}
+    schools.sort((a, b) => a.name.localeCompare(b.name, "vi"));
+    const adminsSet = new Set();
+    try { const as = await getDocs(collection(db, "admins")); as.forEach((d) => adminsSet.add(d.id)); } catch (e) {}
+    renderAdminList(body, members, schools, adminsSet);
   } catch (e) {
     body.innerHTML = `<div class="tt-err" style="display:block">${esc(errText(e.code))}</div>`;
   }
 }
 
-function renderAdminList(body, members) {
+function renderAdminList(body, members, schools, adminsSet) {
+  const schoolName = (id) => { const s = schools.find((x) => x.id === id); return s ? s.name : ""; };
   body.innerHTML = `
-    <div class="tt-field"><input id="adm-search" placeholder="Tìm theo tên đăng nhập, họ tên, lớp…"></div>
+    <div style="margin-bottom:12px"><b>🏫 Trường học</b>
+      <div style="margin:6px 0">${schools.length ? schools.map((s) => `<span class="tt-badge tt-b-active" style="margin-right:6px">${esc(s.name)} (${members.filter((m) => m.schoolId === s.id).length}) <a href="#" data-del-school="${s.id}" style="color:#842029;text-decoration:none;font-weight:700">✕</a></span>`).join("") : "<span style='color:#666'>Chưa có trường nào — thêm trường ở ô dưới rồi gán cho từng thành viên trong bảng.</span>"}</div>
+      <div style="display:flex;gap:6px"><input id="adm-school-name" placeholder="Tên trường mới, vd: TH & THCS Bảo Thuận" style="flex:1;padding:8px;border:1.5px solid #ccd;border-radius:8px"><button class="tt-btn" id="adm-school-add" style="width:auto;padding:8px 14px">Thêm trường</button></div>
+    </div>
+    <div class="tt-field"><input id="adm-search" placeholder="Tìm theo tên đăng nhập, họ tên, biệt danh, lớp…"></div>
     <div id="adm-add" style="margin-bottom:10px">
       <button class="tt-btn" id="adm-addbtn" style="width:auto;padding:8px 14px">➕ Thêm thành viên</button>
       <div id="adm-addform" style="display:none;margin-top:8px">
         <div class="tt-field"><input id="ad-name" placeholder="Họ và tên"></div>
-        <div class="tt-field"><input id="ad-class" placeholder="Lớp"></div>
+        <div class="tt-field"><input id="ad-class" placeholder="Lớp (HS cần có; GV để trống)"></div>
         <div class="tt-field"><input id="ad-user" placeholder="Tên đăng nhập (không dấu)"></div>
-        <div class="tt-field"><input id="ad-pass" placeholder="Mật khẩu cấp cho học sinh (≥ 6 ký tự)"></div>
+        <div class="tt-field"><input id="ad-pass" placeholder="Mật khẩu cấp (≥ 6 ký tự)"></div>
+        <div class="tt-field"><select class="tt-sel" id="ad-role"><option value="HS">Học sinh (HS)</option><option value="GV">Giáo viên (GV)</option></select></div>
+        <div class="tt-field"><select class="tt-sel" id="ad-school"><option value="">— Chưa gán trường —</option>${schools.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select></div>
         <button class="tt-btn" id="ad-create" style="width:auto;padding:8px 14px">Tạo và kích hoạt ngay</button>
         <span id="ad-msg" style="margin-left:8px;font-size:13px"></span>
       </div>
     </div>
-    <div id="adm-list"></div>`;
-  const list = body.querySelector("#adm-list");
-  const draw = (filter) => {
-    list.innerHTML = "";
-    const f = (filter || "").toLowerCase();
-    members.filter((m) => !f || (m.username || "").includes(f) || (m.name || "").toLowerCase().includes(f) || (m.nickname || "").toLowerCase().includes(f) || (m.className || "").toLowerCase().includes(f))
-      .forEach((m) => list.appendChild(memberRow(body, members, m)));
-    if (!list.children.length) list.innerHTML = "<p>Không có thành viên nào khớp.</p>";
+    <div style="overflow-x:auto"><table class="tt-table" id="adm-table">
+      <thead><tr>
+        <th data-k="name">Họ tên</th><th data-k="nickname">Biệt danh</th><th data-k="className">Lớp</th>
+        <th data-k="expiry">Hạn dùng</th><th data-k="role">Vai trò</th><th data-k="schoolId">Trường</th>
+        <th data-k="aiEnabled">AI</th><th data-k="status">Thao tác</th>
+      </tr></thead><tbody id="adm-tbody"></tbody>
+    </table></div>
+    <p class="tt-note">Bấm vào tiêu đề cột để sắp xếp (cột Thao tác sắp xếp theo trạng thái tài khoản). GV không hiển thị lớp và xem được lịch sử học sinh cùng trường.</p>`;
+  const tbody = body.querySelector("#adm-tbody");
+  const sortVal = (m, k) => {
+    switch (k) {
+      case "name": return displayName(m).toLowerCase();
+      case "nickname": return (m.nickname || "").toLowerCase();
+      case "className": return roleOf(m, adminsSet) === "GV" ? "" : (m.className || "").toLowerCase();
+      case "expiry": return m.expiry || "9999-12-31";
+      case "role": return adminsSet.has(m.uid) ? 2 : (m.role === "GV" ? 1 : 0);
+      case "schoolId": return schoolName(m.schoolId).toLowerCase();
+      case "aiEnabled": return m.aiEnabled ? 1 : 0;
+      default: return m.status || "";
+    }
   };
-  draw("");
-  body.querySelector("#adm-search").addEventListener("input", (e) => draw(e.target.value));
+  const draw = () => {
+    const f = (admState.q || "").toLowerCase();
+    const list = members.filter((m) => !f || (m.username || "").includes(f) || (m.name || "").toLowerCase().includes(f) || (m.nickname || "").toLowerCase().includes(f) || (m.className || "").toLowerCase().includes(f));
+    list.sort((a, b) => {
+      const va = sortVal(a, admState.k), vb = sortVal(b, admState.k);
+      const c = (typeof va === "number" && typeof vb === "number") ? va - vb : String(va).localeCompare(String(vb), "vi");
+      return c * admState.dir;
+    });
+    tbody.innerHTML = "";
+    list.forEach((m) => { const r = memberRows(members, schools, adminsSet, m, schoolName); tbody.appendChild(r.tr); tbody.appendChild(r.detail); });
+    if (!list.length) tbody.innerHTML = "<tr><td colspan='8'>Không có thành viên nào khớp.</td></tr>";
+    body.querySelectorAll("#adm-table th").forEach((th) => {
+      const base = th.textContent.replace(/ [▲▼]$/, "");
+      th.textContent = base + (th.dataset.k === admState.k ? (admState.dir === 1 ? " ▲" : " ▼") : "");
+    });
+  };
+  draw();
+  body.querySelectorAll("#adm-table th").forEach((th) => th.addEventListener("click", () => {
+    const k = th.dataset.k;
+    if (admState.k === k) admState.dir = -admState.dir; else { admState.k = k; admState.dir = 1; }
+    draw();
+  }));
+  const searchEl = body.querySelector("#adm-search");
+  searchEl.value = admState.q;
+  searchEl.addEventListener("input", (e) => { admState.q = e.target.value; draw(); });
+  body.querySelector("#adm-school-add").addEventListener("click", async () => {
+    const name = body.querySelector("#adm-school-name").value.trim();
+    if (!name) { alert("Thầy nhập tên trường trước đã ạ."); return; }
+    try { await addDoc(collection(db, "schools"), { name, createdAt: serverTimestamp() }); openAdminPanel(); }
+    catch (e) { alert(errText(e.code)); }
+  });
+  body.querySelectorAll("[data-del-school]").forEach((a) => a.addEventListener("click", async (ev) => {
+    ev.preventDefault();
+    const s = schools.find((x) => x.id === a.dataset.delSchool);
+    if (!confirm("Xoá trường “" + (s ? s.name : "") + "”? Thành viên đã gán trường này sẽ thành chưa gán trường (tài khoản không bị xoá).")) return;
+    try { await deleteDoc(doc(db, "schools", a.dataset.delSchool)); openAdminPanel(); } catch (e) { alert(errText(e.code)); }
+  }));
   body.querySelector("#adm-addbtn").addEventListener("click", () => {
     const f = body.querySelector("#adm-addform");
     f.style.display = f.style.display === "none" ? "" : "none";
@@ -501,7 +658,9 @@ function renderAdminList(body, members) {
     const cls = body.querySelector("#ad-class").value.trim();
     const u = body.querySelector("#ad-user").value;
     const p = body.querySelector("#ad-pass").value;
-    if (!name || !cls || !usernameOk(u) || p.length < 6) { msg.textContent = "Kiểm tra lại: cần đủ họ tên, lớp, tên đăng nhập hợp lệ, mật khẩu ≥ 6 ký tự."; return; }
+    const role = body.querySelector("#ad-role").value;
+    const schoolId = body.querySelector("#ad-school").value;
+    if (!name || !usernameOk(u) || p.length < 6 || (role !== "GV" && !cls)) { msg.textContent = "Kiểm tra lại: cần họ tên, tên đăng nhập hợp lệ, mật khẩu ≥ 6 ký tự; HS cần có lớp."; return; }
     msg.textContent = "Đang tạo…";
     let secondary = null;
     try {
@@ -509,14 +668,14 @@ function renderAdminList(body, members) {
       const sAuth = getAuth(secondary);
       const cred = await createUserWithEmailAndPassword(sAuth, emailFor(u), p);
       await setDoc(doc(db, "profiles", cred.user.uid), {
-        username: u.trim().toLowerCase(), name, className: cls, nickname: "", aiEnabled: false, role: "member",
+        username: u.trim().toLowerCase(), name, className: cls, nickname: "", aiEnabled: false,
+        role: role === "GV" ? "GV" : "HS", schoolId,
         status: "pending", expiry: null, createdAt: serverTimestamp()
       });
       await updateDoc(doc(db, "profiles", cred.user.uid), { status: "active" });
       await signOut(sAuth);
       msg.textContent = "Đã tạo và kích hoạt: " + u.trim().toLowerCase();
-      const nm = { uid: cred.user.uid, username: u.trim().toLowerCase(), name, className: cls, nickname: "", aiEnabled: false, role: "member", status: "active", expiry: null };
-      members.push(nm); members.sort((a, b) => (a.username || "").localeCompare(b.username || "")); draw(body.querySelector("#adm-search").value);
+      openAdminPanel();
     } catch (e) {
       msg.textContent = errText(e.code);
     } finally {
@@ -525,50 +684,91 @@ function renderAdminList(body, members) {
   });
 }
 
-function memberRow(body, members, m) {
-  const row = document.createElement("div");
-  row.className = "tt-mrow";
+function memberRows(members, schools, adminsSet, m, schoolName) {
+  const role = roleOf(m, adminsSet);
   const expired = isExpired(m);
-  const statusLabel = m.status === "pending" ? "Chờ kích hoạt" : m.status === "stopped" ? "Đã ngừng" : expired ? "Hết hạn" : "Đang dùng";
-  const badgeCls = m.status === "pending" ? "tt-b-pending" : m.status === "stopped" ? "tt-b-stopped" : expired ? "tt-b-stopped" : "tt-b-active";
-  row.innerHTML = `
-    <div class="tt-mhead"><b>${esc(displayName(m))}</b> <span style="color:#666">(@${esc(m.username || "")})</span> · Lớp ${esc(m.className || "")}
-      <span class="tt-badge ${badgeCls}">${statusLabel}</span>${m.aiEnabled ? ' <span class="tt-badge tt-b-active">✨ AI</span>' : ""}</div>
-    <div style="font-size:13px;color:#555;margin-bottom:6px">Hạn dùng: ${m.expiry ? "đến hết ngày " + esc(m.expiry) : "không giới hạn"}</div>
-    <div class="tt-acts">
-      <button data-a="toggle">${m.status === "active" ? "Ngừng" : "Kích hoạt"}</button>
-      <button data-a="forever">Vĩnh viễn</button>
-      <button data-a="d30">+30 ngày</button>
-      <button data-a="d90">+90 ngày</button>
-      <input type="date" data-a="date" value="${m.expiry || ""}">
-      <button data-a="setdate">Đặt hạn</button>
-      <button data-a="edit">Sửa thông tin</button>
-      <button data-a="ai">${m.aiEnabled ? "✨ AI: Đang bật" : "✨ AI: Đang tắt"}</button>
-      <button data-a="reset">🔑 Đặt lại MK</button>
-      <button data-a="hist">Lịch sử</button>
-      <button data-a="del" class="danger">Xoá hồ sơ</button>
-    </div>
-    <div class="tt-histbox"></div>`;
+  const statusLabel = m.status === "pending" ? "Chờ kích hoạt" : m.status === "stopped" ? "Đã khoá" : expired ? "Hết hạn" : "Đang dùng";
+  const badgeCls = m.status === "pending" ? "tt-b-pending" : (m.status === "stopped" || expired) ? "tt-b-stopped" : "tt-b-active";
   const ref = doc(db, "profiles", m.uid);
   const reload = () => openAdminPanel();
   const upd = async (data) => { try { await updateDoc(ref, data); Object.assign(m, data); reload(); } catch (e) { alert(errText(e.code)); } };
-  row.querySelector('[data-a="toggle"]').addEventListener("click", () => upd({ status: m.status === "active" ? "stopped" : "active" }));
-  row.querySelector('[data-a="forever"]').addEventListener("click", () => upd({ expiry: null, status: m.status === "pending" ? "pending" : "active" }));
-  row.querySelector('[data-a="d30"]').addEventListener("click", () => { const base = m.expiry && m.expiry > todayStr() ? m.expiry : todayStr(); upd({ expiry: addDaysStr(base, 30) }); });
-  row.querySelector('[data-a="d90"]').addEventListener("click", () => { const base = m.expiry && m.expiry > todayStr() ? m.expiry : todayStr(); upd({ expiry: addDaysStr(base, 90) }); });
-  row.querySelector('[data-a="setdate"]').addEventListener("click", () => {
-    const v = row.querySelector('[data-a="date"]').value;
-    if (v) upd({ expiry: v }); else alert("Thầy chọn ngày trước đã ạ.");
-  });
-  row.querySelector('[data-a="edit"]').addEventListener("click", async () => {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td><b>${m.aiEnabled ? `<span class="tt-rainbow">${esc(displayName(m))}</span>` : esc(displayName(m))}</b><br><span style="color:#888">@${esc(m.username || "")}</span><br><span class="tt-badge ${badgeCls}">${statusLabel}</span></td>
+    <td>${esc(m.nickname || "—")}</td>
+    <td>${role === "GV" ? "—" : esc(m.className || "")}</td>
+    <td>${m.expiry ? "đến " + esc(m.expiry) : "Vĩnh viễn"}</td>
+    <td>${role === "QT" ? '<span class="tt-badge tt-b-active">Quản trị</span>' : `<select data-f="role"><option value="HS"${role === "HS" ? " selected" : ""}>HS</option><option value="GV"${role === "GV" ? " selected" : ""}>GV</option></select>`}</td>
+    <td><select data-f="school"><option value="">— Chưa gán —</option>${schools.map((s) => `<option value="${s.id}"${m.schoolId === s.id ? " selected" : ""}>${esc(s.name)}</option>`).join("")}</select></td>
+    <td style="text-align:center"><input type="checkbox" data-f="ai" ${m.aiEnabled ? "checked" : ""} style="width:18px;height:18px"></td>
+    <td><div class="tt-acts" style="flex-wrap:wrap">
+      <button data-a="edit">Sửa</button>
+      <button data-a="toggle">${m.status === "active" ? "Khoá" : "Mở"}</button>
+      <button data-a="exp">Hạn</button>
+      <button data-a="hist">Lịch sử</button>
+      <button data-a="reset">Đặt lại MK</button>
+      <button data-a="del" class="danger">Xoá</button>
+    </div></td>`;
+  const detail = document.createElement("tr");
+  detail.className = "tt-detailrow";
+  detail.style.display = "none";
+  detail.innerHTML = `<td colspan="8">
+    <div data-block="exp"><b>Hạn dùng của ${esc(m.username || "")}:</b>
+      <div class="tt-acts" style="margin-top:6px">
+        <button data-e="forever">Vĩnh viễn</button>
+        <button data-e="d30">+30 ngày</button>
+        <button data-e="d90">+90 ngày</button>
+        <input type="date" data-e="date" value="${m.expiry || ""}">
+        <button data-e="setdate">Đặt hạn</button>
+      </div>
+    </div>
+    <div data-block="hist" style="display:none"><div class="tt-histbox"></div></div>
+    <div data-block="reset" style="display:none"><div class="tt-histbox"></div></div>
+  </td>`;
+  const showBlock = (name) => {
+    detail.style.display = "";
+    detail.querySelectorAll("[data-block]").forEach((b) => { b.style.display = b.dataset.block === name ? "" : "none"; });
+  };
+  const roleSel = tr.querySelector('[data-f="role"]');
+  if (roleSel) roleSel.addEventListener("change", () => upd({ role: roleSel.value }));
+  tr.querySelector('[data-f="school"]').addEventListener("change", (e) => upd({ schoolId: e.target.value }));
+  tr.querySelector('[data-f="ai"]').addEventListener("change", (e) => upd({ aiEnabled: e.target.checked }));
+  tr.querySelector('[data-a="toggle"]').addEventListener("click", () => upd({ status: m.status === "active" ? "stopped" : "active" }));
+  tr.querySelector('[data-a="edit"]').addEventListener("click", async () => {
     const name = prompt("Họ và tên:", m.name || ""); if (name === null) return;
-    const cls = prompt("Lớp:", m.className || ""); if (cls === null) return;
-    const nick = prompt("Biệt danh (để trống nếu không có — có biệt danh thì hiển thị biệt danh thay họ tên):", m.nickname || ""); if (nick === null) return;
-    upd({ name: name.trim(), className: cls.trim(), nickname: nick.trim() });
+    let cls = m.className || "";
+    if (role !== "GV") { cls = prompt("Lớp:", cls); if (cls === null) return; }
+    const nick = prompt("Biệt danh (để trống nếu không có — chỉ quản trị đặt):", m.nickname || ""); if (nick === null) return;
+    upd({ name: name.trim(), className: (cls || "").trim(), nickname: nick.trim() });
   });
-  row.querySelector('[data-a="ai"]').addEventListener("click", () => upd({ aiEnabled: !m.aiEnabled }));
-  row.querySelector('[data-a="reset"]').addEventListener("click", () => {
-    const box = row.querySelector(".tt-histbox");
+  tr.querySelector('[data-a="del"]').addEventListener("click", async () => {
+    if (!confirm("Xoá HỒ SƠ của " + m.username + "? (Tài khoản đăng nhập vẫn còn trên Firebase; muốn xoá hẳn/đặt lại mật khẩu thì dùng nút Đặt lại MK hoặc xoá tài khoản trong Firebase Console.)")) return;
+    try { await deleteDoc(ref); reload(); } catch (e) { alert(errText(e.code)); }
+  });
+  tr.querySelector('[data-a="exp"]').addEventListener("click", () => showBlock("exp"));
+  detail.querySelector('[data-e="forever"]').addEventListener("click", () => upd({ expiry: null, status: m.status === "pending" ? "pending" : "active" }));
+  detail.querySelector('[data-e="d30"]').addEventListener("click", () => { const base = m.expiry && m.expiry > todayStr() ? m.expiry : todayStr(); upd({ expiry: addDaysStr(base, 30) }); });
+  detail.querySelector('[data-e="d90"]').addEventListener("click", () => { const base = m.expiry && m.expiry > todayStr() ? m.expiry : todayStr(); upd({ expiry: addDaysStr(base, 90) }); });
+  detail.querySelector('[data-e="setdate"]').addEventListener("click", () => { const v = detail.querySelector('[data-e="date"]').value; if (v) upd({ expiry: v }); else alert("Thầy chọn ngày trước đã ạ."); });
+  tr.querySelector('[data-a="hist"]').addEventListener("click", async () => {
+    showBlock("hist");
+    const box = detail.querySelector('[data-block="hist"] .tt-histbox');
+    box.innerHTML = "Đang tải lịch sử…";
+    try {
+      const snap = await getDocs(query(collection(db, "history"), where("uid", "==", m.uid)));
+      const items = [];
+      snap.forEach((d) => items.push(d.data()));
+      items.sort((a, b) => ((b.at && b.at.seconds) || 0) - ((a.at && a.at.seconds) || 0));
+      if (!items.length) { box.innerHTML = "<div class='tt-hist'>Chưa có bài làm nào được đồng bộ từ máy của học sinh này.</div>"; return; }
+      box.innerHTML = items.slice(0, 50).map((it) => {
+        const e = it.entry || {};
+        return `<div class="tt-hist">🗓 ${esc(e.date || "")} · ${esc(it.kindLabel || "")}${it.speedLabel ? " · " + esc(it.speedLabel) : ""} · <b>${esc(fmtScore(e.score))}/10</b> · đúng ${esc(e.correct ?? "")}/${esc(e.total ?? "")} · “${esc(e.msg || "")}”</div>`;
+      }).join("");
+    } catch (e) { box.innerHTML = esc(errText(e.code)); }
+  });
+  tr.querySelector('[data-a="reset"]').addEventListener("click", () => {
+    showBlock("reset");
+    const box = detail.querySelector('[data-block="reset"] .tt-histbox');
     const email = emailFor(m.username || "");
     const url = "https://console.firebase.google.com/project/" + (cfg.projectId || "") + "/authentication/users";
     box.innerHTML = `<div class="tt-hist" style="text-align:left;line-height:1.55">
@@ -583,32 +783,13 @@ function memberRow(body, members, m) {
         <button data-r="hide">Để sau</button>
       </div></div>`;
     box.querySelector('[data-r="open"]').addEventListener("click", () => window.open(url, "_blank"));
-    box.querySelector('[data-r="hide"]').addEventListener("click", () => { box.innerHTML = ""; });
+    box.querySelector('[data-r="hide"]').addEventListener("click", () => { detail.style.display = "none"; });
     box.querySelector('[data-r="clean"]').addEventListener("click", async () => {
       if (!confirm("Thầy đã xoá tài khoản " + email + " trong trang Google rồi chứ ạ? Bấm OK để em dọn hồ sơ cũ của " + m.username + ".")) return;
       try { await deleteDoc(ref); reload(); } catch (e) { alert(errText(e.code)); }
     });
   });
-  row.querySelector('[data-a="del"]').addEventListener("click", async () => {
-    if (!confirm("Xoá HỒ SƠ của " + m.username + "? (Tài khoản đăng nhập vẫn còn trên Firebase; muốn xoá hẳn/đặt lại mật khẩu thì xoá tài khoản trong Firebase Console — xem hướng dẫn Phần J.)")) return;
-    try { await deleteDoc(ref); reload(); } catch (e) { alert(errText(e.code)); }
-  });
-  row.querySelector('[data-a="hist"]').addEventListener("click", async () => {
-    const box = row.querySelector(".tt-histbox");
-    box.innerHTML = "Đang tải lịch sử…";
-    try {
-      const snap = await getDocs(query(collection(db, "history"), where("uid", "==", m.uid)));
-      const items = [];
-      snap.forEach((d) => items.push(d.data()));
-      items.sort((a, b) => ((b.at && b.at.seconds) || 0) - ((a.at && a.at.seconds) || 0));
-      if (!items.length) { box.innerHTML = "<div class='tt-hist'>Chưa có bài làm nào được đồng bộ từ máy của học sinh này.</div>"; return; }
-      box.innerHTML = items.slice(0, 50).map((it) => {
-        const e = it.entry || {};
-        return `<div class="tt-hist">🗓 ${esc(e.date || "")} · ${esc(e.kind || "")} · <b>${esc(e.score ?? "")}/10</b> · đúng ${esc(e.correct ?? "")}/${esc(e.total ?? "")} · “${esc(e.msg || "")}”</div>`;
-      }).join("");
-    } catch (e) { box.innerHTML = esc(errText(e.code)); }
-  });
-  return row;
+  return { tr, detail };
 }
 
 /* ---------------- AI tạo bản tin ---------------- */

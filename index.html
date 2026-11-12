@@ -278,18 +278,18 @@
         <div class="panel">
           <h2>Bản tin</h2>
           <div class="srcrow" role="radiogroup" aria-label="Nguồn bản tin">
-            <label class="radio-pill"><input type="radio" name="src" value="custom" checked /> Tự nhập bản tin</label>
-            <label class="radio-pill"><input type="radio" name="src" value="auto" /> Hệ thống tự tạo</label>
+            <label class="radio-pill"><input type="radio" name="src" value="custom" /> Tự nhập bản tin</label>
+            <label class="radio-pill"><input type="radio" name="src" value="auto" checked /> Hệ thống tự tạo</label>
           </div>
 
-          <div id="customBox">
+          <div id="customBox" class="hidden">
             <div class="field">
               <label for="customText">Nội dung bản tin (gõ tiếng Việt có dấu thoải mái)</label>
               <textarea id="customText" rows="2">ĐỘI EM HỌC TẬP TỐT</textarea>
             </div>
           </div>
 
-          <div id="autoBox" class="hidden">
+          <div id="autoBox">
             <div class="fieldrow">
               <div class="field">
                 <label for="diffSel">Mức độ</label>
@@ -334,6 +334,11 @@
           <!-- Semaphore stage -->
           <div id="semStage" class="hidden">
             <div class="semfig" id="mainSemFig"></div>
+            <div class="figstyle" style="display:flex;gap:6px;justify-content:center;align-items:center;margin-top:6px">
+              <span class="muted">Hình người:</span>
+              <button class="btn ghost" id="figStickBtn" style="padding:4px 12px">Người que</button>
+              <button class="btn ghost" id="fig3dBtn" style="padding:4px 12px">Người 3D</button>
+            </div>
             <div class="nowchar" aria-live="polite">
               <span class="ch" id="nowSemChar"></span>
               <span class="code" id="nowSemCode"></span>
@@ -921,16 +926,65 @@ requestAnimationFrame(clothLoop);
    TUYỆT ĐỐI không xoay tay/cẳng tay bằng CSS (transform + origin):
    tâm quay CSS bị lệch khỏi điểm vai thật khiến tay tách khỏi thân. */
 const SEM_VB = { x:-15, y:-45, w:230, h:264 };
-function semFigureSVG(idPrefix, animated, useCloth){
+function fig3dOn(){ try { return localStorage.getItem("tt_fig3d") === "1"; } catch(e){ return false; } }
+function semFigureSVG(idPrefix, animated, useCloth, v3d){
   /* Tay 2 đoạn: vai (100,62) -> khuỷu (100,95) -> bàn tay (100,128).
      Đoạn cánh tay trên BẮT ĐẦU ĐÚNG TẠI ĐIỂM VAI (100,62) trên thân,
      cẳng tay bắt đầu đúng tại điểm khuỷu (100,95).
      Cán cờ trùng trọn cạnh hoist của lá cờ và cạnh đó thuộc tam giác ĐỎ.
      MỌI hình (động, hình lớn và 26 hình mini tĩnh) đều dùng vải lưới điểm
      (flagMesh) với dáng rủ trọng lực — không còn hình vuông cứng ở đâu cả;
-     hình tĩnh được registerCloth để lưới giữ dáng rủ đúng theo góc tay. */
+     hình tĩnh được registerCloth để lưới giữ dáng rủ đúng theo góc tay.
+     Biến thể v3d (chỉ dùng cho sân khấu chính khi chọn "Người 3D"): cùng
+     khung xương, cùng id nhóm tay và cùng tâm quay — chỉ thay cách vẽ
+     (thân có khối, đầu có tóc/mặt, tay chân to bản có màu) nên toàn bộ
+     cơ chế chuyển tay, gấp khuỷu và vải cờ dùng chung không đổi. */
   const flagL = flagMesh(idPrefix, "L");
   const flagR = flagMesh(idPrefix, "R");
+  if (v3d){
+    const gS = idPrefix + "G3Shirt", gP = idPrefix + "G3Pants";
+    return `<svg viewBox="${SEM_VB.x} ${SEM_VB.y} ${SEM_VB.w} ${SEM_VB.h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Hình người phát semaphore">
+   <defs>
+    <linearGradient id="${gS}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b8dd9"/><stop offset="1" stop-color="#2f5aa8"/></linearGradient>
+    <linearGradient id="${gP}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#33507e"/><stop offset="1" stop-color="#22385c"/></linearGradient>
+   </defs>
+   <g id="${idPrefix}Figure">
+    <ellipse cx="100" cy="190" rx="36" ry="6" fill="#000" opacity="0.08"/>
+    <line x1="96" y1="110" x2="83" y2="178" stroke="url(#${gP})" stroke-width="13" stroke-linecap="round"/>
+    <line x1="104" y1="110" x2="117" y2="178" stroke="url(#${gP})" stroke-width="13" stroke-linecap="round"/>
+    <ellipse cx="79" cy="184" rx="10" ry="4.5" fill="#333"/>
+    <ellipse cx="121" cy="184" rx="10" ry="4.5" fill="#333"/>
+    <rect x="94" y="42" width="12" height="14" fill="#f2c79b"/>
+    <path d="M83,54 Q100,46 117,54 L112,110 Q100,119 88,110 Z" fill="url(#${gS})" stroke="#1d3557" stroke-width="1.5"/>
+    <path d="M91,52 L100,62 L109,52 L109,58 L100,68 L91,58 Z" fill="#f4f6fb"/>
+    <circle cx="100" cy="33" r="16" fill="#f2c79b" stroke="#8a5a2b" stroke-width="1.5"/>
+    <path d="M84,28 A16,16 0 0 1 116,28 A32,32 0 0 0 84,28 Z" fill="#3a2a18"/>
+    <circle cx="94" cy="36" r="1.7" fill="#222"/>
+    <circle cx="106" cy="36" r="1.7" fill="#222"/>
+    <path d="M95,42.5 Q100,45.5 105,42.5" stroke="#a05a2c" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    <g id="${idPrefix}ArmL">
+      <line x1="100" y1="62" x2="100" y2="95" stroke="#2f5aa8" stroke-width="11" stroke-linecap="round"/>
+      <g id="${idPrefix}ForeL">
+        <line x1="100" y1="95" x2="100" y2="128" stroke="#f2c79b" stroke-width="8.5" stroke-linecap="round"/>
+        <circle cx="100" cy="95" r="4.5" fill="#e8b184"/>
+        <rect x="97.2" y="104" width="5.6" height="42" fill="#7a5a26"/>
+        <circle cx="100" cy="124" r="5.2" fill="#f2c79b" stroke="#8a5a2b" stroke-width="1"/>
+        ${flagL}
+      </g>
+    </g>
+    <g id="${idPrefix}ArmR">
+      <line x1="100" y1="62" x2="100" y2="95" stroke="#2f5aa8" stroke-width="11" stroke-linecap="round"/>
+      <g id="${idPrefix}ForeR">
+        <line x1="100" y1="95" x2="100" y2="128" stroke="#f2c79b" stroke-width="8.5" stroke-linecap="round"/>
+        <circle cx="100" cy="95" r="4.5" fill="#e8b184"/>
+        <rect x="97.2" y="104" width="5.6" height="42" fill="#7a5a26"/>
+        <circle cx="100" cy="124" r="5.2" fill="#f2c79b" stroke="#8a5a2b" stroke-width="1"/>
+        ${flagR}
+      </g>
+    </g>
+   </g>
+  </svg>`;
+  }
   return `<svg viewBox="${SEM_VB.x} ${SEM_VB.y} ${SEM_VB.w} ${SEM_VB.h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Hình người phát semaphore">
    <g id="${idPrefix}Figure">
     <circle cx="100" cy="34" r="16" fill="var(--panel2)" stroke="var(--ink)" stroke-width="3"/>
@@ -1159,7 +1213,7 @@ function buildMorseEvents(converted){
 const S = {
   activity: "nhan",        // nhan | phat
   kind: "morse",           // morse | sem
-  mode: "luyen",           // luyen | kiemtra
+  mode: "kiemtra",           // luyen | kiemtra
   show: true,
   submitted: false,
   plays: 0,
@@ -1709,7 +1763,7 @@ function applyLayout(){
 /* ============================================================
    KHỞI TẠO HÌNH & BẢNG TRA
    ============================================================ */
-$("mainSemFig").innerHTML = semFigureSVG("main", true, true);
+$("mainSemFig").innerHTML = semFigureSVG("main", true, true, fig3dOn());
 registerCloth("main");
 setFigure("main", SEM_REST, player.semState);
 $("draftSemFig").innerHTML = semFigureSVG("draft", true, true);
@@ -1717,6 +1771,23 @@ registerCloth("draft");
 $("bigSemFig").innerHTML = semFigureSVG("big", false, true);
 registerCloth("big");
 const bigState = { l:0, r:0, flex:0 };
+  /* Chọn kiểu hình người ở sân khấu chính: người que / người 3D */
+  function paintFigBtns(){
+    const on = fig3dOn();
+    const b1 = $("figStickBtn"), b2 = $("fig3dBtn");
+    if (b1){ b1.style.background = on ? "" : "var(--navy)"; b1.style.color = on ? "" : "#fff"; }
+    if (b2){ b2.style.background = on ? "var(--navy)" : ""; b2.style.color = on ? "#fff" : ""; }
+  }
+  function setFigStyle(v3){
+    try { localStorage.setItem("tt_fig3d", v3 ? "1" : "0"); } catch(e){}
+    $("mainSemFig").innerHTML = semFigureSVG("main", true, true, v3);
+    registerCloth("main");
+    applyFig("main", player.semState);
+    paintFigBtns();
+  }
+  if ($("figStickBtn")) $("figStickBtn").addEventListener("click", () => setFigStyle(false));
+  if ($("fig3dBtn")) $("fig3dBtn").addEventListener("click", () => setFigStyle(true));
+  paintFigBtns();
 
 /* Vòng chọn vị trí cờ (2 tay) */
 function buildDial(el, isLeft){
@@ -1897,7 +1968,7 @@ renderHistory();
 </script>
 
 
-  <script src="app-config.js?v=6"></script>
-<script type="module" src="auth-layer.js?v=6"></script>
+  <script src="app-config.js?v=7"></script>
+<script type="module" src="auth-layer.js?v=7"></script>
 </body>
 </html>
