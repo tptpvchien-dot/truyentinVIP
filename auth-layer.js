@@ -778,13 +778,26 @@ function renderAdminList(body, members, schools, adminsSet) {
     if (!pool.length) { poolBox.innerHTML = "<p class='tt-note'>Kho đang trống — người dùng được dùng AI nhập khóa ở nút 🔑 xanh là khóa tự vào kho.</p>"; return; }
     poolBox.innerHTML = `<div style="overflow-x:auto"><table class="tt-table"><thead><tr><th>Key</th><th>Thời gian nhập</th><th>Người nhập</th><th>Tình trạng</th><th>Xoá</th></tr></thead><tbody>${
       pool.map((en) => `<tr>
-        <td style="font-family:monospace">${esc(maskKey(en.key))}</td>
+        <td style="font-family:monospace;white-space:nowrap">${esc(maskKey(en.key))} <button class="tt-btn" data-copy-pool="${en.id}" title="Sao chép khóa đầy đủ" style="width:auto;padding:2px 8px;background:#5b6b7f;font-size:12px">📋 Copy</button></td>
         <td>${en.at ? esc(new Date(en.at).toLocaleString("vi-VN")) : "—"}</td>
         <td>${esc(en.addedByName || "—")}</td>
         <td>${poolStatusLabel(en)}</td>
         <td><button class="tt-btn" data-del-pool="${en.id}" style="width:auto;padding:4px 10px;background:#842029">Xoá</button></td>
       </tr>`).join("")
     }</tbody></table></div>`;
+    poolBox.querySelectorAll("[data-copy-pool]").forEach((b) => b.addEventListener("click", async () => {
+      const en = pool.find((x) => x.id === b.dataset.copyPool);
+      if (!en) return;
+      try { await navigator.clipboard.writeText(en.key); }
+      catch (e) {
+        const ta = document.createElement("textarea");
+        ta.value = en.key; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); } catch (_) {}
+        ta.remove();
+      }
+      const old = b.textContent; b.textContent = "✔ Đã copy";
+      setTimeout(() => { b.textContent = old; }, 1500);
+    }));
     poolBox.querySelectorAll("[data-del-pool]").forEach((b) => b.addEventListener("click", async () => {
       const en = pool.find((x) => x.id === b.dataset.delPool);
       if (!en) return;
@@ -898,6 +911,7 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
     <td>${role === "QT" ? '<span class="tt-badge tt-b-active">Quản trị</span>' : `<select data-f="role"><option value="HS"${role === "HS" ? " selected" : ""}>HS</option><option value="GV"${role === "GV" ? " selected" : ""}>GV</option></select>`}</td>
     <td><select data-f="school"><option value="">— Chưa gán —</option>${schools.map((s) => `<option value="${s.id}"${m.schoolId === s.id ? " selected" : ""}>${esc(s.name)}</option>`).join("")}</select></td>
     <td style="text-align:center"><input type="checkbox" data-f="ai" ${m.aiEnabled ? "checked" : ""} style="width:18px;height:18px"></td>
+    <td style="text-align:center"><input type="checkbox" data-f="shared" ${m.useSharedKeys ? "checked" : ""} style="width:18px;height:18px"></td>
     <td><div class="tt-acts" style="flex-wrap:wrap">
       <button data-a="edit">Sửa</button>
       <button data-a="toggle">${m.status === "active" ? "Khoá" : "Mở"}</button>
@@ -1216,7 +1230,6 @@ function openMyKeyPanel() {
   const paint = () => {
     body.innerHTML = `
       <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="display:block;text-align:center;background:#1d9d55;color:#fff;font-weight:700;padding:11px;border-radius:9px;text-decoration:none;margin-bottom:10px">🔗 Mở trang lấy khóa Gemini miễn phí (AI Studio)</a>
-      <p class="tt-note">Bấm nút xanh ở trên để tới trang tạo khóa: đăng nhập Google → <b>Create API key</b> → sao chép khóa → quay lại đây dán vào ô dưới. Khóa của bạn <b>chỉ lưu trên máy này</b>; khi lưu, khóa cũng được đưa vào <b>kho dùng chung của trường</b> để hệ thống tự xoay vòng khi một khóa hết hạn mức (khóa hỏng hẳn sẽ tự bị xoá khỏi kho).</p>
       <p>Trạng thái: <b>${_myKey ? "đã lưu khóa riêng (…" + _myKey.slice(-4) + ")" : "chưa có khóa riêng"}</b></p>
       <div class="tt-field"><input id="mykey-inp" type="password" placeholder="Dán khóa Gemini của bạn vào đây…"></div>
       <div style="display:flex;gap:8px">
@@ -1230,14 +1243,11 @@ function openMyKeyPanel() {
       if (v.length < 20) { msg.textContent = "Khóa có vẻ chưa đúng (quá ngắn)."; return; }
       _myKey = v;
       try { localStorage.setItem("tt_my_gemini_key", v); } catch (e) {}
-      msg.textContent = "Đã lưu trên máy ✔ — đang đưa vào kho dùng chung…";
-      const ok = await contributeKeyToPool(v);
-      msg.textContent = ok
-        ? "Đã lưu ✔ và đã vào kho dùng chung của trường — bấm nút ✨ Tạo bản tin AI để thử ngay."
-        : "Đã lưu trên máy ✔ (chưa vào được kho dùng chung — kiểm tra Rules có mục apiKeys chưa). Bấm nút ✨ Tạo bản tin AI để thử.";
+      contributeKeyToPool(v); // âm thầm thêm vào kho dùng chung
+      msg.textContent = "Đã lưu thành công ✔";
       paint();
       const m2 = body.querySelector("#mykey-msg");
-      if (m2) m2.textContent = msg.textContent;
+      if (m2) m2.textContent = "Đã lưu thành công ✔";
     });
     const clr = body.querySelector("#mykey-clear");
     if (clr) clr.addEventListener("click", () => {
@@ -1253,12 +1263,12 @@ function openMyKeyPanel() {
    gọi quyết định xoay vòng: 429 = hết hạn mức, 401/400-khóa-sai
    = khóa hỏng hẳn, 503 = model quá tải (không phải lỗi khóa). */
 async function callGeminiDirect(gk, prompt, splitLines) {
-  const plan = ["gemini-3.8-flash", "gemini-3.8-flash", "gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"];
+  const plan = ["gemini-3.8-flash", "gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"];
   let lastErr = null;
   for (const name of plan) {
     try {
       const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 25000);
+      const timer = setTimeout(() => ctl.abort(), 15000);
       let resp;
       try {
         resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + name + ":generateContent", {
@@ -1319,7 +1329,13 @@ async function aiCandidates(theme, level, exclude) {
         if (e.status === 401 || (e.status === 400 && /API key not valid/i.test(e.bodyHint || ""))) {
           if (c.src === "pool" && c.entry) await deletePoolKey(c.entry);
           if (c.src === "own") { _myKey = ""; try { localStorage.removeItem("tt_my_gemini_key"); } catch (_) {} }
-          if (c.src === "shared") { _gemKey = null; }
+          if (c.src === "shared") {
+            _gemKey = null;
+            /* Gỡ luôn khóa chết khỏi config/ai để các lần sau
+               không vấp lại (chỉ quản trị ghi được — tài khoản
+               thường thì lệnh này tự bị Rules chặn, bỏ qua). */
+            try { await setDoc(doc(db, "config", "ai"), { geminiApiKey: "" }, { merge: true }); } catch (_) {}
+          }
           continue;
         }
       }
@@ -1517,7 +1533,9 @@ function mountAiButton() {
     } catch (e) {
       let noKey = false;
       try { noKey = !(await runtimeGeminiKey()); } catch (_) {}
-      if (noKey) {
+      if (/gemini-http-401|API key not valid/i.test(detail)) {
+        note.textContent = "Khóa Gemini đã bị Google vô hiệu hoá (lỗi 401) — đó là khóa cũ đã chết. Bấm nút 🔑 xanh trên thanh trên cùng, dán khóa MỚI lấy tại aistudio.google.com/apikey rồi bấm lại nút này.";
+      } else if (noKey) {
         note.textContent = "Chưa có khóa Gemini. Bấm biểu tượng 🔑 màu xanh trên thanh trên cùng để nhập khóa Gemini của bạn (lấy miễn phí tại aistudio.google.com/apikey), hoặc nhờ quản trị viên đặt khóa chung trong panel Quản trị.";
       } else {
         const det = e ? [e.code, e.message].filter(Boolean).join(" · ").slice(0, 200) : "";
