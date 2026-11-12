@@ -1200,28 +1200,38 @@ async function deletePoolKey(entry) {
 async function verifyPoolKey(entry) {
   let verdict = null;
   try {
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 6000);
-    let resp;
-    try {
-      resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": entry.key },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: "Chào" }] }],
-          generationConfig: { maxOutputTokens: 5, thinkingConfig: { thinkingBudget: 0 } }
-        }),
-        signal: ctl.signal
-      });
-    } finally { clearTimeout(timer); }
-    if (resp.ok) verdict = "ok";
-    else if (resp.status === 429) verdict = "quota";
-    else if (resp.status === 401) verdict = "error";
-    else if (resp.status === 400) {
-      const t = await resp.text().catch(() => "");
-      if (/API key not valid/i.test(t)) verdict = "error";
+    /* Dò model của chính khóa này trước (mỗi tài khoản một tập
+       model khác nhau — gọi cứng một model sẽ oan cho khóa tốt
+       bằng lỗi 404), rồi gọi thử bằng model đầu tiên dùng được. */
+    const models = await modelsForKey(entry.key).catch((e) => { if (e && e.status === 401) verdict = "error"; return []; });
+    for (const name of models.slice(0, 3)) {
+      if (verdict) break;
+      try {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), 6000);
+        let resp;
+        try {
+          resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + name + ":generateContent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": entry.key },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: "Chào" }] }],
+              generationConfig: { maxOutputTokens: 5, thinkingConfig: { thinkingBudget: 0 } }
+            }),
+            signal: ctl.signal
+          });
+        } finally { clearTimeout(timer); }
+        if (resp.ok) verdict = "ok";
+        else if (resp.status === 429) verdict = "quota";
+        else if (resp.status === 401) verdict = "error";
+        else if (resp.status === 400) {
+          const t = await resp.text().catch(() => "");
+          if (/API key not valid/i.test(t)) verdict = "error";
+        }
+        /* 404: model này tài khoản không có — thử model kế tiếp */
+      } catch (e) { /* treo/mất mạng ở model này: thử model kế */ }
     }
-  } catch (e) { /* treo/mất mạng: chưa kết luận được */ }
+  } catch (e) { /* chưa kết luận được */ }
   entry.checkedAt = Date.now();
   if (verdict && verdict !== entry.status) {
     entry.status = verdict;
@@ -1311,52 +1321,153 @@ function openMyKeyPanel() {
   paint();
 }
 
-/* Gọi Gemini trực tiếp bằng MỘT khóa. Ném lỗi có .status để nơi
-   gọi quyết định xoay vòng: 429 = hết hạn mức, 401/400-khóa-sai
-   = khóa hỏng hẳn, 503 = model quá tải (không phải lỗi khóa). */
-async function callGeminiDirect(gk, prompt, splitLines, dl) {
-  /* gemini-3.5-flash là model chạy NHANH và ổn định cho tài khoản
-     mới (đo thực tế ~3 giây/lượt); 3.8-flash hay quá tải/treo nên
-     chỉ để dự phòng. Mỗi lượt tối đa 8 giây — quá là chuyển ngay. */
-  const plan = ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-2.5-flash"];
-  let lastErr = null;
-  for (const name of plan) {
+/* ============================================================
+   DÒ MODEL THEO TỪNG KHÓA — biện pháp triệt để cho lỗi 404.
+   Mỗi tài khoản Google được cấp MỘT TẬP MODEL KHÁC NHAU (tài
+   khoản này có gemini-3.5-flash, tài khoản khác lại không có —
+   gọi nhầm model là Google trả 404 dù khóa hoàn toàn tốt).
+   Vì vậy ứng dụng KHÔNG chốt cứng tên model nữa: với mỗi khóa,
+   nó hỏi Google "khóa này dùng được những model nào" (API
+   listModels), sắp xếp theo ưu tiên rồi thử lần lượt; model
+   nào gọi thành công được ghi nhớ (trên máy + bộ nhớ phiên) để
+   lần sau đi thẳng. Model bị 404 thì tự rớt khỏi danh sách của
+   khóa đó. Hạn mức miễn phí của Google tính RIÊNG TỪNG MODEL:
+   model này hết lượt ngày thì model khác của cùng khóa vẫn còn
+   — cơ chế dưới đây ghi nhớ (khóa, model) nào đã hết lượt hôm
+   nay / đang chờ hồi theo phút để không gọi phí lượt. */
+const _modelCache = {};   /* keyHash -> [tên model theo thứ tự ưu tiên] */
+const _modelCooldown = {}; /* keyHash|model -> mốc ms hết chờ (429 theo phút) */
+function orderModels(list) {
+  const score = (n) => {
+    let s = 100;
+    if (/flash-lite/i.test(n)) s = 0;        /* lite: hạn mức miễn phí/ngày cao nhất, trả lời nhanh */
+    else if (/flash/i.test(n)) s = 10;
+    else if (/pro/i.test(n)) s = 40;         /* pro: hạn mức miễn phí rất thấp, để sau cùng */
+    if (/preview|exp/i.test(n)) s += 25;     /* bản thử nghiệm: kém ổn định */
+    const ver = parseFloat((n.match(/(\d+\.\d+)/) || [0, 0])[1]) || 0;
+    return s - ver;                          /* cùng hạng: bản mới hơn xếp trước */
+  };
+  return [...list].sort((a, b) => score(a) - score(b));
+}
+async function modelsForKey(key, dl) {
+  const h = keyHash(key);
+  if (_modelCache[h]) return _modelCache[h];
+  let stored = null;
+  try { const s = localStorage.getItem("tt_models_" + h); if (s) stored = JSON.parse(s); } catch (e) {}
+  let list = null;
+  try {
+    const ctl = new AbortController();
+    const remain = dl ? dl - Date.now() : 6000;
+    const timer = setTimeout(() => ctl.abort(), Math.max(800, Math.min(6000, remain)));
+    let resp;
     try {
-      if (dl && Date.now() > dl) throw new Error("ai-timeout");
-      const remain = dl ? dl - Date.now() : 8000;
-      const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), Math.max(800, Math.min(8000, remain)));
-      let resp;
-      try {
-        resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + name + ":generateContent", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": gk },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            /* thinkingBudget 0: TẮT phần "suy nghĩ" của model —
-               việc soạn 8 câu ngắn không cần suy luận; tắt đi
-               thì trả lời nhanh (~2–3 giây), đủ 8 câu và sạch,
-               bật thì model ăn hết ngân sách token vào suy nghĩ
-               khiến câu bị cắt cụt, lẫn chú thích lạ. */
-            generationConfig: { temperature: 1.15, topP: 0.95, maxOutputTokens: 400, thinkingConfig: { thinkingBudget: 0 } }
-          }),
-          signal: ctl.signal
-        });
-      } finally { clearTimeout(timer); }
-      if (resp.status === 503) { const e = new Error("gemini-http-503"); e.status = 503; lastErr = e; await new Promise(r => setTimeout(r, 800)); continue; }
-      if (!resp.ok) {
-        const e = new Error("gemini-http-" + resp.status);
-        e.status = resp.status;
-        try { e.bodyHint = (await resp.text()).slice(0, 200); } catch (_) {}
-        throw e;
-      }
+      resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models", {
+        headers: { "x-goog-api-key": key }, signal: ctl.signal
+      });
+    } finally { clearTimeout(timer); }
+    if (resp.status === 401) { const e = new Error("gemini-http-401"); e.status = 401; throw e; }
+    if (resp.ok) {
       const data = await resp.json();
-      const parts = (((data.candidates || [])[0] || {}).content || {}).parts || [];
-      const lines = splitLines(parts.filter(p => !p.thought).map(p => p.text || "").join("\n"));
-      if (lines.length) return lines;
-      throw new Error("gemini-empty");
-    } catch (e) { lastErr = e; }
+      list = (data.models || [])
+        .filter((m) => ((m.supportedGenerationMethods || []).includes("generateContent")))
+        .map((m) => String(m.name || "").replace(/^models\//, ""))
+        .filter((n) => n && !/embedding|tts|image|audio|robotics|computer-use|aqa/i.test(n));
+    }
+  } catch (e) { if (e && e.status === 401) throw e; /* lỗi mạng khi dò: dùng danh sách dự phòng bên dưới */ }
+  let ordered;
+  if (list && list.length) ordered = orderModels(list);
+  else ordered = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
+  if (stored && stored.length) ordered = [...stored.filter((m) => ordered.includes(m)), ...ordered.filter((m) => !stored.includes(m))];
+  _modelCache[h] = ordered;
+  return ordered;
+}
+function noteModelWorks(key, name) {
+  const h = keyHash(key);
+  const cur = _modelCache[h] || [];
+  _modelCache[h] = [name, ...cur.filter((m) => m !== name)];
+  try { localStorage.setItem("tt_models_" + h, JSON.stringify(_modelCache[h].slice(0, 6))); } catch (e) {}
+}
+function removeModelForKey(key, name) {
+  const h = keyHash(key);
+  if (_modelCache[h]) _modelCache[h] = _modelCache[h].filter((m) => m !== name);
+  try { const s = localStorage.getItem("tt_models_" + h); if (s) localStorage.setItem("tt_models_" + h, JSON.stringify(JSON.parse(s).filter((m) => m !== name))); } catch (e) {}
+}
+function modelExhaustedToday(key, name) {
+  try { return localStorage.getItem("tt_q_" + keyHash(key) + "_" + name) === todayStr(); } catch (e) { return false; }
+}
+function markModelExhaustedToday(key, name) {
+  try { localStorage.setItem("tt_q_" + keyHash(key) + "_" + name, todayStr()); } catch (e) {}
+}
+function modelCooling(key, name) {
+  const until = _modelCooldown[keyHash(key) + "|" + name] || 0;
+  return Date.now() < until;
+}
+function markModelCooldown(key, name, ms) {
+  _modelCooldown[keyHash(key) + "|" + name] = Date.now() + ms;
+}
+
+/* Gọi Gemini trực tiếp bằng MỘT khóa: thử lần lượt các model
+   MÀ KHÓA ĐÓ THẬT SỰ CÓ (xem modelsForKey). Phân loại lỗi:
+   404 = tài khoản không có model này → bỏ model, thử model kế;
+   429 theo NGÀY = model này hết lượt hôm nay → ghi nhớ, thử
+   model kế của CÙNG khóa; 429 theo PHÚT = model này chờ ~60
+   giây → ghi nhớ ngắn hạn, thử tiếp; 503 = model quá tải → thử
+   model kế; 401/400-khóa-sai = khóa hỏng hẳn → ném lên ngay để
+   nơi gọi xử lý khóa (xoay khóa khác / tự xoá khỏi kho). */
+async function callGeminiDirect(gk, prompt, splitLines, dl) {
+  const models = await modelsForKey(gk, dl); /* ném 401 nếu khóa chết — nơi gọi xử lý */
+  let lastErr = null;
+  let tried = 0;
+  let skippedExhausted = 0;
+  for (const name of models) {
+    if (tried >= 4) break;
+    if (modelExhaustedToday(gk, name) || modelCooling(gk, name)) { skippedExhausted++; continue; }
+    if (dl && Date.now() > dl) throw new Error("ai-timeout");
+    tried++;
+    const remain = dl ? dl - Date.now() : 8000;
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), Math.max(800, Math.min(8000, remain)));
+    let resp;
+    try {
+      resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + name + ":generateContent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": gk },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          /* thinkingBudget 0: TẮT phần "suy nghĩ" của model —
+             việc soạn câu ngắn không cần suy luận; tắt đi thì
+             trả lời nhanh (~2–3 giây), đủ câu và sạch, bật thì
+             model ăn hết ngân sách token vào suy nghĩ khiến câu
+             bị cắt cụt, lẫn chú thích lạ. */
+          generationConfig: { temperature: 1.15, topP: 0.95, maxOutputTokens: 500, thinkingConfig: { thinkingBudget: 0 } }
+        }),
+        signal: ctl.signal
+      });
+    } catch (e) { lastErr = e; continue; /* treo/mất mạng ở model này: thử model kế */ }
+    finally { clearTimeout(timer); }
+    if (!resp.ok) {
+      const e = new Error("gemini-http-" + resp.status);
+      e.status = resp.status;
+      try { e.bodyHint = (await resp.text()).slice(0, 300); } catch (_) {}
+      if (resp.status === 401 || (resp.status === 400 && /API key not valid/i.test(e.bodyHint || ""))) throw e; /* khóa hỏng hẳn */
+      if (resp.status === 404) { removeModelForKey(gk, name); lastErr = e; continue; } /* tài khoản không có model này */
+      if (resp.status === 429) {
+        if (/per ?day|PerDay|DAILY/i.test(e.bodyHint || "")) markModelExhaustedToday(gk, name);
+        else markModelCooldown(gk, name, 60000);
+        lastErr = e; continue;
+      }
+      if (resp.status === 503) { lastErr = e; await new Promise(r => setTimeout(r, 600)); continue; }
+      lastErr = e; continue;
+    }
+    const data = await resp.json();
+    const parts = (((data.candidates || [])[0] || {}).content || {}).parts || [];
+    const lines = splitLines(parts.filter(p => !p.thought).map(p => p.text || "").join("\n"));
+    if (lines.length) { noteModelWorks(gk, name); return lines; }
+    lastErr = new Error("gemini-empty");
   }
+  /* Không thử được model nào vì tất cả đã hết lượt hôm nay /
+     đang chờ hồi: báo 429 để nơi gọi xoay sang khóa khác. */
+  if (!tried && skippedExhausted && !lastErr) { const e = new Error("gemini-http-429"); e.status = 429; throw e; }
   throw lastErr || new Error("gemini-direct-failed");
 }
 
@@ -1396,8 +1507,8 @@ async function aiCandidates(theme, level, exclude, deadlineTs, wordsAdj) {
     ? " Tuyệt đối KHÔNG lặp lại, không viết gần giống các câu sau đây: " + exclude.map(x => "“" + x + "”").join("; ") + "."
     : "";
   const hint = THEME_HINTS[theme] || theme;
-  const prompt = `Bạn là giáo viên tiểu học Việt Nam. Viết 8 câu TIẾNG VIỆT THUẦN, có dấu tiếng Việt đầy đủ, mỗi câu đúng một dòng. Chủ đề: ${theme} — cụ thể về ${hint}. Bối cảnh gợi ý cho một vài câu: ${aspect}. Nội dung tích cực, trong sáng, phù hợp học sinh tiểu học. Mỗi câu khoảng ${words}. ${numReq}
-QUY TẮC BẮT BUỘC về hình thức: mỗi câu CHỈ gồm chữ cái tiếng Việt và khoảng trắng${level === "nc" ? " cùng nhóm chữ số theo yêu cầu trên" : ""}. TUYỆT ĐỐI KHÔNG dùng: tiếng Anh hay bất kỳ ngoại ngữ nào, dấu ngoặc ( ), dấu hai chấm, dấu chấm hoặc dấu phẩy, dấu nháy đơn hay nháy kép, dấu gạch nối, mọi ký tự đặc biệt khác. Tám câu khác nhau hoàn toàn về nội dung và cách diễn đạt.${avoid}${lenHint} Chỉ in ra đúng 8 câu, không giải thích, không thêm bất kỳ ký tự nào khác.`;
+  const prompt = `Bạn là giáo viên tiểu học Việt Nam. Viết 10 câu TIẾNG VIỆT THUẦN, có dấu tiếng Việt đầy đủ, mỗi câu đúng một dòng. Chủ đề: ${theme} — cụ thể về ${hint}. Bối cảnh gợi ý cho một vài câu: ${aspect}. Nội dung tích cực, trong sáng, phù hợp học sinh tiểu học. Mỗi câu khoảng ${words}. ${numReq}
+QUY TẮC BẮT BUỘC về hình thức: mỗi câu CHỈ gồm chữ cái tiếng Việt và khoảng trắng${level === "nc" ? " cùng nhóm chữ số theo yêu cầu trên" : ""}. TUYỆT ĐỐI KHÔNG dùng: tiếng Anh hay bất kỳ ngoại ngữ nào, dấu ngoặc ( ), dấu hai chấm, dấu chấm hoặc dấu phẩy, dấu nháy đơn hay nháy kép, dấu gạch nối, mọi ký tự đặc biệt khác. Mười câu khác nhau hoàn toàn về nội dung và cách diễn đạt.${avoid}${lenHint} Chỉ in ra đúng 10 câu, không giải thích, không thêm bất kỳ ký tự nào khác.`;
   const splitLines = (text) => String(text || "").split(/\n+/).map((x) => x.replace(/^[\d\-.)\s"“”]+/, "").replace(/["“”.]+\s*$/, "").trim()).filter((x) => x.length > 2);
   /* ĐƯỜNG 1 — Gemini trực tiếp, XOAY VÒNG các khóa: riêng →
      kho dùng chung → khóa chung cũ. Hết quota (429): ghi nhận
@@ -1481,7 +1592,7 @@ function variantOfSeen(text, seen) {
 }
 
 /* Tạo bản tin bằng AI THẬT (Gemini qua Firebase AI Logic):
-   - Mỗi lần gọi AI viết 8 câu mới xoay quanh chủ đề (chủ đề đổi
+   - Mỗi lần gọi AI viết 10 câu mới xoay quanh chủ đề (chủ đề đổi
      ngẫu nhiên từng vòng) + một bối cảnh gợi ý ngẫu nhiên, nhiệt
      độ sáng tạo cao — nội dung đa dạng, không theo khuôn mẫu.
    - KHÔNG BAO GIỜ TRÙNG: câu được chọn phải chưa từng xuất hiện
@@ -1514,10 +1625,60 @@ function isCleanVn(text, level) {
   return groups.length === 0;
 }
 
+/* ============================================================
+   KHO ĐỆM BẢN TIN AI — để MỘT khóa tạo được THẬT NHIỀU bản tin.
+   Mỗi lần gọi Gemini, model viết 10 câu nhưng trước đây chỉ
+   dùng 1, bỏ 9 — phí phạm lớn nhất của hệ thống. Nay mọi câu
+   đạt chuẩn còn dư đều được CẤT vào kho đệm trên máy (theo mức
+   độ, kèm chủ đề); những lần bấm sau lấy thẳng trong kho ra
+   dùng, KHÔNG tốn thêm lượt gọi nào — một lần gọi nuôi được
+   tới ~10 bản tin, một khóa vì thế tạo được gấp nhiều lần,
+   mà các lần lấy trong kho còn ra kết quả NGAY LẬP TỨC.
+   Câu lấy từ kho vẫn được kiểm lại đầy đủ tại lúc lấy (sạch,
+   đúng dải, chưa từng dùng, không phải biến thể của câu đã
+   dùng) vì "vũ trụ đã dùng" thay đổi liên tục. */
+function aiBufferAll() { try { return JSON.parse(localStorage.getItem("tt_ai_buffer") || "{}"); } catch (e) { return {}; } }
+function aiBufferSave(all) { try { localStorage.setItem("tt_ai_buffer", JSON.stringify(all)); } catch (e) {} }
+function aiBufferStash(level, items) {
+  if (!items || !items.length) return;
+  const all = aiBufferAll();
+  const buf = all[level] || [];
+  const have = new Set(buf.map((x) => x.t.toUpperCase()));
+  for (const it of items) if (!have.has(it.t.toUpperCase())) { buf.push(it); have.add(it.t.toUpperCase()); }
+  all[level] = buf.slice(-40);
+  aiBufferSave(all);
+}
+function aiBufferTake(level, seen) {
+  const all = aiBufferAll();
+  const buf = all[level] || [];
+  if (!buf.length) return null;
+  const band = LEVEL_BANDS[level];
+  const keep = [];
+  let picked = null;
+  for (const it of buf) {
+    if (picked) { keep.push(it); continue; }
+    const c = it.t;
+    const conv = convertText(c);
+    const len = convertedLength(c);
+    if (isCleanVn(c, level) && len >= band.min && len <= band.max && !seen.has(conv) && !variantOfSeen(c, seen)) picked = it;
+    /* câu không còn đạt (đã bị dùng ở nơi khác) thì bỏ hẳn */
+  }
+  all[level] = keep;
+  aiBufferSave(all);
+  return picked;
+}
+
 async function generateMessageSmart(firstTheme, level) {
   const band = LEVEL_BANDS[level];
   const seen = allSeenSet();
   const raws = recentRaws();
+  /* ƯU TIÊN KHO ĐỆM: còn câu AI đạt chuẩn đã soạn sẵn thì lấy
+     ngay — không tốn lượt gọi, ra kết quả tức thì. */
+  const buffered = aiBufferTake(level, seen);
+  if (buffered) {
+    rememberSeen(convertText(buffered.t)); rememberRaw(buffered.t.toUpperCase());
+    return { text: buffered.t.toUpperCase(), ai: true, theme: buffered.th, buffered: true };
+  }
   /* Hạn chót 20 giây cho cả quá trình (mọi vòng, mọi khóa). */
   const deadline = Date.now() + 20000;
   let lastErr = null;
@@ -1529,15 +1690,29 @@ async function generateMessageSmart(firstTheme, level) {
       cands = await aiCandidates(theme, level, raws.slice(-10), deadline, adj);
     } catch (e) { lastErr = e; break; }
     const cleanLens = [];
+    const good = [];
     for (const c of cands) {
       if (!isCleanVn(c, level)) continue;
       const conv = convertText(c);
       const len = convertedLength(c);
       cleanLens.push(len);
-      if (len >= band.min && len <= band.max && !seen.has(conv) && !variantOfSeen(c, seen)) {
-        rememberSeen(conv); rememberRaw(c.toUpperCase());
-        return { text: c.toUpperCase(), ai: true, theme };
-      }
+      if (len >= band.min && len <= band.max && !seen.has(conv) && !variantOfSeen(c, seen)) good.push(c);
+    }
+    if (good.length) {
+      /* Dùng câu đầu; các câu đạt chuẩn còn lại CẤT VÀO KHO ĐỆM
+         cho những lần bấm sau (đây là cách một lần gọi AI nuôi
+         được nhiều bản tin). */
+      const pick = good[0];
+      const rest = good.slice(1).map((c) => ({ t: c, th: theme }));
+      /* LƯU Ý: câu cất kho KHÔNG ghi vào danh sách "đã thấy /
+         câu gần đây" — danh sách đó nằm trong tập kiểm tra
+         trùng, ghi vào là câu trong kho tự bị loại oan khi lấy
+         ra. Chống trùng cho kho dựa vào: cất kho khử trùng theo
+         câu chữ, lúc lấy ra kiểm lại toàn bộ (đã dùng ở nơi
+         khác thì bỏ), câu nào được lấy ra dùng mới ghi nhận. */
+      if (rest.length) aiBufferStash(level, rest);
+      rememberSeen(convertText(pick)); rememberRaw(pick.toUpperCase());
+      return { text: pick.toUpperCase(), ai: true, theme };
     }
     /* Không câu nào đạt: ghi nhận lệch về phía nào để vòng sau
        nhắc AI chỉnh độ dài — câu lệch bị bỏ, không cắt sửa. */
@@ -1654,7 +1829,9 @@ function mountAiButton() {
       }
       fillCustomText(outText);
       if (window.ttShowDone) window.ttShowDone();
-      note.textContent = "AI soạn mới · Chủ đề: " + (r.theme || theme) + " · " + convertedLength(outText) + " ký tự · không trùng các bản tin trước — đã đưa vào ô “Tự nhập bản tin”, chọn mục đó rồi Phát/Luyện như thường.";
+      note.textContent = r.buffered
+        ? "AI · Chủ đề: " + (r.theme || theme) + " · " + convertedLength(outText) + " ký tự — câu AI đã soạn sẵn trong kho đệm, lấy ra dùng ngay, không tốn thêm lượt gọi của khóa."
+        : "AI soạn mới · Chủ đề: " + (r.theme || theme) + " · " + convertedLength(outText) + " ký tự · không trùng các bản tin trước — đã đưa vào ô “Tự nhập bản tin”, chọn mục đó rồi Phát/Luyện như thường.";
     } catch (e) {
       /* AI lỗi vì bất kỳ lý do gì: TỰ ĐỘNG tạo ngay một bản tin
          thường cho lần bấm này và KHÔNG thay đổi chức năng của
@@ -1668,6 +1845,8 @@ function mountAiButton() {
         note.textContent = "Khóa Gemini đã hết hiệu lực — đã tạo sẵn bản tin thường cho lần này. Muốn dùng lại AI: bấm nút 🔑 xanh, dán khóa mới.";
       } else if (/gemini-http-429/.test(det)) {
         note.textContent = "Khóa Gemini đã hết lượt miễn phí lúc này (lỗi 429) — đã tạo sẵn bản tin thường cho lần này. Đợi ít phút cho lượt miễn phí hồi lại, hoặc thêm khóa khác vào kho dùng chung.";
+      } else if (/gemini-http-404/.test(det)) {
+        note.textContent = "Tài khoản của khóa này không được Google cấp model AI nào dùng được — đã tạo sẵn bản tin thường cho lần này. Thầy thử khóa của một tài khoản Google khác.";
       } else if (/ai-timeout/.test(det)) {
         note.textContent = "Google AI quá 20 giây chưa trả lời (máy chủ quá tải hoặc mạng chậm) — đã tạo sẵn bản tin thường cho lần này. Thầy bấm lại nút AI sau ít phút.";
       } else {

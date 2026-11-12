@@ -877,9 +877,9 @@ function nearestAngle(cur, target){ while (target - cur > 180) target -= 360; wh
    hơn hàng trên một chút; hướng rủ là trọng lực MÀN HÌNH (+y) quy về hệ
    cục bộ của cẳng tay qua góc tay hiện tại. Tay vung nhanh: quán tính
    (lò xo sim.s) tạm kéo vải lên / giảm độ rủ; tay dừng: vải chùm xuống
-   trở lại quanh DÁNG XUÔI XUỐNG với dao động tắt dần, lúc giữ yên chỉ
-   phấp phới rất nhẹ quanh dáng đó (sóng không đẩy mép vải vọt lên cao
-   hơn đầu cán ở các vị trí hướng lên).
+   trở lại quanh DÁNG XUÔI XUỐNG với dao động tắt dần; lúc giữ yên vải
+   đứng yên hẳn theo dáng rủ trọng lực, KHÔNG tự phấp phới (hiệu ứng
+   sóng chỉ có khi tay đang phất).
    Mỗi ô lưới đỏ/trắng theo vị trí tương đối so với đường chéo gốc nên đường
    chéo cong cùng vải. Áp dụng cho cả hình tĩnh (26 hình mini + hình lớn). */
 const CLOTH_C = 4, CLOTH_R = 3;
@@ -966,10 +966,13 @@ function clothPoint(prefix, side, sim, ci, ri, angDeg){
      đang vung thì quán tính tạm nâng vải lên nên độ rủ giảm tối đa ~55%,
      tay dừng (act -> 0, sim.s dao động tắt dần) thì rủ trở lại tối đa. */
   const sag = SAG_MAX * (1 - 0.7 * act) * u * u * (0.82 + 0.36 * v);
-  /* Sóng phấp phới QUANH DÁNG XUÔI XUỐNG: giữ yên chỉ rất nhẹ (amp ~0.7),
-     vung mạnh mới bay rõ; hướng sóng chính dọc theo trọng lực nên sóng
-     không đẩy mép vải vọt lên cao hơn đầu cán ở các vị trí hướng lên. */
-  const amp = 0.7 + Math.min(5, Math.abs(sim.s) * 0.28) + Math.min(3.5, Math.abs(sim.w || 0) * 0.16);
+  /* Sóng phấp phới QUANH DÁNG XUÔI XUỐNG: biên độ CHỈ từ vận động
+     thật của vải (sim.s / sim.w — cả hai đều do tay chuyển động
+     sinh ra). Tay đứng yên thì biên độ bằng 0: vải ĐỨNG YÊN theo
+     dáng rủ trọng lực, tuyệt đối không tự phấp phới — nhất là khi
+     cờ ở trên cao (chữ D), phấp phới lúc đứng yên làm người xem
+     mất tập trung (theo yêu cầu của thầy). */
+  const amp = Math.min(5, Math.abs(sim.s) * 0.28) + Math.min(3.5, Math.abs(sim.w || 0) * 0.16);
   const w = Math.sin(sim.t * 4.1 - u * 3.1 + v * 0.7) * 0.68 + Math.sin(sim.t * 6.7 - u * 4.9 + v * 1.2) * 0.32;
   const along = sag + w * amp * Math.pow(u, 1.25) + sim.s * 0.04 * u * u;
   /* Co nhẹ theo chiều trải vải khi sóng mạnh (vải không giãn) */
@@ -1243,6 +1246,13 @@ function applyFig(prefix, state){
   gR.setAttribute("transform", `rotate(${state.r || 0} ${aR.sx} ${aR.sy})`);
   let flexL = 0, flexR = 0;
   if (state.flex){ if ((state.flexSide || "R") === "L") flexL = -85 * state.flex; else flexR = 85 * state.flex; }
+  /* TƯ THẾ NGHỈ (cặp 0+0): KHÔNG buông tay xuôi xuống — cả hai
+     tay GẤP KHUỶU ôm vào bụng, cờ đặt ở bụng (theo yêu cầu của
+     thầy). Góc gấp 78° đưa bàn tay + cán cờ lên ngang bụng trước
+     thân; dấu gấp giống hệt cơ chế gấp tách chữ trùng (trái âm,
+     phải dương) nên hai cẳng tay ôm vào giữa. */
+  const rf = state.restFold || 0;
+  if (rf){ flexL += -78 * rf; flexR += 78 * rf; }
   flexL += state.animFlexL || 0;
   flexR += state.animFlexR || 0;
   const fL = $(prefix + "ForeL"), fR = $(prefix + "ForeR");
@@ -1251,22 +1261,24 @@ function applyFig(prefix, state){
   const inst = cloth[prefix];
   if (inst){ inst.angL = state.l || 0; inst.angR = state.r || 0; inst.flexL = flexL; inst.flexR = flexR; }
 }
-function animateFigureTo(prefix, state, tl, tr, holdMs){
+function animateFigureTo(prefix, state, tl, tr, holdMs, toFold){
   const fromL = state.l || 0, fromR = state.r || 0;
   const toL = nearestAngle(fromL, tl), toR = nearestAngle(fromR, tr);
+  const fromFold = state.restFold || 0;
+  const tFold = toFold || 0;
   const sweepL = Math.abs(toL - fromL), sweepR = Math.abs(toR - fromR);
   const sweep = Math.max(sweepL, sweepR);
   const dur = transDurMs(holdMs || semHoldMs(), sweep);
   state.animFlexL = 0; state.animFlexR = 0;
   if (dur <= 0){
     delete figAnims[prefix];
-    state.l = toL; state.r = toR;
+    state.l = toL; state.r = toR; state.restFold = tFold;
     applyFig(prefix, state);
     return 0;
   }
   let delayL = 0, delayR = 0;
   if (sweepL > 0.5 && sweepR > 0.5){ if (sweepL < sweepR) delayL = Math.round(dur * 0.06); else delayR = Math.round(dur * 0.06); }
-  figAnims[prefix] = { state, phase:"go", t0: performance.now(), dur, fromL, toL, fromR, toR, sweepL, sweepR, delayL, delayR,
+  figAnims[prefix] = { state, phase:"go", t0: performance.now(), dur, fromL, toL, fromR, toR, sweepL, sweepR, delayL, delayR, fromFold, toFold: tFold,
     ampL: sweepL > 0.5 ? Math.min(2, 0.5 + sweepL / 90) : 0, ampR: sweepR > 0.5 ? Math.min(2, 0.5 + sweepR / 90) : 0 };
   applyFig(prefix, state); /* khung đầu: góc đúng bằng góc chữ trước */
   return dur;
@@ -1277,6 +1289,10 @@ function stepFigAnim(prefix, now){
   const st = a.state;
   if (a.phase === "go"){
     let done = true;
+    /* Gấp/mở tư thế nghỉ chạy cùng nhịp chuyển tay (minimum-jerk
+       trên toàn quãng) để tay gấp vào bụng / mở ra mượt mà. */
+    const uAll = Math.min(1, Math.max(0, (now - a.t0) / a.dur));
+    st.restFold = a.fromFold + (a.toFold - a.fromFold) * minJerk(uAll);
     const arms = [
       { key:"l", fKey:"animFlexL", from:a.fromL, to:a.toL, sweep:a.sweepL, delay:a.delayL, sign:-1 },
       { key:"r", fKey:"animFlexR", from:a.fromR, to:a.toR, sweep:a.sweepR, delay:a.delayR, sign:1 }
@@ -1290,7 +1306,7 @@ function stepFigAnim(prefix, now){
       st[arm.fKey] = (u > 0 && u < 1) ? arm.sign * Math.sin(Math.PI * u) * (6 + 10 * Math.min(1, arm.sweep / 180)) : 0;
     });
     if (done){
-      st.l = a.toL; st.r = a.toR; st.animFlexL = 0; st.animFlexR = 0;
+      st.l = a.toL; st.r = a.toR; st.animFlexL = 0; st.animFlexR = 0; st.restFold = a.toFold;
       a.phase = "settle"; a.t0 = now;
     }
   } else { /* settle: nẩy dặt tắt dần quanh vị trí đích */
@@ -1347,14 +1363,20 @@ function setFigure(prefix, pair, state, holdMs){
   const gL = $(prefix + "ArmL"), gR = $(prefix + "ArmR");
   if (!gL || !gR) return 0;
   const tl = rotL(pl), tr = rotR(pr);
+  const isRest = pair[0] === 0 && pair[1] === 0; /* tư thế nghỉ: gấp khuỷu ôm cờ vào bụng */
   const inst = cloth[prefix];
   if (state){
-    return animateFigureTo(prefix, state, tl, tr, holdMs);
+    return animateFigureTo(prefix, state, tl, tr, holdMs, isRest ? 1 : 0);
   }
   const aL = anchorFor(prefix, "L"), aR = anchorFor(prefix, "R");
   gL.setAttribute("transform", `rotate(${tl} ${aL.sx} ${aL.sy})`);
   gR.setAttribute("transform", `rotate(${tr} ${aR.sx} ${aR.sy})`);
+  /* Hình tĩnh ở tư thế nghỉ cũng gấp khuỷu như hình động. */
+  const sFL = $(prefix + "ForeL"), sFR = $(prefix + "ForeR");
+  if (sFL) sFL.setAttribute("transform", `rotate(${isRest ? -78 : 0} ${aL.ex} ${aL.ey})`);
+  if (sFR) sFR.setAttribute("transform", `rotate(${isRest ? 78 : 0} ${aR.ex} ${aR.ey})`);
   if (inst){
+    inst.flexL = isRest ? -78 : 0; inst.flexR = isRest ? 78 : 0;
     inst.angL = tl; inst.angR = tr;
     if (inst.prevL !== null && inst.prevL !== undefined){ const d = Math.abs(tl - inst.prevL); if (d > 4) kickCloth(prefix, "L", d); }
     if (inst.prevR !== null && inst.prevR !== undefined){ const d = Math.abs(tr - inst.prevR); if (d > 4) kickCloth(prefix, "R", d); }
@@ -2356,7 +2378,7 @@ renderHistory();
 </script>
 
 
-  <script src="app-config.js?v=27"></script>
-<script type="module" src="auth-layer.js?v=27"></script>
+  <script src="app-config.js?v=29"></script>
+<script type="module" src="auth-layer.js?v=29"></script>
 </body>
 </html>
