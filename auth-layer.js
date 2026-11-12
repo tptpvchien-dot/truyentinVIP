@@ -1021,40 +1021,54 @@ async function openUsagePanel() {
 }
 
 /* ---------------- AI tạo bản tin ---------------- */
-const FALLBACK_PARTS = {
-  subjects: ["ĐỘI EM", "LỚP EM", "TỔ EM", "CHÚNG EM", "ĐỘI VIÊN", "HỌC SINH", "BẠN NHỎ", "CẢ LỚP"],
-  middles: [
-    "HỌC TẬP TỐT", "THI ĐUA HỌC GIỎI", "RÈN LUYỆN THÂN THỂ", "GIỮ GÌN TRẬT TỰ",
-    "ĐOÀN KẾT GIÚP BẠN", "CHĂM NGOAN HỌC GIỎI", "LÀM THEO LỜI BÁC", "YÊU QUÊ HƯƠNG",
-    "ĐI HỌC ĐÚNG GIỜ", "VƯỢT KHÓ HỌC TẬP", "GIỮ TRƯỜNG XANH SẠCH", "TUÂN THỦ LUẬT GIAO THÔNG"
-  ],
-  endings: ["", "", "", "MỖI NGÀY", "HÔM NAY", "THẬT TỐT", "VÌ TƯƠNG LAI", "ĐẠT KẾT QUẢ CAO"]
-};
-function fallbackSentence() {
-  const r = (a) => a[Math.floor(Math.random() * a.length)];
-  const e = r(FALLBACK_PARTS.endings);
-  return (r(FALLBACK_PARTS.subjects) + " " + r(FALLBACK_PARTS.middles) + (e ? " " + e : "")).trim();
-}
-
 function seenSet() {
   try { return new Set(JSON.parse(localStorage.getItem("tt_ai_seen") || "[]")); } catch (e) { return new Set(); }
 }
 function rememberSeen(conv) {
   const s = seenSet(); s.add(conv);
-  try { localStorage.setItem("tt_ai_seen", JSON.stringify([...s].slice(-300))); } catch (e) {}
+  try { localStorage.setItem("tt_ai_seen", JSON.stringify([...s].slice(-400))); } catch (e) {}
+}
+/* Các bản tin AI gần nhất (nguyên văn) — đưa vào prompt để AI
+   tránh lặp lại, đồng thời là một lớp chống trùng nữa. */
+function recentRaws() {
+  try { return JSON.parse(localStorage.getItem("tt_ai_raws") || "[]"); } catch (e) { return []; }
+}
+function rememberRaw(t) {
+  const a = recentRaws(); a.push(t);
+  try { localStorage.setItem("tt_ai_raws", JSON.stringify(a.slice(-14))); } catch (e) {}
+}
+/* Vũ trụ "đã dùng" để chống trùng TUYỆT ĐỐI trên máy này: mọi câu
+   AI đã tạo + toàn bộ ngân hàng câu hệ thống + mọi bản tin đã
+   nộp trong lịch sử làm bài. */
+function allSeenSet() {
+  const s = seenSet();
+  try { if (typeof BANK !== "undefined" && Array.isArray(BANK)) BANK.forEach(b => s.add(convertText(b.s))); } catch (e) {}
+  try { loadLocalHist().forEach(e => { if (e && e.msg) s.add(convertText(e.msg)); }); } catch (e) {}
+  recentRaws().forEach(t => s.add(convertText(t)));
+  return s;
 }
 
-async function aiCandidates(theme, level) {
+const AI_ASPECTS = [
+  "buổi chào cờ đầu tuần", "giờ ra chơi", "buổi sinh hoạt Đội", "trên đường đến trường",
+  "trong thư viện trường", "giờ thể dục", "buổi lao động vệ sinh", "ngày hội đọc sách",
+  "lớp học xanh sạch đẹp", "đội sao đỏ trực tuần", "tiết học ngoài trời", "buổi tập nghi thức Đội",
+  "giờ ăn bán trú", "buổi tập văn nghệ", "ngày hội thể thao", "góc học tập ở nhà"
+];
+async function aiCandidates(theme, level, exclude) {
   const mod = await import("https://www.gstatic.com/firebasejs/12.4.0/firebase-ai.js");
   const ai = mod.getAI(app, { backend: new mod.GoogleAIBackend() });
   const words = level === "de" ? "3 đến 5 từ" : level === "tb" ? "5 đến 7 từ" : level === "kho" ? "7 đến 10 từ" : "9 đến 12 từ";
   const numReq = level === "nc" ? " Mỗi câu phải kèm đúng một nhóm số viết bằng chữ số (ví dụ: 25, 150, 2026)." : " Câu không chứa bất kỳ chữ số nào.";
-  const prompt = `Bạn là giáo viên tiểu học Việt Nam. Viết 4 câu tiếng Việt, mỗi câu đúng một dòng, không đánh số, không dấu ngoặc kép, không dấu chấm cuối câu, viết hoa chữ cái đầu câu. Nội dung tích cực, phù hợp học sinh tiểu học, chủ đề: ${theme}. Mỗi câu khoảng ${words}.${numReq} Bốn câu phải khác nhau hoàn toàn về nội dung. Chỉ in ra 4 câu, không giải thích.`;
+  const aspect = AI_ASPECTS[Math.floor(Math.random() * AI_ASPECTS.length)];
+  const avoid = (exclude && exclude.length)
+    ? " Tuyệt đối KHÔNG lặp lại, không viết gần giống các câu sau đây: " + exclude.map(x => "“" + x + "”").join("; ") + "."
+    : "";
+  const prompt = `Bạn là giáo viên tiểu học Việt Nam, rất sáng tạo. Viết 8 câu tiếng Việt, mỗi câu đúng một dòng, không đánh số, không dấu ngoặc kép, không dấu chấm cuối câu, viết hoa chữ cái đầu câu. Nội dung tích cực, phù hợp học sinh tiểu học, chủ đề: ${theme}. Bối cảnh gợi ý cho một vài câu: ${aspect}. Mỗi câu khoảng ${words}.${numReq} Tám câu phải khác nhau hoàn toàn về nội dung, hình ảnh và cách diễn đạt.${avoid} Chỉ in ra 8 câu, không giải thích.`;
   const models = ["gemini-2.0-flash", "gemini-2.5-flash"];
   let lastErr = null;
   for (const name of models) {
     try {
-      const model = mod.getGenerativeModel(ai, { model: name });
+      const model = mod.getGenerativeModel(ai, { model: name, generationConfig: { temperature: 1.15, topP: 0.95 } });
       const res = await model.generateContent(prompt);
       const text = res.response.text();
       return text.split(/\n+/).map((x) => x.replace(/^[\d\-.)\s"“”]+/, "").replace(/["“”.]+\s*$/, "").trim()).filter((x) => x.length > 2);
@@ -1092,50 +1106,67 @@ function fitToBand(text, band, level) {
   return t;
 }
 
-async function generateMessageSmart(theme, level) {
+/* Chống trùng dạng "biến thể": một câu đã dùng cộng thêm vài từ
+   (hoặc bản rút gọn của một câu đã dùng dài hơn) cũng coi là
+   trùng — so khớp tiền tố theo từ trên dạng đã chuyển đổi. */
+function variantOfSeen(text, seen) {
+  const w = convertText(text).split(" ").filter(Boolean);
+  if (w.length < 3) return false;
+  for (const s of seen) {
+    const sw = s.split(" ").filter(Boolean);
+    if (sw.length >= 3 && sw.length <= w.length && sw.every((x, i) => x === w[i])) return true;
+    if (w.length >= 3 && w.length < sw.length && w.every((x, i) => x === sw[i])) return true;
+  }
+  return false;
+}
+
+/* Tạo bản tin bằng AI THẬT (Gemini qua Firebase AI Logic):
+   - Mỗi lần gọi AI viết 8 câu mới xoay quanh chủ đề (chủ đề đổi
+     ngẫu nhiên từng vòng) + một bối cảnh gợi ý ngẫu nhiên, nhiệt
+     độ sáng tạo cao — nội dung đa dạng, không theo khuôn mẫu.
+   - KHÔNG BAO GIỜ TRÙNG: câu được chọn phải chưa từng xuất hiện
+     trong "vũ trụ đã dùng" (câu AI đã tạo trên máy này + ngân
+     hàng hệ thống + bản tin đã nộp); các câu gần nhất còn được
+     ghi vào prompt để AI tránh lặp. Câu AI bị trùng hoặc là bản
+     rút gọn của câu đã dùng đều bị loại.
+   - Độ dài vẫn ép đúng dải của mức đã cài (fitToBand) trên CHÍNH
+     câu AI viết.
+   - Không còn bộ tạo dự phòng lặng lẽ thay thế: AI không dùng
+     được (chưa bật AI Logic / lỗi mạng / hết lượt) thì báo rõ
+     để người dùng biết, tuyệt đối không đưa câu ghép sẵn. */
+async function generateMessageSmart(firstTheme, level) {
   const band = LEVEL_BANDS[level];
-  const seen = seenSet();
-  const pickValid = (cands) => {
+  const seen = allSeenSet();
+  const raws = recentRaws();
+  let lastErr = null;
+  for (let round = 0; round < 3; round++) {
+    const theme = round === 0 ? firstTheme : THEMES[Math.floor(Math.random() * THEMES.length)];
+    let cands = [];
+    try {
+      cands = await aiCandidates(theme, level, raws.slice(-10));
+    } catch (e) { lastErr = e; break; }
     for (const c of cands) {
       const conv = convertText(c);
       const len = convertedLength(c);
-      if (len >= band.min && len <= band.max && !seen.has(conv)) return c;
+      if (len >= band.min && len <= band.max && !seen.has(conv) && !variantOfSeen(c, seen)) {
+        rememberSeen(conv); rememberRaw(c.toUpperCase());
+        return { text: c.toUpperCase(), ai: true, theme };
+      }
     }
-    return null;
-  };
-  let usedAi = false;
-  let cands = [];
-  try {
-    cands = await aiCandidates(theme, level);
-    const v = pickValid(cands);
-    if (v) { usedAi = true; rememberSeen(convertText(v)); return { text: v.toUpperCase(), ai: true }; }
-  } catch (e) { /* rơi xuống bộ tạo dự phòng */ }
-  /* AI có câu nhưng chưa câu nào vừa dải: ép câu của AI về đúng
-     dải của mức đã cài (cắt bớt từ cuối / thêm nhóm số) thay vì
-     bỏ hẳn — bản tin AI luôn đúng mức độ theo cài đặt. */
-  for (const c of cands) {
-    const f = fitToBand(c, band, level);
-    const conv = convertText(f);
-    const len = convertedLength(f);
-    if (len >= band.min && len <= band.max && !seen.has(conv)) {
-      rememberSeen(conv);
-      return { text: f.toUpperCase(), ai: true };
+    for (const c of cands) {
+      if (seen.has(convertText(c)) || variantOfSeen(c, seen)) continue;
+      const f = fitToBand(c, band, level);
+      const conv = convertText(f);
+      const len = convertedLength(f);
+      if (len >= band.min && len <= band.max && !seen.has(conv) && !variantOfSeen(f, seen)) {
+        rememberSeen(conv); rememberRaw(f.toUpperCase());
+        return { text: f.toUpperCase(), ai: true, theme };
+      }
     }
+    cands.forEach(c => { if (!raws.includes(c)) raws.push(c); });
   }
-  const mkCand = () => level === "nc" ? fallbackSentence() + " " + String(100 + Math.floor(Math.random() * 9900)) : fallbackSentence();
-  for (let i = 0; i < 80; i++) {
-    const c = fitToBand(mkCand(), band, level);
-    const conv = convertText(c);
-    const len = convertedLength(c);
-    if (len >= band.min && len <= band.max && !seen.has(conv)) {
-      rememberSeen(conv);
-      return { text: c, ai: usedAi };
-    }
-  }
-  /* Đường cuối cũng qua fitToBand: không bao giờ trả câu ngoài dải. */
-  const c = fitToBand(mkCand(), band, level);
-  rememberSeen(convertText(c));
-  return { text: c, ai: usedAi };
+  if (lastErr) throw lastErr;
+  return { error: "nodup", theme: firstTheme };
 }
 
 function fillCustomText(text) {
@@ -1194,6 +1225,12 @@ function mountAiButton() {
       const ds = $("diffSel");
       const level = ds && ds.value === "easy" ? "de" : ds && ds.value === "hard" ? "kho" : ds && ds.value === "adv" ? "nc" : "tb";
       const r = await generateMessageSmart(theme, level);
+      if (r.error) {
+        note.textContent = "AI chưa soạn được câu mới không trùng với các bản tin trước. Thầy bấm thử lại — mỗi lần bấm AI sẽ soạn theo chủ đề và bối cảnh khác.";
+        btn.disabled = false;
+        btn.textContent = "✨ Tạo bản tin AI";
+        return;
+      }
       let outText = r.text;
       /* Kiểm tra lại lần cuối ngay tại nút bấm: nếu kết quả vẫn
          lệch dải của mức đã cài (bất kể từ đường nào), ép lại
@@ -1212,9 +1249,9 @@ function mountAiButton() {
       }
       fillCustomText(outText);
       if (window.ttShowDone) window.ttShowDone();
-      note.textContent = (r.ai ? "AI soạn" : "Bộ tạo dự phòng") + " · Chủ đề: " + theme + " · " + convertedLength(outText) + " ký tự — đã đưa vào ô “Tự nhập bản tin”, chọn mục đó rồi Phát/Luyện như thường.";
+      note.textContent = "AI soạn mới · Chủ đề: " + (r.theme || theme) + " · " + convertedLength(outText) + " ký tự · không trùng các bản tin trước — đã đưa vào ô “Tự nhập bản tin”, chọn mục đó rồi Phát/Luyện như thường.";
     } catch (e) {
-      note.textContent = "Chưa tạo được câu. Kiểm tra mạng rồi thử lại.";
+      note.textContent = "AI chưa dùng được. Nếu chưa từng dùng được, rất có thể chưa bật AI Logic trong Firebase Console (vào dự án → mục AI Logic → Get started → chọn Gemini Developer API). Nếu đã bật mà vẫn lỗi, kiểm tra mạng rồi bấm thử lại.";
     }
     btn.disabled = false;
     btn.textContent = "✨ Tạo bản tin AI";
