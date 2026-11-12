@@ -94,8 +94,8 @@ const overlay = document.createElement("div");
 overlay.id = "tt-overlay";
 overlay.innerHTML = `
 <div id="tt-card">
-  <h1>🚩 Luyện truyền tin Morse &amp; Semaphore</h1>
-  <div class="tt-sub">Bản có tài khoản — đăng nhập để luyện tập</div>
+  <h1>🚩 Truyền tin</h1>
+  <div class="tt-sub">Luyện truyền tin Morse &amp; Semaphore — bản có tài khoản, đăng nhập để luyện tập</div>
   <div id="tt-view"></div>
 </div>`;
 document.body.appendChild(overlay);
@@ -963,8 +963,9 @@ function rememberSeen(conv) {
 async function aiCandidates(theme, level) {
   const mod = await import("https://www.gstatic.com/firebasejs/12.4.0/firebase-ai.js");
   const ai = mod.getAI(app, { backend: new mod.GoogleAIBackend() });
-  const words = level === "de" ? "3 đến 5 từ" : level === "tb" ? "5 đến 7 từ" : "7 đến 10 từ";
-  const prompt = `Bạn là giáo viên tiểu học Việt Nam. Viết 4 câu tiếng Việt, mỗi câu đúng một dòng, không đánh số, không dấu ngoặc kép, không dấu chấm cuối câu, viết hoa chữ cái đầu câu. Nội dung tích cực, phù hợp học sinh tiểu học, chủ đề: ${theme}. Mỗi câu khoảng ${words}. Bốn câu phải khác nhau hoàn toàn về nội dung. Chỉ in ra 4 câu, không giải thích.`;
+  const words = level === "de" ? "3 đến 5 từ" : level === "tb" ? "5 đến 7 từ" : level === "kho" ? "7 đến 10 từ" : "9 đến 12 từ";
+  const numReq = level === "nc" ? " Mỗi câu phải kèm đúng một nhóm số viết bằng chữ số (ví dụ: 25, 150, 2026)." : "";
+  const prompt = `Bạn là giáo viên tiểu học Việt Nam. Viết 4 câu tiếng Việt, mỗi câu đúng một dòng, không đánh số, không dấu ngoặc kép, không dấu chấm cuối câu, viết hoa chữ cái đầu câu. Nội dung tích cực, phù hợp học sinh tiểu học, chủ đề: ${theme}. Mỗi câu khoảng ${words}.${numReq} Bốn câu phải khác nhau hoàn toàn về nội dung. Chỉ in ra 4 câu, không giải thích.`;
   const models = ["gemini-2.0-flash", "gemini-2.5-flash"];
   let lastErr = null;
   for (const name of models) {
@@ -995,8 +996,9 @@ async function generateMessageSmart(theme, level) {
     const v = pickValid(cands);
     if (v) { usedAi = true; rememberSeen(convertText(v)); return { text: v.toUpperCase(), ai: true }; }
   } catch (e) { /* rơi xuống bộ tạo dự phòng */ }
+  const mkCand = () => level === "nc" ? fallbackSentence() + " " + String(100 + Math.floor(Math.random() * 9900)) : fallbackSentence();
   for (let i = 0; i < 80; i++) {
-    const c = fallbackSentence();
+    const c = mkCand();
     const conv = convertText(c);
     const len = convertedLength(c);
     if (len >= band.min && len <= band.max && !seen.has(conv)) {
@@ -1004,7 +1006,7 @@ async function generateMessageSmart(theme, level) {
       return { text: c, ai: usedAi };
     }
   }
-  const c = fallbackSentence();
+  const c = mkCand();
   rememberSeen(convertText(c));
   return { text: c, ai: usedAi };
 }
@@ -1050,9 +1052,10 @@ function mountAiButton() {
     try {
       const theme = THEMES[Math.floor(Math.random() * THEMES.length)];
       const ds = $("diffSel");
-      const level = ds && ds.value === "easy" ? "de" : ds && ds.value === "hard" ? "kho" : "tb";
+      const level = ds && ds.value === "easy" ? "de" : ds && ds.value === "hard" ? "kho" : ds && ds.value === "adv" ? "nc" : "tb";
       const r = await generateMessageSmart(theme, level);
       fillCustomText(r.text);
+      if (window.ttShowDone) window.ttShowDone();
       note.textContent = (r.ai ? "AI soạn" : "Bộ tạo dự phòng") + " · Chủ đề: " + theme + " · " + convertedLength(r.text) + " ký tự — đã đưa vào ô “Tự nhập bản tin”, chọn mục đó rồi Phát/Luyện như thường.";
     } catch (e) {
       note.textContent = "Chưa tạo được câu. Kiểm tra mạng rồi thử lại.";

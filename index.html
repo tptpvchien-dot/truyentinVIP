@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="data:," />
-    <title>Luyện truyền tin Morse &amp; Semaphore</title>
+    <title>Truyền tin</title>
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="icon-512.png" />
     <!-- Tiếng còi Morse: theo mẫu còi chuẩn thầy gửi — một cao độ 1613 Hz, hài 0,035 / 0,028, attack 9 ms, release 12 ms. Trang tĩnh này không có đăng nhập / quản trị / tài khoản thành viên; phần tài khoản nằm ở bản máy chủ riêng. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -153,6 +155,18 @@
         padding:12px 18px; font-weight:800; font-size:.95rem; background:var(--amber); color:#231a04;
         box-shadow:0 6px 18px rgba(0,0,0,.28); cursor:pointer; font-family:inherit; }
       #fabGen:active { transform:scale(.97); }
+      #fabDone { position:fixed; right:22px; bottom:76px; z-index:901; color:#177245; background:#e7f7ec;
+        border:1.5px solid #1f9d4d; padding:3px 12px; border-radius:999px; font-weight:800; font-size:.85rem;
+        box-shadow:0 4px 12px rgba(0,0,0,.15); }
+      #readyFab { position:fixed; left:50%; transform:translateX(-50%); bottom:86px; z-index:950; border:none;
+        border-radius:999px; padding:13px 26px; font-weight:800; font-size:1rem; background:#1f9d4d; color:#fff;
+        box-shadow:0 8px 22px rgba(0,0,0,.3); cursor:pointer; font-family:inherit; }
+      #readyFab:active { transform:translateX(-50%) scale(.97); }
+      #stagePanel.pinned { position:sticky; z-index:60; box-shadow:0 10px 28px rgba(0,0,0,.25); }
+      #receivePanel.pinned { position:sticky; z-index:59; box-shadow:0 10px 28px rgba(0,0,0,.25); }
+      #stagePanel.pinned .semfig svg { width:min(190px, 52vw); }
+      #stagePanel.pinned .lamp { width:74px; height:74px; }
+      #stagePanel.pinned .speedbox { display:none; }
 
       /* ---------- Answer / grading ---------- */
       .gradewrap { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
@@ -294,6 +308,10 @@
               <input type="checkbox" id="abbrevToggle" />
               <span>Dùng chữ viết tắt PH=F, GI=I, QU=Q</span>
             </label>
+            <label class="switch">
+              <input type="checkbox" id="mdktToggle" checked />
+              <span>MĐ/KT — mở đầu &amp; kết thúc bản tin theo chuẩn (mở cờ / còi bắt đầu, AR &amp; kết thúc liên lạc)</span>
+            </label>
           </div>
 
           <h2 style="margin-top:16px">Bản tin</h2>
@@ -317,6 +335,7 @@
                   <option value="easy">Dễ — 10 đến 15 ký tự</option>
                   <option value="mid" selected>Trung bình — 16 đến 22 ký tự</option>
                   <option value="hard">Khó — 25 đến 30 ký tự</option>
+                  <option value="adv">Nâng cao — 31 đến 40 ký tự, có cả số và chữ</option>
                 </select>
               </div>
               <div class="field">
@@ -481,6 +500,8 @@
           </div>
         </div>
         <button id="fabGen" type="button">🎲 Tạo bản tin</button>
+        <div id="fabDone" class="hidden">✔ Xong</div>
+        <button id="readyFab" type="button" class="hidden">✔ Sẵn sàng</button>
       </section>
 
       <!-- ================= TAB: MORSE TABLE ================= -->
@@ -709,7 +730,7 @@ const BANK = [
   {s:"ĐI BỘ AN TOÀN",t:"song"},{s:"NHÌN KĨ KHI SANG",t:"song"},{s:"NÓI LỜI HAY",t:"song"}
 ];
 const SENTENCES = BANK.map(b => b.s);
-const RANGES = { easy:[10,15], mid:[16,22], hard:[25,30] };
+const RANGES = { easy:[10,15], mid:[16,22], hard:[25,30], adv:[31,40] };
 const rnd = n => Math.floor(Math.random()*n);
 const pick = arr => arr[rnd(arr.length)];
 /* Độ dài câu đo SAU chuyển đổi, không tính khoảng trắng */
@@ -739,10 +760,25 @@ function genMixed(min, max){
   const e = genSentence(min, max);
   return { text: e.s, theme: THEMES[e.t] };
 }
+/* Nâng cao: câu ngân hàng + một nhóm số, tổng dài sau chuyển đổi
+   nằm trong dải 31–40 ký tự (bản tin kết hợp chữ và số). */
+function genAdvanced(min, max){
+  for (let t = 0; t < 80; t++){
+    const e = pick(BANK), c = convLen(e.s);
+    const rest = (min - c) + rnd((max - c) - (min - c) + 1);
+    if (rest < 3 || rest > 12) continue;
+    let digits = ""; for (let i = 0; i < rest; i++) digits += String(rnd(10));
+    return { text: e.s + " " + digits, theme: THEMES[e.t] };
+  }
+  const e = pick(BANK);
+  return { text: e.s + " 2026", theme: THEMES[e.t] };
+}
 function generateMessage(){
-  const [min, max] = RANGES[$("diffSel").value];
+  const lvl = $("diffSel").value;
+  const [min, max] = RANGES[lvl];
   const type = $("typeSel").value;
   if (type === "random") return { text: genRandom(min, max), theme: null };
+  if (lvl === "adv") return genAdvanced(min, max);
   if (type === "mixed") return genMixed(min, max);
   const e = genSentence(min, max);
   return { text: e.s, theme: THEMES[e.t] };
@@ -1308,6 +1344,53 @@ function buildMorseEvents(converted){
   });
   return { events, totalChars: charNo };
 }
+
+/* ============================================================
+   NGHI THỨC MĐ/KT (mở đầu & kết thúc bản tin theo chuẩn):
+   - Morse: mở đầu bằng prosign KA −·−·−, kết thúc bản tin AR
+     ·−·−· rồi kết thúc liên lạc SK ···−·− (ITU-R M.1677-1).
+   - Semaphore: mở đầu bằng động tác MỞ CỜ (hai cờ vẫy chéo hình
+     số 8 rồi đưa lên cao — giáo trình Đội), bên nhận đáp K (sẵn
+     sàng) mới phát tiếp; kết thúc phát chữ AR rồi về nghỉ.
+   Giữa nghi thức mở đầu và nội dung bản tin có một "cổng sẵn sàng":
+   trình phát dừng ở đó, hiện nút nổi Sẵn sàng; người nhận bấm nút
+   thì mới phát tiếp, đồng thời ghim khung phát + khung nhập.
+   ============================================================ */
+function mdktOn(){ const t = $("mdktToggle"); return t ? t.checked : true; }
+function prosignEvents(codeStr, charNo){
+  const evs = [];
+  [...codeStr].forEach((el, i) => {
+    evs.push({ on:true, units: el === "." ? 1 : 3, ch: "⚑", code: codeStr, charNo, proc:true });
+    if (i < codeStr.length - 1) evs.push({ on:false, units:1 });
+  });
+  return evs;
+}
+function buildMorseEventsMdkt(converted){
+  const b = buildMorseEvents(converted);
+  const events = [
+    ...prosignEvents("-.-.-", 0),
+    { gate:true },
+    ...b.events,
+    { on:false, units:7 },
+    ...prosignEvents(".-.-.", b.totalChars),
+    { on:false, units:7 },
+    ...prosignEvents("...-.-", b.totalChars)
+  ];
+  return { events, totalChars: b.totalChars };
+}
+const SEM_WAVE = [[0,0],[7,1],[4,4],[1,7],[4,4],[7,1],[0,0]];
+function buildSemStepsMdkt(converted){
+  const b = buildSemSteps(converted);
+  const steps = [
+    ...SEM_WAVE.map(pair => ({ type:"proc", pair, label:"Mở cờ — chú ý, bắt đầu bản tin", holdMs:420 })),
+    { type:"gate" },
+    ...b.steps,
+    { type:"proc", pair:SEM.A, label:"AR — kết thúc bản tin (chữ A)", holdMs:null },
+    { type:"proc", pair:SEM.R, label:"AR — kết thúc bản tin (chữ R)", holdMs:null },
+    { type:"space", pair:SEM_REST, label:"Nghỉ / kết thúc" }
+  ];
+  return { steps, totalChars: b.totalChars };
+}
 </script>
 
 <script>
@@ -1455,10 +1538,10 @@ function playLetterTone(code, wpm, lampEl, done){
 /* ============================================================
    TRÌNH PHÁT — dùng chung cho Nhận tin (và xem trước)
    ============================================================ */
-const player = { playing:false, paused:false, timer:null, flexTimer:null, labelTimer:null, stepToken:0, idx:0, events:null, steps:null, total:0, semState:{l:0,r:0,flex:0}, prevPair:null, prevType:null };
+const player = { playing:false, paused:false, gateWait:false, timer:null, flexTimer:null, labelTimer:null, stepToken:0, idx:0, events:null, steps:null, total:0, semState:{l:0,r:0,flex:0}, prevPair:null, prevType:null };
 function setControls(){
   $("playBtn").disabled = player.playing && !player.paused;
-  $("pauseBtn").disabled = !player.playing;
+  $("pauseBtn").disabled = !player.playing || player.gateWait;
   $("pauseBtn").textContent = player.paused ? "▶ Tiếp tục" : "⏸ Tạm dừng";
   $("stopBtn").disabled = !player.playing;
   $("replayBtn").disabled = false;
@@ -1471,12 +1554,46 @@ function signalOff(){
   beep(false);
   setLamp($("lamp"), false, false);
 }
+/* ---- Cổng Sẵn sàng + ghim khung khi qua nghi thức mở đầu MĐ/KT ---- */
+function showReadyGate(){
+  player.gateWait = true;
+  const b = $("readyFab");
+  if (b) b.classList.remove("hidden");
+  setControls();
+}
+function hideReadyGate(){
+  player.gateWait = false;
+  const b = $("readyFab");
+  if (b) b.classList.add("hidden");
+}
+function applyStagePin(){
+  const stage = $("stagePanel"), recv = $("receivePanel");
+  if (!stage) return;
+  const chip = $("tt-chip");
+  const base = (chip && chip.style.display !== "none") ? chip.offsetHeight + 6 : 8;
+  stage.classList.add("pinned");
+  stage.style.top = base + "px";
+  if (recv){
+    requestAnimationFrame(() => {
+      recv.classList.add("pinned");
+      recv.style.top = (base + stage.offsetHeight + 6) + "px";
+    });
+  }
+}
+function clearStagePin(){
+  ["stagePanel", "receivePanel"].forEach(id => {
+    const el = $(id);
+    if (el){ el.classList.remove("pinned"); el.style.top = ""; }
+  });
+}
 function stopPlayback(resetPos){
   clearTimeout(player.timer);
   clearTimeout(player.flexTimer);
   clearTimeout(player.labelTimer);
   player.stepToken++;
   player.playing = false; player.paused = false;
+  hideReadyGate();
+  clearStagePin();
   player.prevPair = null; player.prevType = null;
   if (player.semState.flex) setForeFlex("main", player.semState, 0, 120);
   signalOff();
@@ -1498,10 +1615,12 @@ function startPlayback(fromStart){
   if (fromStart) S.plays++;
   $("playCount").textContent = S.plays;
   if (S.kind === "morse"){
-    if (fromStart || !player.events){ const b = buildMorseEvents(S.msg.converted); player.events = b.events; player.total = b.totalChars; player.idx = 0; }
+    const useMdkt = mdktOn() && S.activity === "nhan";
+    if (fromStart || !player.events || player.builtMdkt !== useMdkt){ const b = useMdkt ? buildMorseEventsMdkt(S.msg.converted) : buildMorseEvents(S.msg.converted); player.events = b.events; player.total = b.totalChars; player.idx = 0; player.builtMdkt = useMdkt; }
     playMorseStep();
   } else {
-    if (fromStart || !player.steps){ const b = buildSemSteps(S.msg.converted); player.steps = b.steps; player.total = b.totalChars; player.idx = 0; }
+    const useMdkt = mdktOn() && S.activity === "nhan";
+    if (fromStart || !player.steps || player.builtMdkt !== useMdkt){ const b = useMdkt ? buildSemStepsMdkt(S.msg.converted) : buildSemSteps(S.msg.converted); player.steps = b.steps; player.total = b.totalChars; player.idx = 0; player.builtMdkt = useMdkt; }
     playSemStep();
   }
   setControls();
@@ -1510,10 +1629,12 @@ function playMorseStep(){
   if (!player.playing || player.paused) return;
   if (player.idx >= player.events.length){
     signalOff(); player.playing = false;
+    clearStagePin();
     $("nowChar").textContent = ""; $("nowCode").textContent = showEffective() ? "— Hết bản tin —" : "";
     setProgress(player.total, player.total); setControls(); return;
   }
   const ev = player.events[player.idx++];
+  if (ev.gate){ showReadyGate(); return; }
   const unit = 1200 / parseFloat($("wpmRange").value);
   if (ev.on){
     const isDash = ev.units === 3;
@@ -1528,14 +1649,16 @@ function playSemStep(){
   if (!player.playing || player.paused) return;
   if (player.idx >= player.steps.length){
     player.playing = false; setProgress(player.total, player.total);
+    clearStagePin();
     $("nowSemChar").textContent = ""; $("nowSemCode").textContent = showEffective() ? "— Hết bản tin —" : "";
     setControls(); return;
   }
   const st = player.steps[player.idx++];
-  const hold = parseFloat($("semRange").value) * 1000;
+  if (st.type === "gate"){ showReadyGate(); return; }
+  const hold = st.holdMs || parseFloat($("semRange").value) * 1000;
   /* Ký tự trùng với ký tự ngay trước (cùng cặp vị trí, không qua nhịp nghỉ giữa từ):
      CHỈ gấp khuỷu 1 tay di chuyển (tay còn lại giữ thẳng làm mốc) rồi mở ra trong ~45% thời gian giữ chữ, phần còn lại giữ thẳng. */
-  const isRepeat = !!(player.prevPair && st.type !== "space" && player.prevType !== "space" &&
+  const isRepeat = !!(st.type === "char" && player.prevPair && st.type !== "space" && player.prevType !== "space" &&
     st.pair[0] === player.prevPair[0] && st.pair[1] === player.prevPair[1]);
   player.prevPair = st.pair; player.prevType = st.type;
   /* CHUYỂN TAY MƯỢT: tay quét sang vị trí mới bằng quỹ đạo minimum-jerk
@@ -1556,6 +1679,11 @@ function playSemStep(){
     } else if (st.type === "space"){
       if (showEffective()){ $("nowSemChar").textContent = "␣"; $("nowSemCode").textContent = "Nghỉ — hết một từ"; }
       else { $("nowSemChar").textContent = ""; $("nowSemCode").textContent = ""; }
+    } else if (st.type === "proc"){
+      if (showEffective()){
+        $("nowSemChar").textContent = "⚑";
+        $("nowSemCode").textContent = st.label + ` — vị trí ${st.pair[0]} + ${st.pair[1]}`;
+      } else { $("nowSemChar").textContent = ""; $("nowSemCode").textContent = ""; }
     } else { // num / alpha
       if (showEffective()){
         $("nowSemChar").textContent = st.type === "num" ? "🔢" : "🔤";
@@ -1930,6 +2058,31 @@ const bigState = { l:0, r:0, flex:0 };
     });
   }
 
+  /* Chữ "Xong" nhỏ màu xanh hiện trên nút tạo bản tin, tự ẩn sau 2 giây */
+  window.ttShowDone = () => {
+    const d = $("fabDone");
+    if (!d) return;
+    d.classList.remove("hidden");
+    clearTimeout(window.__ttDoneT);
+    window.__ttDoneT = setTimeout(() => d.classList.add("hidden"), 2000);
+  };
+
+  /* Công tắc MĐ/KT: nhớ lựa chọn */
+  if ($("mdktToggle")){
+    const mt = $("mdktToggle");
+    try { if (localStorage.getItem("tt_mdkt") === "0") mt.checked = false; } catch(e){}
+    mt.addEventListener("change", () => { try { localStorage.setItem("tt_mdkt", mt.checked ? "1" : "0"); } catch(e){} });
+  }
+
+  /* Nút nổi Sẵn sàng ở cổng MĐ/KT: bấm vào thì ẩn nút, ghim khung
+     phát + khung nhập văn bản ngay bên dưới, rồi phát tiếp bản tin */
+  if ($("readyFab")) $("readyFab").addEventListener("click", () => {
+    hideReadyGate();
+    applyStagePin();
+    setControls();
+    if (S.kind === "morse") playMorseStep(); else playSemStep();
+  });
+
 /* Vòng chọn vị trí cờ (2 tay) */
 function buildDial(el, isLeft){
   // Đặt nút theo hướng thật của từng vị trí: dùng vector hướng chuẩn
@@ -2007,7 +2160,7 @@ document.querySelectorAll('input[name="src"]').forEach(r => r.addEventListener("
   refreshMessage();
 }));
 $("customText").addEventListener("input", () => { if (document.querySelector('input[name="src"]:checked').value === "custom") refreshMessage(); });
-$("genBtn").addEventListener("click", () => { S.generated = generateMessage(); refreshMessage(); });
+$("genBtn").addEventListener("click", () => { S.generated = generateMessage(); refreshMessage(); if (window.ttShowDone) window.ttShowDone(); });
 $("diffSel").addEventListener("change", () => { S.generated = generateMessage(); refreshMessage(); });
 $("typeSel").addEventListener("change", () => { S.generated = generateMessage(); refreshMessage(); });
 
@@ -2109,7 +2262,7 @@ renderHistory();
 </script>
 
 
-  <script src="app-config.js?v=10"></script>
-<script type="module" src="auth-layer.js?v=10"></script>
+  <script src="app-config.js?v=11"></script>
+<script type="module" src="auth-layer.js?v=11"></script>
 </body>
 </html>

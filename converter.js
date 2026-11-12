@@ -52,7 +52,8 @@ export function convertedLength(s) {
 export const LEVEL_BANDS = {
   de: { label: "Dễ", min: 10, max: 15 },
   tb: { label: "Trung bình", min: 16, max: 22 },
-  kho: { label: "Khó", min: 25, max: 30 }
+  kho: { label: "Khó", min: 25, max: 30 },
+  nc: { label: "Nâng cao", min: 31, max: 40 }
 };
 
 export const THEMES = [
