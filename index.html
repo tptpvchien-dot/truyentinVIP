@@ -138,6 +138,22 @@
         background:var(--panel2); font-weight:700; }
       .presets button[aria-pressed="true"] { border-color:var(--navy); background:var(--navy); color:#fff; }
 
+      /* ---------- Giao diện chính gọn (v10): sân khấu là trung tâm ---------- */
+      .semfig svg { width:min(400px, 88vw); }
+      #draftSemFig svg { width:min(230px, 68vw); }
+      #stagePanel .btn { min-height:38px; padding:6px 14px; font-size:.92rem; }
+      #stagePanel .controls .btn { flex:0 1 auto; }
+      #stagePanel .figstyle .btn { min-height:32px; padding:4px 12px; font-size:.85rem; }
+      .speedbox { font-size:.88rem; margin-top:10px; padding-top:10px; }
+      .speedbox .presets button { min-height:32px; font-size:.8rem; padding:3px 8px; border-width:1.5px; }
+      .speedbox input[type="range"] { min-height:28px; }
+      .mainctl { padding:10px 12px; }
+      #settingsDrawer .seg { margin-bottom:6px; }
+      #fabGen { position:fixed; right:14px; bottom:14px; z-index:900; border:none; border-radius:999px;
+        padding:12px 18px; font-weight:800; font-size:.95rem; background:var(--amber); color:#231a04;
+        box-shadow:0 6px 18px rgba(0,0,0,.28); cursor:pointer; font-family:inherit; }
+      #fabGen:active { transform:scale(.97); }
+
       /* ---------- Answer / grading ---------- */
       .gradewrap { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
       .gcell { min-width:40px; text-align:center; border-radius:8px; padding:5px 3px 4px; border:2px solid var(--line); background:var(--panel2); }
@@ -221,16 +237,11 @@
 
       <!-- ================= TAB: MAIN ================= -->
       <section id="tab-main" role="tabpanel" aria-labelledby="tabbtn-main">
-        <!-- Chế độ -->
-        <div class="panel">
+        <!-- Hàng chọn chính trên giao diện: Dạng truyền tin + Chế độ (nhỏ gọn).
+             Mọi cài đặt khác (Hoạt động, Bản tin, họ tên/lớp, công tắc) nằm
+             trong ngăn Cài đặt mở bằng nút ⚙️ trên thanh ghim trên cùng. -->
+        <div class="panel mainctl">
           <div class="segrow">
-            <div class="seg">
-              <label class="cap" id="cap-act">Hoạt động</label>
-              <div class="segbtns" role="group" aria-labelledby="cap-act">
-                <button id="actNhan" aria-pressed="true">📥 Nhận tin</button>
-                <button id="actPhat" aria-pressed="false">📤 Phát tin</button>
-              </div>
-            </div>
             <div class="seg">
               <label class="cap" id="cap-kind">Dạng truyền tin</label>
               <div class="segbtns" role="group" aria-labelledby="cap-kind">
@@ -244,6 +255,18 @@
                 <button id="modeLuyen" aria-pressed="true">Luyện tập</button>
                 <button id="modeKiem" class="warn" aria-pressed="false">Kiểm tra</button>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ngăn Cài đặt -->
+        <div class="panel hidden" id="settingsDrawer">
+          <h2>⚙️ Cài đặt</h2>
+          <div class="seg">
+            <label class="cap" id="cap-act">Hoạt động</label>
+            <div class="segbtns" role="group" aria-labelledby="cap-act">
+              <button id="actNhan" aria-pressed="true">📥 Nhận tin</button>
+              <button id="actPhat" aria-pressed="false">📤 Phát tin</button>
             </div>
           </div>
 
@@ -272,11 +295,8 @@
               <span>Dùng chữ viết tắt PH=F, GI=I, QU=Q</span>
             </label>
           </div>
-        </div>
 
-        <!-- Bản tin -->
-        <div class="panel">
-          <h2>Bản tin</h2>
+          <h2 style="margin-top:16px">Bản tin</h2>
           <div class="srcrow" role="radiogroup" aria-label="Nguồn bản tin">
             <label class="radio-pill"><input type="radio" name="src" value="custom" /> Tự nhập bản tin</label>
             <label class="radio-pill"><input type="radio" name="src" value="auto" checked /> Hệ thống tự tạo</label>
@@ -315,6 +335,10 @@
           </div>
 
           <div class="preview" id="msgPreview" aria-live="polite"></div>
+
+          <div class="controls" style="justify-content:flex-start;margin-top:12px">
+            <button class="btn ghost" id="drawerCloseBtn">Đóng cài đặt</button>
+          </div>
         </div>
 
         <!-- Sân khấu phát / nhận -->
@@ -328,7 +352,6 @@
               <span class="ch" id="nowChar"></span>
               <span class="code" id="nowCode"></span>
             </div>
-            <p class="muted" style="margin-top:4px"><b>Tiếng còi theo mẫu còi chuẩn (một cao độ 1613 Hz)</b> — tích và te cùng cao độ, chỉ khác độ dài: tích ngắn gọn, te dài đều. Đèn sáng đúng theo độ dài tín hiệu.</p>
           </div>
 
           <!-- Semaphore stage -->
@@ -366,7 +389,11 @@
               <button data-wpm="12" aria-pressed="true">Vừa — 12 WPM</button>
               <button data-wpm="20">Nhanh — 20 WPM</button>
             </div>
-            <p class="muted">Tốc độ tính theo từ chuẩn PARIS: 1 chấm = 1200 ÷ WPM mili-giây. Nhịp 1–3–1–3–7.</p>
+            <div class="pitchbox" style="margin-top:10px">
+              <label for="pitchRange">Cao độ còi: <output id="pitchOut">1613 Hz (mẫu chuẩn)</output></label>
+              <input type="range" id="pitchRange" min="800" max="2400" step="1" value="1613" />
+              <button id="pitchReset" class="btn ghost" style="min-height:30px;padding:3px 10px;font-size:.8rem;margin-top:4px">Về mẫu chuẩn 1613 Hz</button>
+            </div>
             <label class="switch" style="margin-top:8px">
               <input type="checkbox" id="aidPitchToggle" />
               <span>Hỗ trợ bước đầu: tích cao / te thấp (không giống còi thật, chỉ bật khi mới làm quen)</span>
@@ -381,7 +408,6 @@
               <button data-sem="1.5" aria-pressed="true">Vừa — 1,5s</button>
               <button data-sem="0.8">Nhanh — 0,8s</button>
             </div>
-            <p class="muted">Thời gian giữ mỗi chữ. Khi đổi chữ, tay chuyển mượt theo đà phất cờ rồi mới giữ yên ở vị trí mới để đọc. Hết một từ, người phát về vị trí nghỉ (hai cờ buông xuống) một nhịp.</p>
           </div>
         </div>
 
@@ -454,6 +480,7 @@
             <button class="btn ghost" id="againBtn">Làm bài mới</button>
           </div>
         </div>
+        <button id="fabGen" type="button">🎲 Tạo bản tin</button>
       </section>
 
       <!-- ================= TAB: MORSE TABLE ================= -->
@@ -802,35 +829,37 @@ function screenToLocal(vec, angDeg){
 /* Điểm vải ở dáng xuôi xuống tĩnh (không sóng) — dùng cho điểm khởi tạo của lưới.
    Điểm gốc của lưới là điểm BÁM TRÊN CÁN (cạnh đỏ): (100, 112 + v·34) nằm dọc
    cán; từ đó vải trải ra theo hướng E (đã xuôi xuống) cộng thêm độ rủ trọng lực. */
-function flagDroop(side, ci, ri, angDeg){
+function flagDroop(prefix, side, ci, ri, angDeg){
   const u = ci / CLOTH_C, v = ri / CLOTH_R;
   const ang = angDeg || 0;
+  const A = anchorFor(prefix, side);
   const E = screenToLocal(spreadDirScreen(side, ang), ang);
   const g = gravityLocal(ang);
   const sag = SAG_MAX * u * u * (0.82 + 0.36 * v);
-  return [100 + E[0] * u * 34 + g[0] * sag, 112 + v * 34 + E[1] * u * 34 + g[1] * sag];
+  return [A.hx + E[0] * u * 34 + g[0] * sag, A.hy0 + v * 34 + E[1] * u * 34 + g[1] * sag];
 }
 function flagMesh(prefix, side){
   let cells = "";
   for (let r = 0; r < CLOTH_R; r++) for (let c = 0; c < CLOTH_C; c++){
-    const pts = [flagDroop(side,c,r,0), flagDroop(side,c+1,r,0), flagDroop(side,c+1,r+1,0), flagDroop(side,c,r+1,0)]
+    const pts = [flagDroop(prefix,side,c,r,0), flagDroop(prefix,side,c+1,r,0), flagDroop(prefix,side,c+1,r+1,0), flagDroop(prefix,side,c,r+1,0)]
       .map(pt => pt[0].toFixed(1) + "," + pt[1].toFixed(1)).join(" ");
     const u = (c + .5) / CLOTH_C, v = (r + .5) / CLOTH_R;
     const fill = (u + v < 1) ? "var(--red)" : "#fff";
     cells += `<polygon id="${prefix}F${side}${c}_${r}" points="${pts}" fill="${fill}"/>`;
   }
-  const outline = [0,1,2,3,4].map(c => flagDroop(side,c,0,0))
-    .concat([1,2,3].map(r => flagDroop(side,CLOTH_C,r,0)))
-    .concat([3,2,1,0].map(c => flagDroop(side,c,CLOTH_R,0)))
-    .concat([2,1].map(r => flagDroop(side,0,r,0)))
+  const outline = [0,1,2,3,4].map(c => flagDroop(prefix,side,c,0,0))
+    .concat([1,2,3].map(r => flagDroop(prefix,side,CLOTH_C,r,0)))
+    .concat([3,2,1,0].map(c => flagDroop(prefix,side,c,CLOTH_R,0)))
+    .concat([2,1].map(r => flagDroop(prefix,side,0,r,0)))
     .map(pt => pt[0].toFixed(1) + "," + pt[1].toFixed(1)).join(" ");
   return `<g>${cells}<polygon id="${prefix}O${side}" points="${outline}" fill="none" stroke="var(--ink)" stroke-width="1.6"/></g>`;
 }
-function clothPoint(side, sim, ci, ri, angDeg){
+function clothPoint(prefix, side, sim, ci, ri, angDeg){
   const u = ci / CLOTH_C, v = ri / CLOTH_R;
   const ang = angDeg || 0;
   /* Điểm bám trên cán (cạnh đỏ), dọc theo cán từ gần bàn tay ra đầu cán */
-  const hx = 100, hy = 112 + v * 34;
+  const A = anchorFor(prefix, side);
+  const hx = A.hx, hy = A.hy0 + v * 34;
   /* Vải trải từ cán theo hướng E — hướng đã chọn LUÔN XUÔI XUỐNG trên màn
      hình (spreadDirScreen), quy về hệ cục bộ của cẳng tay đang xoay ang. */
   const E = screenToLocal(spreadDirScreen(side, ang), ang);
@@ -890,7 +919,7 @@ function clothLoop(ts){
       sim.wv += (-90 * (sim.w - whipTarget) - 5.3 * sim.wv) * dt;
       sim.w = Math.max(-30, Math.min(30, sim.w + sim.wv * dt));
       const grid = [];
-      for (let c = 0; c <= CLOTH_C; c++){ grid[c] = []; for (let r = 0; r <= CLOTH_R; r++) grid[c][r] = clothPoint(side, sim, c, r, ang); }
+      for (let c = 0; c <= CLOTH_C; c++){ grid[c] = []; for (let r = 0; r <= CLOTH_R; r++) grid[c][r] = clothPoint(prefix, side, sim, c, r, ang); }
       for (let r = 0; r < CLOTH_R; r++) for (let c = 0; c < CLOTH_C; c++){
         const el = document.getElementById(prefix + "F" + side + c + "_" + r);
         if (el) el.setAttribute("points", [grid[c][r], grid[c+1][r], grid[c+1][r+1], grid[c][r+1]].map(pt => pt[0].toFixed(1) + "," + pt[1].toFixed(1)).join(" "));
@@ -926,6 +955,16 @@ requestAnimationFrame(clothLoop);
    TUYỆT ĐỐI không xoay tay/cẳng tay bằng CSS (transform + origin):
    tâm quay CSS bị lệch khỏi điểm vai thật khiến tay tách khỏi thân. */
 const SEM_VB = { x:-15, y:-45, w:230, h:264 };
+/* Điểm neo hình học của từng hình: vai (sx,sy), khuỷu (ex,ey), trục cán
+   cờ (hx) và hàng vải trên cùng (hy0). Hình thường dùng điểm neo mặc
+   định (cả hai tay chung vai giữa 100,62). Riêng hình 3D dùng HAI VAI
+   THẬT tách ra hai bên (87,59) và (113,59) như người thật: mỗi tay
+   xoay quanh đúng khớp vai của mình, cẳng tay quanh khuỷu của mình,
+   vải cờ bám theo trục cán của tay đó. semFigureSVG đăng ký điểm neo
+   mỗi lần dựng hình; applyFig / setFigure / vải cờ đều đọc từ đây. */
+const FIG_ANCHOR = {};
+const DEF_ANCHOR = { sx:100, sy:62, ex:100, ey:95, hx:100, hy0:112 };
+function anchorFor(prefix, side){ return FIG_ANCHOR[prefix + side] || DEF_ANCHOR; }
 function fig3dOn(){ try { return localStorage.getItem("tt_fig3d") === "1"; } catch(e){ return false; } }
 function semFigureSVG(idPrefix, animated, useCloth, v3d){
   /* Tay 2 đoạn: vai (100,62) -> khuỷu (100,95) -> bàn tay (100,128).
@@ -939,6 +978,13 @@ function semFigureSVG(idPrefix, animated, useCloth, v3d){
      khung xương, cùng id nhóm tay và cùng tâm quay — chỉ thay cách vẽ
      (thân có khối, đầu có tóc/mặt, tay chân to bản có màu) nên toàn bộ
      cơ chế chuyển tay, gấp khuỷu và vải cờ dùng chung không đổi. */
+  if (v3d){
+    FIG_ANCHOR[idPrefix + "L"] = { sx:87, sy:59, ex:87, ey:92, hx:87, hy0:109 };
+    FIG_ANCHOR[idPrefix + "R"] = { sx:113, sy:59, ex:113, ey:92, hx:113, hy0:109 };
+  } else {
+    delete FIG_ANCHOR[idPrefix + "L"];
+    delete FIG_ANCHOR[idPrefix + "R"];
+  }
   const flagL = flagMesh(idPrefix, "L");
   const flagR = flagMesh(idPrefix, "R");
   if (v3d){
@@ -990,30 +1036,32 @@ function semFigureSVG(idPrefix, animated, useCloth, v3d){
     <path d="M100,37 Q101.2,40 99.8,41.4" stroke="#d29a5f" stroke-width="1.1" fill="none" stroke-linecap="round"/>
     <path d="M94.5,43.5 Q100,47.5 105.5,43.5" stroke="#a05a2c" stroke-width="1.6" fill="none" stroke-linecap="round"/>
     <g id="${idPrefix}ArmL">
-      <line x1="100" y1="62" x2="100" y2="95" stroke="#1d3557" stroke-width="13.5" stroke-linecap="round"/>
-      <line x1="100" y1="62" x2="100" y2="95" stroke="#4a80d2" stroke-width="9.5" stroke-linecap="round"/>
-      <line x1="100" y1="87" x2="100" y2="94" stroke="#eef3fb" stroke-width="9.8" stroke-linecap="round"/>
+      <line x1="87" y1="59" x2="87" y2="92" stroke="#1d3557" stroke-width="13.5" stroke-linecap="round"/>
+      <line x1="87" y1="59" x2="87" y2="92" stroke="#4a80d2" stroke-width="9.5" stroke-linecap="round"/>
+      <line x1="87" y1="84" x2="87" y2="91" stroke="#eef3fb" stroke-width="9.8" stroke-linecap="round"/>
+      <circle cx="87" cy="59" r="7" fill="#3f74c9" stroke="#1d3557" stroke-width="1"/>
       <g id="${idPrefix}ForeL">
-        <line x1="100" y1="95" x2="100" y2="128" stroke="#df9f66" stroke-width="9.5" stroke-linecap="round"/>
-        <line x1="100" y1="95" x2="100" y2="128" stroke="#f7cf9f" stroke-width="6.8" stroke-linecap="round"/>
-        <circle cx="100" cy="95" r="4.8" fill="#2f5aa8" stroke="#1d3557" stroke-width="0.8"/>
-        <rect x="97.3" y="103" width="5.4" height="43" fill="#8a6134" stroke="#6d4a22" stroke-width="0.6"/>
-        <rect x="98.1" y="103" width="1.6" height="43" fill="#c49a58"/>
-        <circle cx="100" cy="124" r="5.4" fill="url(#${gK})" stroke="#cf9257" stroke-width="1"/>
+        <line x1="87" y1="92" x2="87" y2="125" stroke="#df9f66" stroke-width="9.5" stroke-linecap="round"/>
+        <line x1="87" y1="92" x2="87" y2="125" stroke="#f7cf9f" stroke-width="6.8" stroke-linecap="round"/>
+        <circle cx="87" cy="92" r="4.8" fill="#2f5aa8" stroke="#1d3557" stroke-width="0.8"/>
+        <rect x="84.3" y="103" width="5.4" height="43" fill="#8a6134" stroke="#6d4a22" stroke-width="0.6"/>
+        <rect x="85.1" y="103" width="1.6" height="43" fill="#c49a58"/>
+        <circle cx="87" cy="122" r="5.4" fill="url(#${gK})" stroke="#cf9257" stroke-width="1"/>
         ${flagL}
       </g>
     </g>
     <g id="${idPrefix}ArmR">
-      <line x1="100" y1="62" x2="100" y2="95" stroke="#1d3557" stroke-width="13.5" stroke-linecap="round"/>
-      <line x1="100" y1="62" x2="100" y2="95" stroke="#4a80d2" stroke-width="9.5" stroke-linecap="round"/>
-      <line x1="100" y1="87" x2="100" y2="94" stroke="#eef3fb" stroke-width="9.8" stroke-linecap="round"/>
+      <line x1="113" y1="59" x2="113" y2="92" stroke="#1d3557" stroke-width="13.5" stroke-linecap="round"/>
+      <line x1="113" y1="59" x2="113" y2="92" stroke="#4a80d2" stroke-width="9.5" stroke-linecap="round"/>
+      <line x1="113" y1="84" x2="113" y2="91" stroke="#eef3fb" stroke-width="9.8" stroke-linecap="round"/>
+      <circle cx="113" cy="59" r="7" fill="#3f74c9" stroke="#1d3557" stroke-width="1"/>
       <g id="${idPrefix}ForeR">
-        <line x1="100" y1="95" x2="100" y2="128" stroke="#df9f66" stroke-width="9.5" stroke-linecap="round"/>
-        <line x1="100" y1="95" x2="100" y2="128" stroke="#f7cf9f" stroke-width="6.8" stroke-linecap="round"/>
-        <circle cx="100" cy="95" r="4.8" fill="#2f5aa8" stroke="#1d3557" stroke-width="0.8"/>
-        <rect x="97.3" y="103" width="5.4" height="43" fill="#8a6134" stroke="#6d4a22" stroke-width="0.6"/>
-        <rect x="98.1" y="103" width="1.6" height="43" fill="#c49a58"/>
-        <circle cx="100" cy="124" r="5.4" fill="url(#${gK})" stroke="#cf9257" stroke-width="1"/>
+        <line x1="113" y1="92" x2="113" y2="125" stroke="#df9f66" stroke-width="9.5" stroke-linecap="round"/>
+        <line x1="113" y1="92" x2="113" y2="125" stroke="#f7cf9f" stroke-width="6.8" stroke-linecap="round"/>
+        <circle cx="113" cy="92" r="4.8" fill="#2f5aa8" stroke="#1d3557" stroke-width="0.8"/>
+        <rect x="110.3" y="103" width="5.4" height="43" fill="#8a6134" stroke="#6d4a22" stroke-width="0.6"/>
+        <rect x="111.1" y="103" width="1.6" height="43" fill="#c49a58"/>
+        <circle cx="113" cy="122" r="5.4" fill="url(#${gK})" stroke="#cf9257" stroke-width="1"/>
         ${flagR}
       </g>
     </g>
@@ -1094,15 +1142,16 @@ const figAnims = {};
 function applyFig(prefix, state){
   const gL = $(prefix + "ArmL"), gR = $(prefix + "ArmR");
   if (!gL || !gR) return;
-  gL.setAttribute("transform", `rotate(${state.l || 0} 100 62)`);
-  gR.setAttribute("transform", `rotate(${state.r || 0} 100 62)`);
+  const aL = anchorFor(prefix, "L"), aR = anchorFor(prefix, "R");
+  gL.setAttribute("transform", `rotate(${state.l || 0} ${aL.sx} ${aL.sy})`);
+  gR.setAttribute("transform", `rotate(${state.r || 0} ${aR.sx} ${aR.sy})`);
   let flexL = 0, flexR = 0;
   if (state.flex){ if ((state.flexSide || "R") === "L") flexL = -85 * state.flex; else flexR = 85 * state.flex; }
   flexL += state.animFlexL || 0;
   flexR += state.animFlexR || 0;
   const fL = $(prefix + "ForeL"), fR = $(prefix + "ForeR");
-  if (fL) fL.setAttribute("transform", `rotate(${flexL} 100 95)`);
-  if (fR) fR.setAttribute("transform", `rotate(${flexR} 100 95)`);
+  if (fL) fL.setAttribute("transform", `rotate(${flexL} ${aL.ex} ${aL.ey})`);
+  if (fR) fR.setAttribute("transform", `rotate(${flexR} ${aR.ex} ${aR.ey})`);
   const inst = cloth[prefix];
   if (inst){ inst.angL = state.l || 0; inst.angR = state.r || 0; inst.flexL = flexL; inst.flexR = flexR; }
 }
@@ -1206,8 +1255,9 @@ function setFigure(prefix, pair, state, holdMs){
   if (state){
     return animateFigureTo(prefix, state, tl, tr, holdMs);
   }
-  gL.setAttribute("transform", `rotate(${tl} 100 62)`);
-  gR.setAttribute("transform", `rotate(${tr} 100 62)`);
+  const aL = anchorFor(prefix, "L"), aR = anchorFor(prefix, "R");
+  gL.setAttribute("transform", `rotate(${tl} ${aL.sx} ${aL.sy})`);
+  gR.setAttribute("transform", `rotate(${tr} ${aR.sx} ${aR.sy})`);
   if (inst){
     inst.angL = tl; inst.angR = tr;
     if (inst.prevL !== null && inst.prevL !== undefined){ const d = Math.abs(tl - inst.prevL); if (d > 4) kickCloth(prefix, "L", d); }
@@ -1331,6 +1381,10 @@ function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
    Khoảng lặng giữa các tín hiệu là lặng hoàn toàn.
    ============================================================ */
 const WHISTLE_F = 1613;
+/* Cao độ còi đang dùng: mặc định đúng mẫu chuẩn 1613 Hz; người dùng
+   chỉnh bằng thanh trượt "Cao độ còi" ở sân khấu Morse (800–2400 Hz),
+   lựa chọn được nhớ bằng localStorage tt_pitch. */
+let whistleF = (() => { try { const v = parseInt(localStorage.getItem("tt_pitch") || "", 10); return (v >= 800 && v <= 2400) ? v : WHISTLE_F; } catch(e){ return WHISTLE_F; } })();
 const HARM2_GAIN = 0.035;
 const HARM3_GAIN = 0.028;
 const AID_DOT = 2200, AID_DASH = 1500;
@@ -1344,19 +1398,19 @@ function audioInit(){
     whistleGain.connect(AC.destination);
     const t0 = AC.currentTime;
     /* Âm cơ bản: sine tại 1613 Hz, gain tương đối 1 */
-    toneOsc = AC.createOscillator(); toneOsc.type = "sine"; toneOsc.frequency.value = WHISTLE_F;
+    toneOsc = AC.createOscillator(); toneOsc.type = "sine"; toneOsc.frequency.value = whistleF;
     toneOsc.connect(whistleGain); toneOsc.start(t0);
     /* Hài bậc 2: sine tại 3226 Hz, gain tương đối 0,035 (≈ −29 dB), cùng pha, cùng thời điểm bắt đầu */
-    harmOsc = AC.createOscillator(); harmOsc.type = "sine"; harmOsc.frequency.value = WHISTLE_F * 2;
+    harmOsc = AC.createOscillator(); harmOsc.type = "sine"; harmOsc.frequency.value = whistleF * 2;
     harmGain = AC.createGain(); harmGain.gain.value = HARM2_GAIN;
     harmOsc.connect(harmGain); harmGain.connect(whistleGain); harmOsc.start(t0);
     /* Hài bậc 3: sine tại 4839 Hz, gain tương đối 0,028 (≈ −31 dB), cùng pha, cùng thời điểm bắt đầu */
-    harm3Osc = AC.createOscillator(); harm3Osc.type = "sine"; harm3Osc.frequency.value = WHISTLE_F * 3;
+    harm3Osc = AC.createOscillator(); harm3Osc.type = "sine"; harm3Osc.frequency.value = whistleF * 3;
     harm3Gain = AC.createGain(); harm3Gain.gain.value = HARM3_GAIN;
     harm3Osc.connect(harm3Gain); harm3Gain.connect(whistleGain); harm3Osc.start(t0);
   } catch(e){ AC = null; }
 }
-function baseFreq(isDash){ return aidPitch ? (isDash ? AID_DASH : AID_DOT) : WHISTLE_F; }
+function baseFreq(isDash){ return aidPitch ? (isDash ? AID_DASH : AID_DOT) : whistleF; }
 function setToneFreq(freq){
   if (!toneOsc) return;
   /* Đặt thẳng tần số đích cho cả 3 dao động cùng pha, không ramp, không chao tần */
@@ -1844,6 +1898,38 @@ const bigState = { l:0, r:0, flex:0 };
   if ($("fig3dBtn")) $("fig3dBtn").addEventListener("click", () => setFigStyle(true));
   paintFigBtns();
 
+  /* Nút đóng ngăn Cài đặt */
+  if ($("drawerCloseBtn")) $("drawerCloseBtn").addEventListener("click", () => { const d = $("settingsDrawer"); if (d) d.classList.add("hidden"); });
+
+  /* Nút nổi Tạo bản tin: tài khoản được bật AI thì lớp tài khoản gắn
+     data-ai="1" và nút này bấm thay nút "Tạo bản tin AI" trong ngăn
+     Cài đặt; còn lại tạo bản tin hệ thống như nút Tạo bản tin mới. */
+  if ($("fabGen")) $("fabGen").addEventListener("click", () => {
+    const fab = $("fabGen");
+    if (fab.dataset.ai === "1"){ const b = $("ttAiBtn"); if (b){ b.click(); return; } }
+    const auto = document.querySelector('input[name="src"][value="auto"]');
+    if (auto && !auto.checked){ auto.checked = true; auto.dispatchEvent(new Event("change", { bubbles:true })); }
+    $("genBtn").click();
+  });
+
+  /* Thanh trượt cao độ còi Morse (mặc định mẫu chuẩn 1613 Hz) */
+  if ($("pitchRange")){
+    const pr = $("pitchRange"), po = $("pitchOut");
+    pr.value = whistleF;
+    const paintPitch = () => { po.textContent = whistleF + " Hz" + (whistleF === WHISTLE_F ? " (mẫu chuẩn)" : ""); };
+    paintPitch();
+    pr.addEventListener("input", () => {
+      whistleF = parseInt(pr.value, 10) || WHISTLE_F;
+      try { localStorage.setItem("tt_pitch", String(whistleF)); } catch(e){}
+      paintPitch();
+    });
+    if ($("pitchReset")) $("pitchReset").addEventListener("click", () => {
+      whistleF = WHISTLE_F; pr.value = WHISTLE_F;
+      try { localStorage.removeItem("tt_pitch"); } catch(e){}
+      paintPitch();
+    });
+  }
+
 /* Vòng chọn vị trí cờ (2 tay) */
 function buildDial(el, isLeft){
   // Đặt nút theo hướng thật của từng vị trí: dùng vector hướng chuẩn
@@ -2023,7 +2109,7 @@ renderHistory();
 </script>
 
 
-  <script src="app-config.js?v=9"></script>
-<script type="module" src="auth-layer.js?v=9"></script>
+  <script src="app-config.js?v=10"></script>
+<script type="module" src="auth-layer.js?v=10"></script>
 </body>
 </html>

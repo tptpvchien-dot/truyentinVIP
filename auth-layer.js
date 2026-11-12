@@ -49,10 +49,10 @@ style.textContent = `
 .tt-msg{background:#eef6ee;color:#205c20;border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:10px}
 .tt-note{font-size:12.5px;color:#666;margin-top:10px;line-height:1.45}
 .tt-center{text-align:center}
-#tt-chip{position:fixed;top:0;left:0;right:0;z-index:999980;background:rgba(8,45,80,.97);color:#fff;padding:6px 10px;display:none;gap:6px;align-items:center;font-family:system-ui,sans-serif;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.3);flex-wrap:wrap}
+#tt-chip{position:fixed;top:0;left:0;right:0;z-index:999980;background:rgba(8,45,80,.97);color:#fff;padding:6px 10px;display:none;gap:6px;align-items:center;justify-content:center;text-align:center;font-family:system-ui,sans-serif;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.3);flex-wrap:wrap}
 #tt-chip button{background:#fff;color:#0b4a80;border:none;border-radius:7px;padding:5px 9px;font-weight:600;cursor:pointer;font-size:12.5px}
 #tt-chip button.on{background:#ffb300;color:#083d73}
-.tt-chipinfo{display:flex;flex-direction:column;line-height:1.25;margin-right:2px;min-width:0}
+.tt-chipinfo{display:flex;flex-direction:column;align-items:center;text-align:center;line-height:1.25;margin-right:2px;min-width:0}
 .tt-chipsub{font-size:12px;color:#cfe3f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
 .tt-figbtns{display:flex;gap:4px;align-items:center;background:rgba(255,255,255,.12);border-radius:8px;padding:3px 5px}
 .tt-figbtns span{font-size:12px;color:#cfe3f5}
@@ -467,30 +467,18 @@ function buildChip() {
     bUse.addEventListener("click", openUsagePanel);
     chip.appendChild(bUse);
   }
-  // Chọn hình người phất cờ — đặt ngay trên thanh ghim để lúc nào cũng
-  // thấy (nút dưới sân khấu Semaphore vẫn giữ nguyên, hai nơi đồng bộ
-  // qua cùng một lựa chọn đã lưu).
-  const figWrap = document.createElement("span");
-  figWrap.className = "tt-figbtns";
-  const figCap = document.createElement("span");
-  figCap.textContent = "Hình:";
-  figWrap.appendChild(figCap);
-  const bStick = document.createElement("button");
-  bStick.textContent = "Người que";
-  const b3d = document.createElement("button");
-  b3d.textContent = "Người 3D";
-  const paintFig = () => {
-    let on = false;
-    try { on = localStorage.getItem("tt_fig3d") === "1"; } catch (e) {}
-    bStick.classList.toggle("on", !on);
-    b3d.classList.toggle("on", on);
-  };
-  bStick.addEventListener("click", () => { const b = $("figStickBtn"); if (b) b.click(); paintFig(); });
-  b3d.addEventListener("click", () => { const b = $("fig3dBtn"); if (b) b.click(); paintFig(); });
-  figWrap.appendChild(bStick);
-  figWrap.appendChild(b3d);
-  chip.appendChild(figWrap);
-  paintFig();
+  // Nút Cài đặt trên thanh ghim: mở/đóng ngăn cài đặt của ứng dụng
+  // (Hoạt động, Bản tin, họ tên/lớp, các công tắc) — chọn kiểu hình
+  // người que/3D KHÔNG đặt ở đây nữa, đã có ngay trên khung cờ.
+  const bSet = document.createElement("button");
+  bSet.textContent = "⚙️ Cài đặt";
+  bSet.addEventListener("click", () => {
+    const d = $("settingsDrawer");
+    if (!d) return;
+    d.classList.toggle("hidden");
+    if (!d.classList.contains("hidden")) d.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  chip.appendChild(bSet);
   const bOut = document.createElement("button");
   bOut.textContent = "Đăng xuất";
   bOut.addEventListener("click", doLogout);
@@ -1051,6 +1039,10 @@ function mountAiButton() {
   note.id = "ttAiNote";
   host.appendChild(btn);
   host.appendChild(note);
+  /* Tài khoản được bật AI: nút nổi Tạo bản tin trên giao diện chính
+     mặc định cũng là tạo bằng AI (máy chính xử lý qua data-ai). */
+  const fab = $("fabGen");
+  if (fab) { fab.textContent = "✨ Tạo bản tin AI"; fab.dataset.ai = "1"; }
   btn.addEventListener("click", async () => {
     btn.disabled = true;
     btn.textContent = "✨ Đang tạo…";
