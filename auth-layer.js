@@ -18,7 +18,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
-  collection, getDocs, addDoc, query, where, serverTimestamp
+  collection, getDocs, addDoc, query, where, serverTimestamp, getCountFromServer
 } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
 import { convertText, convertedLength, LEVEL_BANDS, THEMES } from "./converter.js";
 
@@ -49,8 +49,13 @@ style.textContent = `
 .tt-msg{background:#eef6ee;color:#205c20;border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:10px}
 .tt-note{font-size:12.5px;color:#666;margin-top:10px;line-height:1.45}
 .tt-center{text-align:center}
-#tt-chip{position:fixed;right:10px;bottom:10px;z-index:999980;background:rgba(8,45,80,.92);color:#fff;border-radius:12px;padding:8px 10px;display:none;gap:6px;align-items:center;font-family:system-ui,sans-serif;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.3);flex-wrap:wrap;max-width:92vw}
+#tt-chip{position:fixed;top:0;left:0;right:0;z-index:999980;background:rgba(8,45,80,.97);color:#fff;padding:6px 10px;display:none;gap:6px;align-items:center;font-family:system-ui,sans-serif;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.3);flex-wrap:wrap}
 #tt-chip button{background:#fff;color:#0b4a80;border:none;border-radius:7px;padding:5px 9px;font-weight:600;cursor:pointer;font-size:12.5px}
+#tt-chip button.on{background:#ffb300;color:#083d73}
+.tt-chipinfo{display:flex;flex-direction:column;line-height:1.25;margin-right:2px;min-width:0}
+.tt-chipsub{font-size:12px;color:#cfe3f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
+.tt-figbtns{display:flex;gap:4px;align-items:center;background:rgba(255,255,255,.12);border-radius:8px;padding:3px 5px}
+.tt-figbtns span{font-size:12px;color:#cfe3f5}
 #tt-panel{position:fixed;inset:0;z-index:999985;background:rgba(4,25,45,.55);display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:18px 10px;font-family:system-ui,sans-serif}
 #tt-panel .tt-box{background:#fff;border-radius:14px;max-width:760px;width:100%;padding:18px;margin:auto 0}
 #tt-panel h2{margin:0 0 10px;font-size:18px;color:#0b5cad}
@@ -392,22 +397,56 @@ function grantAccess() {
   startHistWatch();
 }
 
+/* Dòng phụ dưới tên người dùng: HS -> "Lớp 6A6, trường X";
+   GV -> "Giáo viên trường X"; quản trị -> "Quản trị viên". */
+function subLineFor(p, schoolName, isAdmin) {
+  if (isAdmin) return "Quản trị viên" + (schoolName ? " · trường " + schoolName : "");
+  if (p && p.role === "GV") return "Giáo viên" + (schoolName ? " trường " + schoolName : "");
+  const cls = p && p.className ? "Lớp " + p.className : "";
+  const sch = schoolName ? "trường " + schoolName : "";
+  return [cls, sch].filter(Boolean).join(", ");
+}
+async function fetchMySchoolName() {
+  if (!myProfile || !myProfile.schoolId || !db) return "";
+  try {
+    const s = await getDoc(doc(db, "schools", myProfile.schoolId));
+    return s.exists() ? (s.data().name || "") : "";
+  } catch (e) { return ""; }
+}
+function fitTopBar() {
+  const c = $("tt-chip");
+  if (c && c.style.display !== "none") document.body.style.paddingTop = (c.offsetHeight + 4) + "px";
+}
+
 function buildChip() {
   let chip = $("tt-chip");
   if (!chip) {
     chip = document.createElement("div");
     chip.id = "tt-chip";
     document.body.appendChild(chip);
+    window.addEventListener("resize", fitTopBar);
   }
   chip.style.display = "flex";
   chip.innerHTML = "";
-  const label = document.createElement("span");
-  label.textContent = "👤 ";
+  // Tên người dùng + dòng Lớp/Giáo viên · trường ở ngay dưới tên
+  const info = document.createElement("div");
+  info.className = "tt-chipinfo";
+  const line1 = document.createElement("span");
+  line1.textContent = "👤 ";
   const nm = document.createElement("span");
   nm.textContent = displayName(myProfile);
   if (aiAllowed()) nm.className = "tt-rainbow";
-  label.appendChild(nm);
-  chip.appendChild(label);
+  line1.appendChild(nm);
+  info.appendChild(line1);
+  const sub = document.createElement("span");
+  sub.className = "tt-chipsub";
+  sub.textContent = subLineFor(myProfile, "", myIsAdmin);
+  info.appendChild(sub);
+  chip.appendChild(info);
+  fetchMySchoolName().then((schoolName) => {
+    sub.textContent = subLineFor(myProfile, schoolName, myIsAdmin);
+    fitTopBar();
+  });
   const bHist = document.createElement("button");
   bHist.textContent = "🕘 Lịch sử";
   bHist.addEventListener("click", openMyHistory);
@@ -423,11 +462,41 @@ function buildChip() {
     bAd.textContent = "🛠 Quản trị";
     bAd.addEventListener("click", openAdminPanel);
     chip.appendChild(bAd);
+    const bUse = document.createElement("button");
+    bUse.textContent = "📊 Dung lượng";
+    bUse.addEventListener("click", openUsagePanel);
+    chip.appendChild(bUse);
   }
+  // Chọn hình người phất cờ — đặt ngay trên thanh ghim để lúc nào cũng
+  // thấy (nút dưới sân khấu Semaphore vẫn giữ nguyên, hai nơi đồng bộ
+  // qua cùng một lựa chọn đã lưu).
+  const figWrap = document.createElement("span");
+  figWrap.className = "tt-figbtns";
+  const figCap = document.createElement("span");
+  figCap.textContent = "Hình:";
+  figWrap.appendChild(figCap);
+  const bStick = document.createElement("button");
+  bStick.textContent = "Người que";
+  const b3d = document.createElement("button");
+  b3d.textContent = "Người 3D";
+  const paintFig = () => {
+    let on = false;
+    try { on = localStorage.getItem("tt_fig3d") === "1"; } catch (e) {}
+    bStick.classList.toggle("on", !on);
+    b3d.classList.toggle("on", on);
+  };
+  bStick.addEventListener("click", () => { const b = $("figStickBtn"); if (b) b.click(); paintFig(); });
+  b3d.addEventListener("click", () => { const b = $("fig3dBtn"); if (b) b.click(); paintFig(); });
+  figWrap.appendChild(bStick);
+  figWrap.appendChild(b3d);
+  chip.appendChild(figWrap);
+  paintFig();
   const bOut = document.createElement("button");
   bOut.textContent = "Đăng xuất";
   bOut.addEventListener("click", doLogout);
   chip.appendChild(bOut);
+  requestAnimationFrame(fitTopBar);
+  setTimeout(fitTopBar, 300);
 }
 
 /* ---------------- Đồng bộ lịch sử làm bài ---------------- */
@@ -706,6 +775,7 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
       <button data-a="toggle">${m.status === "active" ? "Khoá" : "Mở"}</button>
       <button data-a="exp">Hạn</button>
       <button data-a="hist">Lịch sử</button>
+      <button data-a="delhist" class="danger">Xoá lịch sử</button>
       <button data-a="reset">Đặt lại MK</button>
       <button data-a="del" class="danger">Xoá</button>
     </div></td>`;
@@ -723,6 +793,7 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
       </div>
     </div>
     <div data-block="hist" style="display:none"><div class="tt-histbox"></div></div>
+    <div data-block="delhist" style="display:none"><div class="tt-histbox"></div></div>
     <div data-block="reset" style="display:none"><div class="tt-histbox"></div></div>
   </td>`;
   const showBlock = (name) => {
@@ -750,20 +821,60 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
   detail.querySelector('[data-e="d30"]').addEventListener("click", () => { const base = m.expiry && m.expiry > todayStr() ? m.expiry : todayStr(); upd({ expiry: addDaysStr(base, 30) }); });
   detail.querySelector('[data-e="d90"]').addEventListener("click", () => { const base = m.expiry && m.expiry > todayStr() ? m.expiry : todayStr(); upd({ expiry: addDaysStr(base, 90) }); });
   detail.querySelector('[data-e="setdate"]').addEventListener("click", () => { const v = detail.querySelector('[data-e="date"]').value; if (v) upd({ expiry: v }); else alert("Thầy chọn ngày trước đã ạ."); });
-  tr.querySelector('[data-a="hist"]').addEventListener("click", async () => {
-    showBlock("hist");
+  const loadHistBox = async () => {
     const box = detail.querySelector('[data-block="hist"] .tt-histbox');
     box.innerHTML = "Đang tải lịch sử…";
     try {
       const snap = await getDocs(query(collection(db, "history"), where("uid", "==", m.uid)));
       const items = [];
-      snap.forEach((d) => items.push(d.data()));
+      snap.forEach((d) => items.push({ id: d.id, ...d.data() }));
       items.sort((a, b) => ((b.at && b.at.seconds) || 0) - ((a.at && a.at.seconds) || 0));
       if (!items.length) { box.innerHTML = "<div class='tt-hist'>Chưa có bài làm nào được đồng bộ từ máy của học sinh này.</div>"; return; }
-      box.innerHTML = items.slice(0, 50).map((it) => {
+      box.innerHTML = `<div class="tt-acts" style="margin:4px 0 8px"><button data-hall="1" class="danger">🗑 Xoá tất cả ${items.length} bài của ${esc(m.username || "")}</button></div>` + items.slice(0, 50).map((it) => {
         const e = it.entry || {};
-        return `<div class="tt-hist">🗓 ${esc(e.date || "")} · ${esc(it.kindLabel || "")}${it.speedLabel ? " · " + esc(it.speedLabel) : ""} · <b>${esc(fmtScore(e.score))}/10</b> · đúng ${esc(e.correct ?? "")}/${esc(e.total ?? "")} · “${esc(e.msg || "")}”</div>`;
+        return `<div class="tt-hist">🗓 ${esc(e.date || "")} · ${esc(it.kindLabel || "")}${it.speedLabel ? " · " + esc(it.speedLabel) : ""} · <b>${esc(fmtScore(e.score))}/10</b> · đúng ${esc(e.correct ?? "")}/${esc(e.total ?? "")} · “${esc(e.msg || "")}” <button data-hdel="${esc(it.id)}" class="tt-acts" style="background:#fdecea;color:#a12622;border:1px solid #f0c4c0;border-radius:6px;padding:1px 7px;cursor:pointer;font-size:12px;font-weight:600">✕ Xoá bài này</button></div>`;
       }).join("");
+      const delAll = box.querySelector("[data-hall]");
+      if (delAll) delAll.addEventListener("click", async () => {
+        if (!confirm("Xoá TOÀN BỘ " + items.length + " bài làm đã đồng bộ của " + m.username + "? Xoá xong không lấy lại được.")) return;
+        delAll.disabled = true; delAll.textContent = "Đang xoá…";
+        try {
+          for (const it of items) await deleteDoc(doc(db, "history", it.id));
+          box.innerHTML = "<div class='tt-hist'>Đã xoá toàn bộ lịch sử làm bài của " + esc(m.username || "") + ".</div>";
+        } catch (e) { alert(errText(e.code)); delAll.disabled = false; }
+      });
+      box.querySelectorAll("[data-hdel]").forEach((b) => b.addEventListener("click", async () => {
+        if (!confirm("Xoá bài làm này của " + m.username + "? Xoá xong không lấy lại được.")) return;
+        b.disabled = true;
+        try { await deleteDoc(doc(db, "history", b.dataset.hdel)); loadHistBox(); }
+        catch (e) { alert(errText(e.code)); b.disabled = false; }
+      }));
+    } catch (e) { box.innerHTML = esc(errText(e.code)); }
+  };
+  tr.querySelector('[data-a="hist"]').addEventListener("click", () => { showBlock("hist"); loadHistBox(); });
+  tr.querySelector('[data-a="delhist"]').addEventListener("click", async () => {
+    showBlock("delhist");
+    const box = detail.querySelector('[data-block="delhist"] .tt-histbox');
+    box.innerHTML = "Đang đếm số bài làm…";
+    try {
+      const snap = await getDocs(query(collection(db, "history"), where("uid", "==", m.uid)));
+      if (snap.empty) { box.innerHTML = "<div class='tt-hist'>" + esc(m.username || "") + " chưa có bài làm nào được đồng bộ — không có gì để xoá.</div>"; return; }
+      const ids = [];
+      snap.forEach((d) => ids.push(d.id));
+      box.innerHTML = `<div class="tt-hist" style="text-align:left;line-height:1.55"><b>Xoá lịch sử làm bài của ${esc(displayName(m))} (@${esc(m.username || "")})</b><br>
+        Hiện có <b>${ids.length} bài</b> đã đồng bộ trên máy chủ. Xoá xong không lấy lại được (bài lưu trên máy của học sinh không bị xoá, nhưng sẽ không đồng bộ lại những bài cũ đó).
+        <div class="tt-acts" style="margin-top:8px">
+          <button data-dh="yes" class="danger">Xoá hết ${ids.length} bài</button>
+          <button data-dh="no">Để sau</button>
+        </div></div>`;
+      box.querySelector('[data-dh="no"]').addEventListener("click", () => { detail.style.display = "none"; });
+      box.querySelector('[data-dh="yes"]').addEventListener("click", async (ev) => {
+        ev.target.disabled = true; ev.target.textContent = "Đang xoá…";
+        try {
+          for (const id of ids) await deleteDoc(doc(db, "history", id));
+          box.innerHTML = "<div class='tt-hist'>Đã xoá toàn bộ " + ids.length + " bài làm của " + esc(m.username || "") + ".</div>";
+        } catch (e) { alert(errText(e.code)); ev.target.disabled = false; ev.target.textContent = "Xoá hết " + ids.length + " bài"; }
+      });
     } catch (e) { box.innerHTML = esc(errText(e.code)); }
   });
   tr.querySelector('[data-a="reset"]').addEventListener("click", () => {
@@ -790,6 +901,51 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
     });
   });
   return { tr, detail };
+}
+
+/* ---------------- Dung lượng Firebase (chỉ quản trị) ----------------
+   Số lần Đọc/Ghi/Xoá và % hạn mức gói Spark CHỈ có trên trang chính
+   thức của Google — Google không cấp các số này cho trang web đọc
+   trực tiếp, nên nút này mở đúng trang Usage của dự án (số liệu thật,
+   cập nhật trực tiếp từ Firebase, cần đăng nhập tài khoản Google của
+   thầy). Trong panel hiển thị thêm số bản ghi thật đang lưu trong
+   ứng dụng, đếm trực tiếp từ Firestore ngay lúc mở. */
+async function openUsagePanel() {
+  const body = openPanel("📊 Dung lượng Firebase", true);
+  const pid = (cfg && cfg.projectId) || "";
+  const usageUrl = "https://console.firebase.google.com/project/" + pid + "/usage";
+  const fsUsageUrl = "https://console.firebase.google.com/project/" + pid + "/firestore/usage";
+  body.innerHTML = `
+    <p style="line-height:1.55"><b>Số liệu hạn mức thật (Đọc / Ghi / Xoá / % gói Spark)</b> chỉ xem được trên trang chính thức của Firebase — trang web không đọc trực tiếp được các số này. Thầy bấm nút dưới đây là mở đúng trang đó của dự án <b>${esc(pid)}</b> (đăng nhập sẵn tài khoản Google của thầy thì vào thẳng):</p>
+    <div class="tt-acts" style="margin:10px 0 14px">
+      <button id="tt-use-open">📈 Mở trang Dung lượng Firebase (trang như ảnh thầy gửi)</button>
+      <button id="tt-use-fs">🔥 Mở biểu đồ Firestore</button>
+    </div>
+    <p style="line-height:1.55"><b>Dữ liệu thật đang lưu trong ứng dụng</b> (em đếm trực tiếp từ Firestore ngay lúc này):</p>
+    <div id="tt-use-counts"><p>Đang đếm…</p></div>
+    <p class="tt-note">Hạn mức gói Spark để đối chiếu trên trang chính thức: Đọc 50.000 lần/ngày · Ghi 20.000 lần/ngày · Xoá 20.000 lần/ngày · Dữ liệu lưu tối đa 1 GB. Với quy mô một lớp học, mức dùng hiện tại còn rất xa hạn mức.</p>`;
+  body.querySelector("#tt-use-open").addEventListener("click", () => window.open(usageUrl, "_blank"));
+  body.querySelector("#tt-use-fs").addEventListener("click", () => window.open(fsUsageUrl, "_blank"));
+  const box = body.querySelector("#tt-use-counts");
+  try {
+    const [p, h, s, a] = await Promise.all([
+      getCountFromServer(collection(db, "profiles")),
+      getCountFromServer(collection(db, "history")),
+      getCountFromServer(collection(db, "schools")),
+      getCountFromServer(collection(db, "admins"))
+    ]);
+    const rows = [
+      ["👤 Thành viên (hồ sơ tài khoản)", p.data().count],
+      ["🕘 Bài làm đã đồng bộ (lịch sử)", h.data().count],
+      ["🏫 Trường học", s.data().count],
+      ["🛠 Quản trị viên", a.data().count]
+    ];
+    box.innerHTML = `<div style="overflow-x:auto"><table class="tt-table"><thead><tr><th>Dữ liệu</th><th>Số bản ghi</th></tr></thead><tbody>${
+      rows.map((r) => `<tr><td>${r[0]}</td><td><b>${r[1]}</b></td></tr>`).join("")
+    }</tbody></table></div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="tt-err" style="display:block">${esc(errText(e.code))}</div>`;
+  }
 }
 
 /* ---------------- AI tạo bản tin ---------------- */
