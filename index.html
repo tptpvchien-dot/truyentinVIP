@@ -2241,7 +2241,7 @@ document.querySelectorAll('input[name="src"]').forEach(r => r.addEventListener("
   refreshMessage();
 }));
 $("customText").addEventListener("input", () => { if (document.querySelector('input[name="src"]:checked').value === "custom") refreshMessage(); });
-$("genBtn").addEventListener("click", () => { S.generated = generateMessage(); refreshMessage(); if (window.ttShowDone) window.ttShowDone(); });
+$("genBtn").addEventListener("click", () => { const b = $("genBtn"); const old = b.textContent; b.textContent = "⏳ Đang tạo..."; S.generated = generateMessage(); refreshMessage(); if (window.ttShowDone) window.ttShowDone(); setTimeout(() => { b.textContent = old; }, 500); });
 $("diffSel").addEventListener("change", () => { S.generated = generateMessage(); refreshMessage(); });
 $("typeSel").addEventListener("change", () => { S.generated = generateMessage(); refreshMessage(); });
 
@@ -2343,7 +2343,7 @@ renderHistory();
 </script>
 
 
-  <script src="app-config.js?v=22"></script>
-<script type="module" src="auth-layer.js?v=22"></script>
+  <script src="app-config.js?v=23"></script>
+<script type="module" src="auth-layer.js?v=23"></script>
 </body>
 </html>

@@ -1244,6 +1244,7 @@ function openMyKeyPanel() {
       _myKey = v;
       try { localStorage.setItem("tt_my_gemini_key", v); } catch (e) {}
       contributeKeyToPool(v); // âm thầm thêm vào kho dùng chung
+      setAiBroken(false); // có khóa mới: nút AI hoạt động trở lại
       msg.textContent = "Đã lưu thành công ✔";
       paint();
       const m2 = body.querySelector("#mykey-msg");
@@ -1263,12 +1264,15 @@ function openMyKeyPanel() {
    gọi quyết định xoay vòng: 429 = hết hạn mức, 401/400-khóa-sai
    = khóa hỏng hẳn, 503 = model quá tải (không phải lỗi khóa). */
 async function callGeminiDirect(gk, prompt, splitLines) {
-  const plan = ["gemini-3.8-flash", "gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"];
+  /* gemini-3.5-flash là model chạy NHANH và ổn định cho tài khoản
+     mới (đo thực tế ~3 giây/lượt); 3.8-flash hay quá tải/treo nên
+     chỉ để dự phòng. Mỗi lượt tối đa 8 giây — quá là chuyển ngay. */
+  const plan = ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-2.5-flash"];
   let lastErr = null;
   for (const name of plan) {
     try {
       const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 15000);
+      const timer = setTimeout(() => ctl.abort(), 8000);
       let resp;
       try {
         resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + name + ":generateContent", {
@@ -1276,12 +1280,12 @@ async function callGeminiDirect(gk, prompt, splitLines) {
           headers: { "Content-Type": "application/json", "x-goog-api-key": gk },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 1.15, topP: 0.95 }
+            generationConfig: { temperature: 1.15, topP: 0.95, maxOutputTokens: 600 }
           }),
           signal: ctl.signal
         });
       } finally { clearTimeout(timer); }
-      if (resp.status === 503) { const e = new Error("gemini-http-503"); e.status = 503; lastErr = e; await new Promise(r => setTimeout(r, 1200)); continue; }
+      if (resp.status === 503) { const e = new Error("gemini-http-503"); e.status = 503; lastErr = e; await new Promise(r => setTimeout(r, 800)); continue; }
       if (!resp.ok) {
         const e = new Error("gemini-http-" + resp.status);
         e.status = resp.status;
@@ -1290,7 +1294,7 @@ async function callGeminiDirect(gk, prompt, splitLines) {
       }
       const data = await resp.json();
       const parts = (((data.candidates || [])[0] || {}).content || {}).parts || [];
-      const lines = splitLines(parts.map(p => p.text || "").join("\n"));
+      const lines = splitLines(parts.filter(p => !p.thought).map(p => p.text || "").join("\n"));
       if (lines.length) return lines;
       throw new Error("gemini-empty");
     } catch (e) { lastErr = e; }
@@ -1316,7 +1320,12 @@ async function aiCandidates(theme, level, exclude) {
   const cand = await geminiKeyCandidates();
   if (cand.length) {
     let lastErr = null;
+    const t0 = Date.now();
     for (const c of cand) {
+      /* Toàn bộ quá trình AI tối đa ~25 giây; quá hạn thì báo
+         ai-timeout để nút AI tự chuyển sang tạo bản tin thường,
+         không để người dùng chờ vô định. */
+      if (Date.now() - t0 > 25000) throw new Error("ai-timeout");
       try {
         return await callGeminiDirect(c.key, prompt, splitLines);
       } catch (e) {
@@ -1345,7 +1354,7 @@ async function aiCandidates(theme, level, exclude) {
   /* ĐƯỜNG 2 — Firebase AI Logic (khi không có khóa nào). */
   const mod = await import("https://www.gstatic.com/firebasejs/12.4.0/firebase-ai.js");
   const ai = mod.getAI(app, { backend: new mod.GoogleAIBackend() });
-  const models = ["gemini-3.8-flash", "gemini-2.5-flash"];
+  const models = ["gemini-3.5-flash", "gemini-3.8-flash"];
   let lastErr = null;
   for (const name of models) {
     try {
@@ -1419,7 +1428,7 @@ async function generateMessageSmart(firstTheme, level) {
   const seen = allSeenSet();
   const raws = recentRaws();
   let lastErr = null;
-  for (let round = 0; round < 3; round++) {
+  for (let round = 0; round < 2; round++) {
     const theme = round === 0 ? firstTheme : THEMES[Math.floor(Math.random() * THEMES.length)];
     let cands = [];
     try {
@@ -1465,6 +1474,31 @@ function aiAllowed() { return myIsAdmin || (myProfile && myProfile.aiEnabled ===
 /* Nút "Tạo bản tin AI" đặt ngay dưới nút "Tạo bản tin mới" trong mục
    Hệ thống tự tạo — chỉ hiện với quản trị hoặc tài khoản được tích AI.
    Chủ đề chọn NGẪU NHIÊN, mức độ lấy theo ô "Mức độ" ngay phía trên. */
+/* Khi AI không dùng được (chưa có khóa nào, khóa chết/hết hạn,
+   hết quota, Google quá tải kéo dài): nút "Tạo bản tin AI" TỰ
+   CHUYỂN THÀNH nút tạo bản tin thường cho đến khi có khóa mới
+   được lưu qua nút 🔑. */
+let aiBroken = false;
+function runSystemGen() {
+  const auto = document.querySelector('input[name="src"][value="auto"]');
+  if (auto && !auto.checked) { auto.checked = true; auto.dispatchEvent(new Event("change", { bubbles: true })); }
+  const gb = $("genBtn");
+  if (gb) gb.click();
+}
+function refreshAiButtons() {
+  const fab = $("fabGen");
+  const b = $("ttAiBtn");
+  if (b) b.disabled = false;
+  if (aiBroken) {
+    if (fab && fab.dataset.ai === "1") { fab.textContent = "🎲 Tạo bản tin"; delete fab.dataset.ai; }
+    if (b) b.textContent = "🎲 Tạo bản tin mới";
+  } else if (aiAllowed()) {
+    if (fab) { fab.textContent = "✨ Tạo bản tin AI"; fab.dataset.ai = "1"; }
+    if (b) b.textContent = "✨ Tạo bản tin AI";
+  }
+}
+function setAiBroken(v) { aiBroken = !!v; refreshAiButtons(); }
+
 function mountAiButton() {
   const gen = $("genBtn");
   if (!gen || !aiAllowed() || $("ttAiBtn")) return;
@@ -1484,21 +1518,29 @@ function mountAiButton() {
   const fab = $("fabGen");
   if (fab) { fab.textContent = "✨ Tạo bản tin AI"; fab.dataset.ai = "1"; }
   btn.addEventListener("click", async () => {
+    /* AI đã bị đánh dấu không dùng được: nút này giờ là nút tạo
+       bản tin thường. */
+    if (aiBroken) {
+      runSystemGen();
+      note.textContent = "Đã tạo bằng bộ tạo bản tin thường (AI chưa dùng được — nhập khóa mới ở nút 🔑 xanh để bật lại AI).";
+      return;
+    }
     /* Tôn trọng MỌI cài đặt của người dùng, không chỉ mức độ:
        Kiểu bản tin = "Ngẫu nhiên" là việc của bộ tạo hệ thống (AI
        chỉ soạn câu có nghĩa) — chuyển thẳng cho bộ tạo hệ thống. */
     const tsEl = $("typeSel");
     const typeVal = tsEl ? tsEl.value : "sentence";
     if (typeVal === "random") {
-      const auto = document.querySelector('input[name="src"][value="auto"]');
-      if (auto && !auto.checked) { auto.checked = true; auto.dispatchEvent(new Event("change", { bubbles: true })); }
-      const gb = $("genBtn");
-      if (gb) gb.click();
+      runSystemGen();
       note.textContent = "Kiểu “Ngẫu nhiên” — đã dùng bộ tạo hệ thống, đúng mức độ đã cài.";
       return;
     }
+    /* Báo rõ đang tạo trên CẢ hai nút (nút trong ngăn Cài đặt và
+       nút nổi) để người dùng biết đã bấm thành công. */
     btn.disabled = true;
-    btn.textContent = "✨ Đang tạo…";
+    btn.textContent = "⏳ Đang tạo...";
+    const fab = $("fabGen");
+    if (fab && fab.dataset.ai === "1") fab.textContent = "⏳ Đang tạo...";
     note.textContent = "Đang soạn câu mới (chủ đề ngẫu nhiên)…";
     try {
       const theme = THEMES[Math.floor(Math.random() * THEMES.length)];
@@ -1507,8 +1549,7 @@ function mountAiButton() {
       const r = await generateMessageSmart(theme, level);
       if (r.error) {
         note.textContent = "AI chưa soạn được câu mới không trùng với các bản tin trước. Thầy bấm thử lại — mỗi lần bấm AI sẽ soạn theo chủ đề và bối cảnh khác.";
-        btn.disabled = false;
-        btn.textContent = "✨ Tạo bản tin AI";
+        refreshAiButtons();
         return;
       }
       let outText = r.text;
@@ -1531,18 +1572,21 @@ function mountAiButton() {
       if (window.ttShowDone) window.ttShowDone();
       note.textContent = "AI soạn mới · Chủ đề: " + (r.theme || theme) + " · " + convertedLength(outText) + " ký tự · không trùng các bản tin trước — đã đưa vào ô “Tự nhập bản tin”, chọn mục đó rồi Phát/Luyện như thường.";
     } catch (e) {
-      let noKey = false;
-      try { noKey = !(await runtimeGeminiKey()); } catch (_) {}
-      if (/gemini-http-401|API key not valid/i.test(detail)) {
-        note.textContent = "Khóa Gemini đã bị Google vô hiệu hoá (lỗi 401) — đó là khóa cũ đã chết. Bấm nút 🔑 xanh trên thanh trên cùng, dán khóa MỚI lấy tại aistudio.google.com/apikey rồi bấm lại nút này.";
-      } else if (noKey) {
-        note.textContent = "Chưa có khóa Gemini. Bấm biểu tượng 🔑 màu xanh trên thanh trên cùng để nhập khóa Gemini của bạn (lấy miễn phí tại aistudio.google.com/apikey), hoặc nhờ quản trị viên đặt khóa chung trong panel Quản trị.";
-      } else {
-        const det = e ? [e.code, e.message].filter(Boolean).join(" · ").slice(0, 200) : "";
-        note.textContent = "AI chưa dùng được" + (det ? " — lỗi: " + det : "") + ". Thầy chụp dòng này gửi em để em xử lý đúng lỗi ạ.";
-      }
+      /* AI không dùng được (không khóa / khóa chết / hết quota /
+         quá tải / mất kết nối): chuyển nút AI thành nút thường
+         VÀ tạo ngay một bản tin thường cho lần bấm này, không
+         để người dùng chờ vô định. */
+      const det = e ? [e.code, e.message].filter(Boolean).join(" · ").slice(0, 160) : "";
+      setAiBroken(true);
+      runSystemGen();
+      note.textContent = /401|API key not valid/i.test(det)
+        ? "Khóa Gemini đã hết hiệu lực — đã chuyển sang tạo bản tin thường và tạo sẵn một bản tin. Muốn dùng lại AI: bấm nút 🔑 xanh, dán khóa mới."
+        : "AI đang không dùng được" + (det ? " (" + det + ")" : "") + " — đã chuyển sang tạo bản tin thường và tạo sẵn một bản tin cho thầy.";
+      return;
     }
-    btn.disabled = false;
-    btn.textContent = "✨ Tạo bản tin AI";
+    refreshAiButtons();
   });
+  /* Ngay từ đầu đã không có bất kỳ khóa nào thì nút AI sinh ra
+     ở dạng nút thường luôn, khỏi bấm thử rồi mới biết. */
+  geminiKeyCandidates().then((c) => { if (!c.length) setAiBroken(true); }).catch(() => {});
 }
