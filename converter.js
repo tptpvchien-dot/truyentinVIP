@@ -57,10 +57,10 @@ export const LEVEL_BANDS = {
 };
 
 export const THEMES = [
-  "Đội và nghi thức Đội",
-  "Học tập",
-  "Bác Hồ và Năm điều Bác dạy",
-  "Lịch sử Việt Nam",
-  "Quê hương, đất nước",
-  "An toàn giao thông và nếp sống"
+  "Đội",
+  "Nhi đồng",
+  "Bác Hồ",
+  "Lịch sử",
+  "Địa danh",
+  "Trường lớp"
 ];

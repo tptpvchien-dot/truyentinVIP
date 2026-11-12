@@ -735,8 +735,7 @@ const pick = arr => arr[rnd(arr.length)];
 const convLen = s => convertText(s).replace(/ /g, "").length;
 function genSentence(min, max){
   const pool = BANK.filter(b => { const c = convLen(b.s); return c >= min && c <= max; });
-  if (pool.length) return pick(pool);
-  return pick(BANK);
+  return pool.length ? pick(pool) : null;
 }
 function genRandom(min, max, lvl){
   /* Dưới mức Nâng cao: chỉ chữ cái. Nâng cao: chữ + số. */
@@ -749,7 +748,7 @@ function genRandom(min, max, lvl){
 function genMixed(min, max, lvl){
   /* Kết hợp chữ + số CHỈ ở mức Nâng cao; dưới Nâng cao, kiểu
      Hỗn hợp cho ra câu chữ thuần như kiểu Câu có nghĩa. */
-  if (lvl !== "adv"){ const e = genSentence(min, max); return { text: e.s, theme: THEMES[e.t] }; }
+  if (lvl !== "adv"){ const e = genSentence(min, max); return e ? { text: e.s, theme: THEMES[e.t] } : null; }
   for (let t = 0; t < 60; t++){
     const e = pick(BANK), c = convLen(e.s);
     const need = Math.max(2, min - c), room = max - c;
@@ -759,8 +758,8 @@ function genMixed(min, max, lvl){
     let digits = ""; for (let i=0;i<dlen;i++) digits += String(rnd(10));
     return { text: e.s + " " + digits, theme: THEMES[e.t] };
   }
-  const e = genSentence(min, max);
-  return { text: e.s, theme: THEMES[e.t] };
+  const e2 = genSentence(min, max);
+  return e2 ? { text: e2.s, theme: THEMES[e2.t] } : null;
 }
 /* Nâng cao (31–40 ký tự): luân phiên hai cách — ghép hai câu
    ngân hàng (chữ thuần) hoặc một câu + một nhóm số; kết hợp số
@@ -787,48 +786,62 @@ function genAdvanced(min, max){
   };
   const out = Math.random() < 0.5 ? (byDigits() || byPair()) : (byPair() || byDigits());
   if (out) return out;
-  const e = pick(BANK);
-  return { text: e.s + " " + pick(BANK).s, theme: THEMES[e.t] };
+  return null; // để generateMessage ghép câu trọn khác — không lấy bừa câu lệch dải
 }
 /* ============================================================
-   CỬA KIỂM TRA CUỐI — MỌI bản tin do nút Tạo bản tin sinh ra đều
-   phải qua cửa này trước khi dùng, nên luôn đúng mức độ đã cài:
-   - Độ dài sau chuyển đổi nằm trong dải của mức (quá dài: cắt bớt
-     từ ở cuối; quá ngắn: thêm từ ngắn / nhóm số cho đủ).
-   - Dưới mức Nâng cao: loại mọi nhóm số (chỉ chữ thuần) và không
-     bao giờ dài quá 30 ký tự (dải của 3 mức này vốn ≤ 30).
-   - Chỉ Nâng cao mới được dài 31–40 và mới có thể có nhóm số.
+   NGUYÊN TẮC ĐỘ DÀI (theo yêu cầu của thầy): bản tin phải đúng
+   dải ký tự của mức độ đã cài NHƯNG câu phải TRỌN VẸN ngữ pháp
+   và đủ nghĩa — TUYỆT ĐỐI không cắt bớt từ của câu, không chắp
+   thêm từ cho đủ dài. Cách làm: chỉ CHỌN những câu vốn đã nằm
+   trong dải — một câu ngân hàng trọn vẹn, hoặc ghép hai câu
+   trọn vẹn, hoặc câu trọn + nhóm số (Nâng cao). Câu lệch dải
+   thì bỏ và chọn câu khác. (Hàm ép dải forceBand cũ — chuyên
+   cắt từ cuối câu và thêm từ — đã bị XOÁ hẳn.)
+   Ngân hàng hiện tại: mỗi dải đều có sẵn câu trọn (Dễ 18 câu,
+   Trung bình 48, Khó 21, Nâng cao 8 + hàng nghìn cách ghép đôi)
+   nên việc chọn thuần tuý luôn tìm được.
    ============================================================ */
-function forceBand(text, lvl){
-  const [min, max] = RANGES[lvl];
-  let words = String(text || "").trim().replace(/\s+/g, " ").split(" ").filter(Boolean);
-  if (lvl !== "adv") words = words.filter(w => !/^\d+$/.test(w));
-  if (!words.length) words = ["HỌC", "TẬP", "TỐT"];
-  while (words.length > 2 && convLen(words.join(" ")) > max) words.pop();
-  let t = words.join(" ");
-  let guard = 0;
-  while (convLen(t) < min && guard++ < 10){
-    if (lvl === "adv" && guard % 2 === 0){
-      let d = ""; const dl = 2 + rnd(3);
-      for (let i = 0; i < dl; i++) d += String(rnd(10));
-      t += " " + d;
-    } else {
-      t += " " + pick(["TỐT", "HAY", "ĐẸP", "VUI", "GIỎI"]);
+function composeInBand(min, max, lvl){
+  /* 1) Một câu trọn vẹn trong dải — quét toàn bộ ngân hàng. */
+  const shuffled = BANK.slice().sort(() => Math.random() - 0.5);
+  for (const e of shuffled){ const c = convLen(e.s); if (c >= min && c <= max) return { text: e.s, theme: THEMES[e.t] }; }
+  /* 2) Ghép HAI câu trọn vẹn (mỗi câu giữ nguyên từng từ). */
+  for (let t = 0; t < 500; t++){
+    const a = pick(BANK), b = pick(BANK);
+    if (a === b) continue;
+    const L = convLen(a.s) + convLen(b.s);
+    if (L >= min && L <= max) return { text: a.s + " " + b.s, theme: THEMES[a.t] };
+  }
+  /* 3) Nâng cao: câu trọn + một nhóm số có độ dài vừa dải. */
+  if (lvl === "adv"){
+    for (let t = 0; t < 500; t++){
+      const e = pick(BANK), c = convLen(e.s);
+      const rest = (min - c) + rnd((max - c) - (min - c) + 1);
+      if (rest < 3 || rest > 12) continue;
+      let d = ""; for (let i = 0; i < rest; i++) d += String(rnd(10));
+      return { text: e.s + " " + d, theme: THEMES[e.t] };
     }
   }
-  return t;
+  return null;
 }
 function generateMessage(){
   const lvl = $("diffSel").value;
   const [min, max] = RANGES[lvl];
   const type = $("typeSel").value;
-  let out;
-  if (type === "random") out = { text: genRandom(min, max, lvl), theme: null };
-  else if (lvl === "adv") out = genAdvanced(min, max);
+  /* Kiểu Ngẫu nhiên là chuỗi ký tự sinh đúng độ dài từ đầu,
+     không phải câu văn nên không thuộc diện trọn vẹn ngữ pháp. */
+  if (type === "random") return { text: genRandom(min, max, lvl), theme: null };
+  let out = null;
+  if (lvl === "adv") out = genAdvanced(min, max);
   else if (type === "mixed") out = genMixed(min, max, lvl);
-  else { const e = genSentence(min, max); out = { text: e.s, theme: THEMES[e.t] }; }
-  out.text = forceBand(out.text, lvl);
-  return out;
+  else { const e = genSentence(min, max); if (e) out = { text: e.s, theme: THEMES[e.t] }; }
+  if (out){ const L = convLen(out.text); if (L >= min && L <= max) return out; }
+  const composed = composeInBand(min, max, lvl);
+  if (composed) return composed;
+  /* Không thể xảy ra với ngân hàng hiện tại — lưới an toàn cuối
+     vẫn chỉ dùng MỘT CÂU TRỌN, thà lệch dải còn hơn cắt câu. */
+  const e = pick(BANK);
+  return { text: e.s, theme: THEMES[e.t] };
 }
 
 /* ============================================================
@@ -2343,7 +2356,7 @@ renderHistory();
 </script>
 
 
-  <script src="app-config.js?v=23"></script>
-<script type="module" src="auth-layer.js?v=23"></script>
+  <script src="app-config.js?v=25"></script>
+<script type="module" src="auth-layer.js?v=25"></script>
 </body>
 </html>

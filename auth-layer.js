@@ -1263,7 +1263,7 @@ function openMyKeyPanel() {
 /* Gọi Gemini trực tiếp bằng MỘT khóa. Ném lỗi có .status để nơi
    gọi quyết định xoay vòng: 429 = hết hạn mức, 401/400-khóa-sai
    = khóa hỏng hẳn, 503 = model quá tải (không phải lỗi khóa). */
-async function callGeminiDirect(gk, prompt, splitLines) {
+async function callGeminiDirect(gk, prompt, splitLines, dl) {
   /* gemini-3.5-flash là model chạy NHANH và ổn định cho tài khoản
      mới (đo thực tế ~3 giây/lượt); 3.8-flash hay quá tải/treo nên
      chỉ để dự phòng. Mỗi lượt tối đa 8 giây — quá là chuyển ngay. */
@@ -1271,8 +1271,10 @@ async function callGeminiDirect(gk, prompt, splitLines) {
   let lastErr = null;
   for (const name of plan) {
     try {
+      if (dl && Date.now() > dl) throw new Error("ai-timeout");
+      const remain = dl ? dl - Date.now() : 8000;
       const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 8000);
+      const timer = setTimeout(() => ctl.abort(), Math.max(800, Math.min(8000, remain)));
       let resp;
       try {
         resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + name + ":generateContent", {
@@ -1280,7 +1282,12 @@ async function callGeminiDirect(gk, prompt, splitLines) {
           headers: { "Content-Type": "application/json", "x-goog-api-key": gk },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 1.15, topP: 0.95, maxOutputTokens: 600 }
+            /* thinkingBudget 0: TẮT phần "suy nghĩ" của model —
+               việc soạn 8 câu ngắn không cần suy luận; tắt đi
+               thì trả lời nhanh (~2–3 giây), đủ 8 câu và sạch,
+               bật thì model ăn hết ngân sách token vào suy nghĩ
+               khiến câu bị cắt cụt, lẫn chú thích lạ. */
+            generationConfig: { temperature: 1.15, topP: 0.95, maxOutputTokens: 400, thinkingConfig: { thinkingBudget: 0 } }
           }),
           signal: ctl.signal
         });
@@ -1302,14 +1309,44 @@ async function callGeminiDirect(gk, prompt, splitLines) {
   throw lastErr || new Error("gemini-direct-failed");
 }
 
-async function aiCandidates(theme, level, exclude) {
-  const words = level === "de" ? "3 đến 5 từ" : level === "tb" ? "5 đến 7 từ" : level === "kho" ? "7 đến 10 từ" : "9 đến 12 từ";
-  const numReq = level === "nc" ? " Mỗi câu phải kèm đúng một nhóm số viết bằng chữ số (ví dụ: 25, 150, 2026)." : " Câu không chứa bất kỳ chữ số nào.";
+/* Gợi ý mở rộng cho 6 chủ đề chuẩn của thầy (Đội, Nhi đồng,
+   Bác Hồ, Lịch sử, Địa danh, Trường lớp) để AI viết đúng chất
+   thiếu nhi, đúng phạm vi từng chủ đề. */
+const THEME_HINTS = {
+  "Đội": "sinh hoạt Đội Thiếu niên Tiền phong Hồ Chí Minh: khăn quàng đỏ, chào cờ, sinh hoạt chi đội, đội viên gương mẫu",
+  "Nhi đồng": "các em nhi đồng, sao nhi đồng, hoạt động vui chơi và học tập của trẻ nhỏ",
+  "Bác Hồ": "Bác Hồ kính yêu, tình cảm của thiếu nhi đối với Bác, Năm điều Bác Hồ dạy",
+  "Lịch sử": "lịch sử Việt Nam, truyền thống yêu nước, các anh hùng dân tộc",
+  "Địa danh": "địa danh nổi tiếng, cảnh đẹp quê hương đất nước Việt Nam",
+  "Trường lớp": "trường học, lớp học, thầy cô giáo và bạn bè"
+};
+
+async function aiCandidates(theme, level, exclude, deadlineTs, wordsAdj) {
+  const dl = deadlineTs || (Date.now() + 15000);
+  /* Số từ gợi ý theo mức, có thể dịch ngắn/dài theo phản hồi độ
+     lệch của vòng trước (wordsAdj): câu lệch dải bị BỎ và viết
+     lại câu khác đúng cỡ — không bao giờ cắt câu cho vừa dải. */
+  const WORDS = { de: [3, 5], tb: [5, 7], kho: [7, 10], nc: [9, 12] };
+  const wb = WORDS[level] || WORDS.tb;
+  const adj = wordsAdj || 0;
+  const wLo = Math.max(2, wb[0] + adj);
+  const wHi = Math.max(wLo + 1, wb[1] + adj);
+  const words = wLo + " đến " + wHi + " từ";
+  const lenHint = adj < 0
+    ? " LƯU Ý: lần thử trước các câu đều QUÁ DÀI so với yêu cầu — lần này viết câu NGẮN HƠN hẳn, súc tích."
+    : adj > 0
+      ? " LƯU Ý: lần thử trước các câu đều QUÁ NGẮN so với yêu cầu — lần này viết câu DÀI HƠN, đầy đủ ý hơn."
+      : "";
+  const numReq = level === "nc"
+    ? "Mỗi câu kèm đúng MỘT nhóm số viết bằng chữ số (ví dụ 25 hoặc 150), viết liền trong câu, tuyệt đối không đặt số trong dấu ngoặc."
+    : "Câu không chứa bất kỳ chữ số nào.";
   const aspect = AI_ASPECTS[Math.floor(Math.random() * AI_ASPECTS.length)];
   const avoid = (exclude && exclude.length)
     ? " Tuyệt đối KHÔNG lặp lại, không viết gần giống các câu sau đây: " + exclude.map(x => "“" + x + "”").join("; ") + "."
     : "";
-  const prompt = `Bạn là giáo viên tiểu học Việt Nam, rất sáng tạo. Viết 8 câu tiếng Việt, mỗi câu đúng một dòng, không đánh số, không dấu ngoặc kép, không dấu chấm cuối câu, viết hoa chữ cái đầu câu. Nội dung tích cực, phù hợp học sinh tiểu học, chủ đề: ${theme}. Bối cảnh gợi ý cho một vài câu: ${aspect}. Mỗi câu khoảng ${words}.${numReq} Tám câu phải khác nhau hoàn toàn về nội dung, hình ảnh và cách diễn đạt.${avoid} Chỉ in ra 8 câu, không giải thích.`;
+  const hint = THEME_HINTS[theme] || theme;
+  const prompt = `Bạn là giáo viên tiểu học Việt Nam. Viết 8 câu TIẾNG VIỆT THUẦN, có dấu tiếng Việt đầy đủ, mỗi câu đúng một dòng. Chủ đề: ${theme} — cụ thể về ${hint}. Bối cảnh gợi ý cho một vài câu: ${aspect}. Nội dung tích cực, trong sáng, phù hợp học sinh tiểu học. Mỗi câu khoảng ${words}. ${numReq}
+QUY TẮC BẮT BUỘC về hình thức: mỗi câu CHỈ gồm chữ cái tiếng Việt và khoảng trắng${level === "nc" ? " cùng nhóm chữ số theo yêu cầu trên" : ""}. TUYỆT ĐỐI KHÔNG dùng: tiếng Anh hay bất kỳ ngoại ngữ nào, dấu ngoặc ( ), dấu hai chấm, dấu chấm hoặc dấu phẩy, dấu nháy đơn hay nháy kép, dấu gạch nối, mọi ký tự đặc biệt khác. Tám câu khác nhau hoàn toàn về nội dung và cách diễn đạt.${avoid}${lenHint} Chỉ in ra đúng 8 câu, không giải thích, không thêm bất kỳ ký tự nào khác.`;
   const splitLines = (text) => String(text || "").split(/\n+/).map((x) => x.replace(/^[\d\-.)\s"“”]+/, "").replace(/["“”.]+\s*$/, "").trim()).filter((x) => x.length > 2);
   /* ĐƯỜNG 1 — Gemini trực tiếp, XOAY VÒNG các khóa: riêng →
      kho dùng chung → khóa chung cũ. Hết quota (429): ghi nhận
@@ -1320,14 +1357,13 @@ async function aiCandidates(theme, level, exclude) {
   const cand = await geminiKeyCandidates();
   if (cand.length) {
     let lastErr = null;
-    const t0 = Date.now();
     for (const c of cand) {
-      /* Toàn bộ quá trình AI tối đa ~25 giây; quá hạn thì báo
-         ai-timeout để nút AI tự chuyển sang tạo bản tin thường,
-         không để người dùng chờ vô định. */
-      if (Date.now() - t0 > 25000) throw new Error("ai-timeout");
+      /* Hạn chót 15 giây cho TOÀN BỘ quá trình tạo bằng AI:
+         quá hạn thì dừng ngay (ai-timeout) để nút AI tự chuyển
+         sang tạo bản tin thường, không chờ thêm. */
+      if (Date.now() > dl) throw new Error("ai-timeout");
       try {
-        return await callGeminiDirect(c.key, prompt, splitLines);
+        return await callGeminiDirect(c.key, prompt, splitLines, dl);
       } catch (e) {
         lastErr = e;
         if (e.status === 503) throw e;
@@ -1357,6 +1393,7 @@ async function aiCandidates(theme, level, exclude) {
   const models = ["gemini-3.5-flash", "gemini-3.8-flash"];
   let lastErr = null;
   for (const name of models) {
+    if (Date.now() > dl) throw new Error("ai-timeout");
     try {
       const model = mod.getGenerativeModel(ai, { model: name, generationConfig: { temperature: 1.15, topP: 0.95 } });
       const res = await model.generateContent(prompt);
@@ -1366,34 +1403,13 @@ async function aiCandidates(theme, level, exclude) {
   throw lastErr || new Error("AI unavailable");
 }
 
-/* Ép một câu về đúng dải độ dài của mức đã cài: quá dài thì cắt
-   bớt từ ở cuối câu, quá ngắn thì thêm từ ngắn (riêng Nâng cao có
-   thể thêm nhóm số). QUY TẮC MỨC ĐỘ: dưới Nâng cao, bản tin chỉ
-   gồm chữ (loại mọi nhóm số) và không bao giờ quá 30 ký tự; chỉ
-   Nâng cao (nc) mới dài 31–40 và mới được kết hợp chữ + số.
-   Nhờ hàm này, bản tin do AI tạo ra LUÔN đúng mức độ theo cài
-   đặt — kể cả khi AI viết câu dài/ngắn hơn yêu cầu, có lẫn số,
-   hoặc phải dùng bộ tạo dự phòng. */
-function fitToBand(text, band, level) {
-  let words = String(text || "").trim().replace(/\s+/g, " ").split(" ").filter(Boolean);
-  if (level !== "nc") words = words.filter(w => !/^\d+$/.test(w));
-  if (!words.length) words = ["HỌC", "TẬP", "TỐT"];
-  while (words.length > 2 && convertedLength(words.join(" ")) > band.max) words.pop();
-  let t = words.join(" ");
-  let guard = 0;
-  while (convertedLength(t) < band.min && guard++ < 8) {
-    if (level === "nc" && guard % 2 === 0) {
-      const need = band.min - convertedLength(t);
-      const dlen = Math.min(4, Math.max(2, need));
-      let d = "";
-      for (let i = 0; i < dlen; i++) d += String(Math.floor(Math.random() * 10));
-      t = t + " " + d;
-    } else {
-      t = t + " " + ["TỐT", "HAY", "ĐẸP", "VUI", "GIỎI"][Math.floor(Math.random() * 5)];
-    }
-  }
-  return t;
-}
+/* NGUYÊN TẮC ĐỘ DÀI (theo yêu cầu của thầy): bản tin phải đúng
+   dải ký tự của mức độ NHƯNG câu phải trọn vẹn ngữ pháp và đủ
+   nghĩa — TUYỆT ĐỐI không cắt bớt từ của câu, không chắp thêm
+   từ cho đủ dài. Cách làm: chỉ CHỌN câu vốn đã nằm trong dải
+   (câu AI viết tự nhiên đạt dải, câu ngân hàng trọn vẹn); câu
+   lệch dải thì bỏ và soạn/chọn câu khác. Hàm ép dải cũ
+   (fitToBand) đã bị xoá hẳn theo nguyên tắc này. */
 
 /* Chống trùng dạng "biến thể": một câu đã dùng cộng thêm vài từ
    (hoặc bản rút gọn của một câu đã dùng dài hơn) cũng coi là
@@ -1418,39 +1434,61 @@ function variantOfSeen(text, seen) {
      hàng hệ thống + bản tin đã nộp); các câu gần nhất còn được
      ghi vào prompt để AI tránh lặp. Câu AI bị trùng hoặc là bản
      rút gọn của câu đã dùng đều bị loại.
-   - Độ dài vẫn ép đúng dải của mức đã cài (fitToBand) trên CHÍNH
-     câu AI viết.
+   - Độ dài: chỉ nhận câu AI viết TỰ NHIÊN đã nằm trong dải của
+     mức đã cài — câu lệch dải thì bỏ, vòng sau nhắc AI viết
+     ngắn/dài lại. Không cắt, không chắp từ vào câu của AI.
    - Không còn bộ tạo dự phòng lặng lẽ thay thế: AI không dùng
      được (chưa bật AI Logic / lỗi mạng / hết lượt) thì báo rõ
      để người dùng biết, tuyệt đối không đưa câu ghép sẵn. */
+/* BỘ LỌC CỨNG cho câu AI viết — chỉ nhận câu TIẾNG VIỆT THUẦN:
+   - không chứa ký tự lạ: dấu ngoặc, hai chấm, nháy, gạch nối,
+     chấm/phẩy và mọi ký tự đặc biệt (loại hẳn kiểu lỗi như
+     "LET'S COUNT: CHÚNG (1) EM");
+   - bắt buộc có dấu tiếng Việt (câu toàn chữ không dấu kiểu
+     tiếng Anh bị loại);
+   - số: dưới Nâng cao không được có chữ số; Nâng cao tối đa
+     đúng một nhóm số. */
+const VN_MARKED = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/i;
+function isCleanVn(text, level) {
+  const t = String(text || "").trim();
+  if (t.length < 3) return false;
+  if (/[():'".,!?;\/\\@#$%^&*_=+<>\[\]{}|~`-]/.test(t)) return false;
+  if (!VN_MARKED.test(t)) return false;
+  const groups = t.match(/\d+/g) || [];
+  if (level === "nc") return groups.length <= 1;
+  return groups.length === 0;
+}
+
 async function generateMessageSmart(firstTheme, level) {
   const band = LEVEL_BANDS[level];
   const seen = allSeenSet();
   const raws = recentRaws();
+  /* Hạn chót 15 giây cho cả quá trình (mọi vòng, mọi khóa). */
+  const deadline = Date.now() + 15000;
   let lastErr = null;
-  for (let round = 0; round < 2; round++) {
+  let adj = 0; // phản hồi độ lệch cho vòng sau: <0 viết ngắn lại, >0 viết dài ra
+  for (let round = 0; round < 3; round++) {
     const theme = round === 0 ? firstTheme : THEMES[Math.floor(Math.random() * THEMES.length)];
     let cands = [];
     try {
-      cands = await aiCandidates(theme, level, raws.slice(-10));
+      cands = await aiCandidates(theme, level, raws.slice(-10), deadline, adj);
     } catch (e) { lastErr = e; break; }
+    const cleanLens = [];
     for (const c of cands) {
+      if (!isCleanVn(c, level)) continue;
       const conv = convertText(c);
       const len = convertedLength(c);
+      cleanLens.push(len);
       if (len >= band.min && len <= band.max && !seen.has(conv) && !variantOfSeen(c, seen)) {
         rememberSeen(conv); rememberRaw(c.toUpperCase());
         return { text: c.toUpperCase(), ai: true, theme };
       }
     }
-    for (const c of cands) {
-      if (seen.has(convertText(c)) || variantOfSeen(c, seen)) continue;
-      const f = fitToBand(c, band, level);
-      const conv = convertText(f);
-      const len = convertedLength(f);
-      if (len >= band.min && len <= band.max && !seen.has(conv) && !variantOfSeen(f, seen)) {
-        rememberSeen(conv); rememberRaw(f.toUpperCase());
-        return { text: f.toUpperCase(), ai: true, theme };
-      }
+    /* Không câu nào đạt: ghi nhận lệch về phía nào để vòng sau
+       nhắc AI chỉnh độ dài — câu lệch bị bỏ, không cắt sửa. */
+    if (cleanLens.length) {
+      if (cleanLens.every(L => L > band.max)) adj -= 2;
+      else if (cleanLens.every(L => L < band.min)) adj += 2;
     }
     cands.forEach(c => { if (!raws.includes(c)) raws.push(c); });
   }
@@ -1553,14 +1591,9 @@ function mountAiButton() {
         return;
       }
       let outText = r.text;
-      /* Kiểm tra lại lần cuối ngay tại nút bấm: nếu kết quả vẫn
-         lệch dải của mức đã cài (bất kể từ đường nào), ép lại
-         bằng fitToBand trước khi đưa vào ô nhập. */
-      {
-        const band = LEVEL_BANDS[level];
-        const L = convertedLength(outText);
-        if (L < band.min || L > band.max) outText = fitToBand(outText, band, level);
-      }
+      /* Độ dài đã được đảm bảo ngay trong generateMessageSmart
+         bằng cách chỉ chọn câu tự nhiên đạt dải — tại đây KHÔNG
+         chỉnh sửa gì thêm vào câu (không cắt, không thêm từ). */
       /* Kiểu "Hỗn hợp" + mức Nâng cao: bản tin AI kèm một nhóm số
          (dưới Nâng cao thì không kết hợp số — đúng quy tắc mức độ) */
       if (typeVal === "mixed" && level === "nc" && !/\d/.test(outText)) {
