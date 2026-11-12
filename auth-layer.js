@@ -11,8 +11,10 @@
 
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
 import {
-  getAuth, onAuthStateChanged, signInWithEmailAndPassword,
-  createUserWithEmailAndPassword, signOut
+  getAuth, initializeAuth, onAuthStateChanged, signInWithEmailAndPassword,
+  createUserWithEmailAndPassword, signOut,
+  indexedDBLocalPersistence, browserLocalPersistence,
+  browserSessionPersistence, inMemoryPersistence
 } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
@@ -123,7 +125,17 @@ if (location.protocol === "file:") {
   <p class="tt-note">Thầy mở file <b>app-config.js</b> và dán nội dung <b>firebaseConfig</b> của dự án Firebase vào đó (hướng dẫn Phần D), hoặc gửi nội dung đó cho em qua Muse để em dán giúp. Đây không phải mật khẩu bí mật — xem ghi chú trong file.</p>`);
 } else {
   app = initializeApp(cfg);
-  auth = getAuth(app);
+  // Bộ nhớ đăng nhập nhiều tầng dự phòng: nếu trình duyệt/môi trường mở
+  // trang chặn IndexedDB (hay gặp khi mở lồng trong ứng dụng khác) thì
+  // tự rơi xuống localStorage -> sessionStorage -> bộ nhớ tạm, tránh
+  // việc khởi tạo đăng nhập bị treo im lặng.
+  try {
+    auth = initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, inMemoryPersistence]
+    });
+  } catch (e) {
+    auth = getAuth(app);
+  }
   db = getFirestore(app);
   boot();
 }
@@ -144,13 +156,33 @@ function addDaysStr(base, days) {
 function isExpired(p) { return p && p.expiry && p.expiry < todayStr(); }
 
 let bootTimer = null;
+async function bootSelfTest() {
+  // Gọi thẳng vào máy chủ Google (không qua thư viện) để phân biệt:
+  // mạng bị chặn/chậm tới Google, hay thư viện đăng nhập gặp trở ngại.
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 6000);
+    const r = await fetch("https://www.googleapis.com/identitytoolkit/v3/relyingparty/getProjectConfig?key=" + encodeURIComponent(cfg.apiKey), { signal: ctl.signal });
+    clearTimeout(t);
+    return r.ok;
+  } catch (e) { return false; }
+}
 function boot() {
   showLoading();
-  bootTimer = setTimeout(() => {
-    if (!currentUser && overlay.style.display !== "none") {
-      showError("Kết nối máy chủ quá lâu. Có thể mạng đang chậm hoặc tên miền chưa được phép trong Firebase. Kiểm tra mạng rồi tải lại.");
+  bootTimer = setTimeout(async () => {
+    if (overlay.style.display === "none") return;
+    showLoading("Kết nối đang chậm hơn bình thường, em đang kiểm tra giúp…");
+    const ok = await bootSelfTest();
+    if (overlay.style.display === "none") return;
+    const embedded = window.self !== window.top;
+    if (!ok) {
+      showError("Không gọi được máy chủ Google từ mạng này — mạng nơi thầy đang dùng có thể chặn hoặc làm chậm các địa chỉ của Google (mạng trường từng chặn phông chữ Google). Thầy thử chuyển sang 4G hoặc mạng nhà rồi tải lại để đối chiếu.");
+    } else if (embedded) {
+      showError("Máy chủ Google vẫn phản hồi tốt, nhưng trang đang được mở LỒNG bên trong một ứng dụng khác nên phần đăng nhập bị chặn bộ nhớ. Thầy hãy mở LINK TRỰC TIẾP của trang bằng trình duyệt Chrome (dán link vào Chrome), không mở xem trước trong ứng dụng trung gian.");
+    } else {
+      showError("Máy chủ Google vẫn phản hồi tốt nhưng phần đăng nhập nạp quá chậm. Thầy tải lại trang; nếu vẫn lặp lại, thử mở bằng Chrome và cho em biết thầy đang mở trang bằng link nào (Netlify, GitHub hay cách khác) để em kiểm tra đúng chỗ.");
     }
-  }, 12000);
+  }, 20000);
   onAuthStateChanged(auth, async (user) => {
     clearTimeout(bootTimer);
     try {
@@ -161,6 +193,9 @@ function boot() {
     } catch (e) {
       showError(errText(e && e.code) + "");
     }
+  }, (err) => {
+    clearTimeout(bootTimer);
+    showError("Phần đăng nhập gặp lỗi khi khởi tạo (" + (err && err.code ? err.code : "không rõ") + "). Thường do trình duyệt chặn bộ nhớ lưu đăng nhập — thầy mở link trực tiếp bằng Chrome rồi thử lại, và cho em biết thầy đang mở trang bằng link nào.");
   });
 }
 
