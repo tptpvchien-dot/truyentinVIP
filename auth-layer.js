@@ -190,6 +190,16 @@ if (location.protocol === "file:") {
     auth = getAuth(app);
   }
   db = getFirestore(app);
+  // App Check (reCAPTCHA Enterprise): từ 2026, Firebase TỰ BẬT ép
+  // buộc App Check cho AI Logic ở các dự án mới — trang web phải
+  // gắn App Check bằng site key (khóa CÔNG KHAI đặt trong
+  // app-config.js, trường appCheckSiteKey) thì lời gọi AI mới
+  // không bị chặn ngay từ cổng. Khởi tạo sớm, trước mọi lời gọi AI.
+  if (cfg.appCheckSiteKey) {
+    import("https://www.gstatic.com/firebasejs/12.4.0/firebase-app-check.js")
+      .then(m => { try { m.initializeAppCheck(app, { provider: new m.ReCaptchaEnterpriseProvider(cfg.appCheckSiteKey), isTokenAutoRefreshEnabled: true }); } catch (e) {} })
+      .catch(() => {});
+  }
   boot();
 }
 
@@ -1251,7 +1261,8 @@ function mountAiButton() {
       if (window.ttShowDone) window.ttShowDone();
       note.textContent = "AI soạn mới · Chủ đề: " + (r.theme || theme) + " · " + convertedLength(outText) + " ký tự · không trùng các bản tin trước — đã đưa vào ô “Tự nhập bản tin”, chọn mục đó rồi Phát/Luyện như thường.";
     } catch (e) {
-      note.textContent = "AI chưa dùng được. Nếu chưa từng dùng được, rất có thể chưa bật AI Logic trong Firebase Console (vào dự án → mục AI Logic → Get started → chọn Gemini Developer API). Nếu đã bật mà vẫn lỗi, kiểm tra mạng rồi bấm thử lại.";
+      const det = e && (e.code || e.message) ? String(e.code || e.message).slice(0, 140) : "";
+      note.textContent = "AI chưa dùng được" + (det ? " — mã lỗi: " + det : "") + ". Thầy chụp dòng này gửi em để em xử lý đúng lỗi ạ.";
     }
     btn.disabled = false;
     btn.textContent = "✨ Tạo bản tin AI";

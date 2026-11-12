@@ -20,5 +20,9 @@ window.TT_FIREBASE_CONFIG = {
   projectId: "luyentruyentin",
   storageBucket: "luyentruyentin.firebasestorage.app",
   messagingSenderId: "438987737278",
-  appId: "1:438987737278:web:f678bbe5fbfb0eedfdf6ef"
+  appId: "1:438987737278:web:f678bbe5fbfb0eedfdf6ef",
+  // Khóa App Check (reCAPTCHA Enterprise site key) — khóa CÔNG KHAI,
+  // dán dãy ký tự bắt đầu bằng "6L..." vào giữa hai dấu ngoặc kép.
+  // Thiếu khóa này thì lời gọi AI bị Firebase chặn (App Check).
+  appCheckSiteKey: "6LfAxxwuAAAAAP1t5iF3LJqq5CJNiN5jrXttk12x"
 };
