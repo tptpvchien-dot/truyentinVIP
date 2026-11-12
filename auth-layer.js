@@ -128,6 +128,14 @@ const configured = cfg && typeof cfg.apiKey === "string" && cfg.apiKey && !cfg.a
 
 let app = null, auth = null, db = null;
 let currentUser = null, myProfile = null, myIsAdmin = false;
+/* QUAN TRỌNG: ba biến dưới đây PHẢI được khai báo TRƯỚC khối khởi tạo
+   gọi boot() ở ngay phía dưới. Khai báo "let" đặt sau điểm gọi sẽ làm
+   boot() văng lỗi vùng chết (TDZ) ngay khi gán bootTimer — lỗi bị nuốt
+   im lặng, mọi hàm gọi lại sau đó đều chết trên cùng ba biến này và
+   trang đứng ở màn hình chờ vĩnh viễn (đã từng xảy ra ở bản v4). */
+let bootTimer = null;
+let authOutcome = false;   // đã có kết quả trạng thái đăng nhập hay chưa
+let accessGranted = false; // đã mở cổng vào ứng dụng hay chưa
 
 if (location.protocol === "file:") {
   viewHTML(`<div class="tt-err" style="display:block">Thầy đang mở file trực tiếp trên máy (file://) nên phần đăng nhập không chạy được.</div>
@@ -167,10 +175,6 @@ function addDaysStr(base, days) {
 }
 function isExpired(p) { return p && p.expiry && p.expiry < todayStr(); }
 
-let bootTimer = null;
-let authOutcome = false;   // đã có kết quả trạng thái đăng nhập hay chưa
-let accessGranted = false; // đã mở cổng vào ứng dụng hay chưa
-
 async function handleAuthUser(user) {
   authOutcome = true;
   clearTimeout(bootTimer);
@@ -202,7 +206,7 @@ function boot() {
   // Tín hiệu 1: hàm theo dõi trạng thái chuẩn của Firebase.
   onAuthStateChanged(auth, (user) => {
     blog("Nhận được trạng thái đăng nhập: " + (user ? "đã có người dùng" : "chưa đăng nhập"));
-    handleAuthUser(user);
+    handleAuthUser(user).catch((e) => blog("Lỗi khi xử lý trạng thái: " + (e && e.name ? e.name + ": " : "") + (e && e.message ? e.message : "")));
   }, (err) => {
     blog("Lỗi khởi tạo đăng nhập: " + (err && err.code ? err.code : "không rõ"));
     clearTimeout(bootTimer);
@@ -215,7 +219,7 @@ function boot() {
       blog("Tín hiệu sẵn sàng (authStateReady): xong");
       if (!authOutcome) handleAuthUser(auth.currentUser);
     }).catch((e) => {
-      blog("Tín hiệu sẵn sàng (authStateReady): lỗi " + (e && e.code ? e.code : ""));
+      blog("Tín hiệu sẵn sàng (authStateReady): lỗi " + (e && e.code ? e.code : "") + (e && e.message ? " — " + e.message : ""));
     });
   }
   // Đầu dò khi bị kẹt 10 giây: kiểm tra kênh phụ trợ + thử một lệnh đăng
