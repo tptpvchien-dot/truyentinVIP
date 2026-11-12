@@ -24,5 +24,10 @@ window.TT_FIREBASE_CONFIG = {
   // Khóa App Check (reCAPTCHA Enterprise site key) — khóa CÔNG KHAI,
   // dán dãy ký tự bắt đầu bằng "6L..." vào giữa hai dấu ngoặc kép.
   // Thiếu khóa này thì lời gọi AI bị Firebase chặn (App Check).
-  appCheckSiteKey: "6LfAxxwuAAAAAP1t5iF3LJqq5CJNiN5jrXttk12x"
+  appCheckSiteKey: "6LfAxxwuAAAAAP1t5iF3LJqq5CJNiN5jrXttk12x",
+  // Khóa Gemini API lấy từ Google AI Studio (aistudio.google.com/apikey)
+  // — đường gọi AI trực tiếp, không qua App Check. Dán khóa "AIza..."
+  // vào giữa hai dấu ngoặc kép. Sau khi chạy được, nên giới hạn khóa
+  // chỉ dùng cho tên miền trang này + API Generative Language.
+  geminiApiKey: "AQ.Ab8RN6INb81H2tKVWYKl_FqbaAE70Z8MQ-Yp9kKTO5HHR22atQ"
 };

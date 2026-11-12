@@ -1065,8 +1065,6 @@ const AI_ASPECTS = [
   "giờ ăn bán trú", "buổi tập văn nghệ", "ngày hội thể thao", "góc học tập ở nhà"
 ];
 async function aiCandidates(theme, level, exclude) {
-  const mod = await import("https://www.gstatic.com/firebasejs/12.4.0/firebase-ai.js");
-  const ai = mod.getAI(app, { backend: new mod.GoogleAIBackend() });
   const words = level === "de" ? "3 đến 5 từ" : level === "tb" ? "5 đến 7 từ" : level === "kho" ? "7 đến 10 từ" : "9 đến 12 từ";
   const numReq = level === "nc" ? " Mỗi câu phải kèm đúng một nhóm số viết bằng chữ số (ví dụ: 25, 150, 2026)." : " Câu không chứa bất kỳ chữ số nào.";
   const aspect = AI_ASPECTS[Math.floor(Math.random() * AI_ASPECTS.length)];
@@ -1074,14 +1072,42 @@ async function aiCandidates(theme, level, exclude) {
     ? " Tuyệt đối KHÔNG lặp lại, không viết gần giống các câu sau đây: " + exclude.map(x => "“" + x + "”").join("; ") + "."
     : "";
   const prompt = `Bạn là giáo viên tiểu học Việt Nam, rất sáng tạo. Viết 8 câu tiếng Việt, mỗi câu đúng một dòng, không đánh số, không dấu ngoặc kép, không dấu chấm cuối câu, viết hoa chữ cái đầu câu. Nội dung tích cực, phù hợp học sinh tiểu học, chủ đề: ${theme}. Bối cảnh gợi ý cho một vài câu: ${aspect}. Mỗi câu khoảng ${words}.${numReq} Tám câu phải khác nhau hoàn toàn về nội dung, hình ảnh và cách diễn đạt.${avoid} Chỉ in ra 8 câu, không giải thích.`;
+  const splitLines = (text) => String(text || "").split(/\n+/).map((x) => x.replace(/^[\d\-.)\s"“”]+/, "").replace(/["“”.]+\s*$/, "").trim()).filter((x) => x.length > 2);
+  /* ĐƯỜNG 1 — gọi thẳng Gemini API bằng khóa AI Studio đặt trong
+     app-config.js (geminiApiKey): không qua App Check nên không
+     bị chặn ở cổng chứng thực. Đây là đường chính khi có khóa. */
+  if (cfg && cfg.geminiApiKey) {
+    let lastErr = null;
+    for (const name of ["gemini-2.5-flash", "gemini-2.0-flash"]) {
+      try {
+        const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + name + ":generateContent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.geminiApiKey },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 1.15, topP: 0.95 }
+          })
+        });
+        if (!resp.ok) throw new Error("gemini-http-" + resp.status);
+        const data = await resp.json();
+        const parts = (((data.candidates || [])[0] || {}).content || {}).parts || [];
+        const lines = splitLines(parts.map(p => p.text || "").join("\n"));
+        if (lines.length) return lines;
+        throw new Error("gemini-empty");
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error("gemini-direct-failed");
+  }
+  /* ĐƯỜNG 2 — Firebase AI Logic (khi chưa có khóa AI Studio). */
+  const mod = await import("https://www.gstatic.com/firebasejs/12.4.0/firebase-ai.js");
+  const ai = mod.getAI(app, { backend: new mod.GoogleAIBackend() });
   const models = ["gemini-2.0-flash", "gemini-2.5-flash"];
   let lastErr = null;
   for (const name of models) {
     try {
       const model = mod.getGenerativeModel(ai, { model: name, generationConfig: { temperature: 1.15, topP: 0.95 } });
       const res = await model.generateContent(prompt);
-      const text = res.response.text();
-      return text.split(/\n+/).map((x) => x.replace(/^[\d\-.)\s"“”]+/, "").replace(/["“”.]+\s*$/, "").trim()).filter((x) => x.length > 2);
+      return splitLines(res.response.text());
     } catch (e) { lastErr = e; }
   }
   throw lastErr || new Error("AI unavailable");
@@ -1261,8 +1287,8 @@ function mountAiButton() {
       if (window.ttShowDone) window.ttShowDone();
       note.textContent = "AI soạn mới · Chủ đề: " + (r.theme || theme) + " · " + convertedLength(outText) + " ký tự · không trùng các bản tin trước — đã đưa vào ô “Tự nhập bản tin”, chọn mục đó rồi Phát/Luyện như thường.";
     } catch (e) {
-      const det = e && (e.code || e.message) ? String(e.code || e.message).slice(0, 140) : "";
-      note.textContent = "AI chưa dùng được" + (det ? " — mã lỗi: " + det : "") + ". Thầy chụp dòng này gửi em để em xử lý đúng lỗi ạ.";
+      const det = e ? [e.code, e.message].filter(Boolean).join(" · ").slice(0, 200) : "";
+      note.textContent = "AI chưa dùng được" + (det ? " — lỗi: " + det : "") + ". Thầy chụp dòng này gửi em để em xử lý đúng lỗi ạ.";
     }
     btn.disabled = false;
     btn.textContent = "✨ Tạo bản tin AI";
