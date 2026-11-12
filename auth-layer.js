@@ -96,13 +96,25 @@ function errText(code) {
   return map[code] || ("Đã xảy ra lỗi (" + (code || "không rõ") + "). Thử lại sau.");
 }
 
+/* Nhật ký chẩn đoán khởi động — hiện ngay trên màn hình để chụp gửi em */
+const bootLog = [];
+const bootT0 = Date.now();
+function blog(msg) {
+  const line = "+" + ((Date.now() - bootT0) / 1000).toFixed(1) + "s " + msg;
+  bootLog.push(line);
+  const box = $("tt-log");
+  if (box) box.textContent = bootLog.join("\n");
+}
+function logHTML() {
+  return `<div id="tt-log" style="text-align:left;white-space:pre-wrap;font-family:monospace;font-size:11px;color:#666;background:#f7f7f7;border-radius:8px;padding:8px;margin-top:10px">${bootLog.join("\n")}</div>`;
+}
 function showLoading(text) {
   viewHTML(`<div class="tt-center" style="padding:16px 0">
-    <div style="font-size:30px">⏳</div><p>${text || "Đang kết nối máy chủ…"}</p></div>`);
+    <div style="font-size:30px">⏳</div><p>${text || "Đang kết nối máy chủ…"}</p></div>` + logHTML());
 }
 function showError(text) {
   viewHTML(`<div class="tt-err" style="display:block">${text}</div>
-    <button class="tt-btn" onclick="location.reload()">Tải lại trang</button>`);
+    <button class="tt-btn" onclick="location.reload()">Tải lại trang</button>` + logHTML());
 }
 function showGate(title, body) {
   viewHTML(`<div class="tt-msg">${body}</div>
@@ -156,6 +168,23 @@ function addDaysStr(base, days) {
 function isExpired(p) { return p && p.expiry && p.expiry < todayStr(); }
 
 let bootTimer = null;
+let authOutcome = false;   // đã có kết quả trạng thái đăng nhập hay chưa
+let accessGranted = false; // đã mở cổng vào ứng dụng hay chưa
+
+async function handleAuthUser(user) {
+  authOutcome = true;
+  clearTimeout(bootTimer);
+  try {
+    if (!user) { currentUser = null; if (!accessGranted) showAuthForms(); return; }
+    currentUser = user;
+    if (accessGranted) return;
+    showLoading("Đang kiểm tra tài khoản…");
+    await resolveAccess(user);
+  } catch (e) {
+    showError(errText(e && e.code) + "");
+  }
+}
+
 async function bootSelfTest() {
   // Gọi thẳng vào máy chủ Google (không qua thư viện) để phân biệt:
   // mạng bị chặn/chậm tới Google, hay thư viện đăng nhập gặp trở ngại.
@@ -169,34 +198,64 @@ async function bootSelfTest() {
 }
 function boot() {
   showLoading();
+  blog("Trang đã nạp xong, đang chờ trạng thái đăng nhập…");
+  // Tín hiệu 1: hàm theo dõi trạng thái chuẩn của Firebase.
+  onAuthStateChanged(auth, (user) => {
+    blog("Nhận được trạng thái đăng nhập: " + (user ? "đã có người dùng" : "chưa đăng nhập"));
+    handleAuthUser(user);
+  }, (err) => {
+    blog("Lỗi khởi tạo đăng nhập: " + (err && err.code ? err.code : "không rõ"));
+    clearTimeout(bootTimer);
+    showError("Phần đăng nhập gặp lỗi khi khởi tạo (" + (err && err.code ? err.code : "không rõ") + "). Thầy chụp màn hình này gửi em để em xử lý đúng lỗi.");
+  });
+  // Tín hiệu 2 (dự phòng): nếu hàm theo dõi bị kẹt, tín hiệu "đã sẵn sàng"
+  // của chính Firebase sẽ mở cổng thay — hai tín hiệu, cái nào tới trước dùng cái đó.
+  if (typeof auth.authStateReady === "function") {
+    auth.authStateReady().then(() => {
+      blog("Tín hiệu sẵn sàng (authStateReady): xong");
+      if (!authOutcome) handleAuthUser(auth.currentUser);
+    }).catch((e) => {
+      blog("Tín hiệu sẵn sàng (authStateReady): lỗi " + (e && e.code ? e.code : ""));
+    });
+  }
+  // Đầu dò khi bị kẹt 10 giây: kiểm tra kênh phụ trợ + thử một lệnh đăng
+  // nhập giả để biết phần lõi đăng nhập còn sống hay đã treo hẳn.
+  setTimeout(async () => {
+    if (authOutcome || overlay.style.display === "none") return;
+    blog("10 giây chưa có trạng thái — bắt đầu kiểm tra sâu…");
+    try {
+      await fetch("https://" + cfg.authDomain + "/__/auth/iframe", { mode: "no-cors" });
+      blog("Kênh phụ trợ đăng nhập (auth iframe): gọi được");
+    } catch (e) {
+      blog("Kênh phụ trợ đăng nhập (auth iframe): KHÔNG gọi được");
+    }
+    if (authOutcome) return;
+    try {
+      const probe = signInWithEmailAndPassword(auth, "kiem-tra-he-thong@truyentin.app", "probe-khong-dung-123");
+      const res = await Promise.race([
+        probe.then(() => "thanh-cong-ngoai-du-kien", (e) => "tra-loi: " + (e && e.code ? e.code : "loi-khac")),
+        new Promise((r) => setTimeout(() => r("qua-6-giay-khong-tra-loi"), 6000))
+      ]);
+      blog("Thử lệnh đăng nhập: " + res);
+    } catch (e) {
+      blog("Thử lệnh đăng nhập: lỗi " + (e && e.code ? e.code : ""));
+    }
+  }, 10000);
   bootTimer = setTimeout(async () => {
-    if (overlay.style.display === "none") return;
+    if (overlay.style.display === "none" || authOutcome) return;
     showLoading("Kết nối đang chậm hơn bình thường, em đang kiểm tra giúp…");
     const ok = await bootSelfTest();
-    if (overlay.style.display === "none") return;
+    blog("Tự kiểm tra máy chủ Google bằng REST: " + (ok ? "phản hồi tốt" : "không gọi được"));
+    if (overlay.style.display === "none" || authOutcome) return;
     const embedded = window.self !== window.top;
     if (!ok) {
       showError("Không gọi được máy chủ Google từ mạng này — mạng nơi thầy đang dùng có thể chặn hoặc làm chậm các địa chỉ của Google (mạng trường từng chặn phông chữ Google). Thầy thử chuyển sang 4G hoặc mạng nhà rồi tải lại để đối chiếu.");
     } else if (embedded) {
       showError("Máy chủ Google vẫn phản hồi tốt, nhưng trang đang được mở LỒNG bên trong một ứng dụng khác nên phần đăng nhập bị chặn bộ nhớ. Thầy hãy mở LINK TRỰC TIẾP của trang bằng trình duyệt Chrome (dán link vào Chrome), không mở xem trước trong ứng dụng trung gian.");
     } else {
-      showError("Máy chủ Google vẫn phản hồi tốt nhưng phần đăng nhập nạp quá chậm. Thầy tải lại trang; nếu vẫn lặp lại, thử mở bằng Chrome và cho em biết thầy đang mở trang bằng link nào (Netlify, GitHub hay cách khác) để em kiểm tra đúng chỗ.");
+      showError("Máy chủ Google vẫn phản hồi tốt nhưng phần đăng nhập chưa sẵn sàng. Phía dưới là nhật ký chẩn đoán — thầy chụp màn hình này gửi em, em sẽ xử lý đúng điểm bị kẹt.");
     }
   }, 20000);
-  onAuthStateChanged(auth, async (user) => {
-    clearTimeout(bootTimer);
-    try {
-      if (!user) { currentUser = null; showAuthForms(); return; }
-      currentUser = user;
-      showLoading("Đang kiểm tra tài khoản…");
-      await resolveAccess(user);
-    } catch (e) {
-      showError(errText(e && e.code) + "");
-    }
-  }, (err) => {
-    clearTimeout(bootTimer);
-    showError("Phần đăng nhập gặp lỗi khi khởi tạo (" + (err && err.code ? err.code : "không rõ") + "). Thường do trình duyệt chặn bộ nhớ lưu đăng nhập — thầy mở link trực tiếp bằng Chrome rồi thử lại, và cho em biết thầy đang mở trang bằng link nào.");
-  });
 }
 
 async function resolveAccess(user) {
@@ -292,6 +351,8 @@ async function doLogout() {
 
 /* ---------------- Vào ứng dụng ---------------- */
 function grantAccess() {
+  if (accessGranted) return;
+  accessGranted = true;
   overlay.style.display = "none";
   // Điền sẵn họ tên + lớp cho phần Kiểm tra
   const sn = $("stuName"), sc = $("stuClass");
