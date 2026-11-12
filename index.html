@@ -1,0 +1,1903 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>Luyện truyền tin Morse &amp; Semaphore</title>
+    <!-- Tiếng còi Morse: theo mẫu còi chuẩn thầy gửi — một cao độ 1613 Hz, hài 0,035 / 0,028, attack 9 ms, release 12 ms. Trang tĩnh này không có đăng nhập / quản trị / tài khoản thành viên; phần tài khoản nằm ở bản máy chủ riêng. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+    <style>
+      :root{
+        --bg:#f4f1e8; --panel:#fffdf7; --panel2:#efe9db; --ink:#1e2a33; --ink2:#54626d;
+        --line:#ddd3bd; --navy:#16406b; --navy2:#0f2f52; --red:#cf3527; --red2:#a8261b;
+        --green:#1e7d46; --green-bg:#e2f3e7; --red-bg:#fbe7e3; --amber:#f5a623;
+        --lamp-off:#3a4652; --lamp-on:#ffc93c; --shadow:0 2px 10px rgba(30,42,51,.10);
+        --radius:14px;
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --bg:#11171d; --panel:#1b232c; --panel2:#232e38; --ink:#e9eff4; --ink2:#a7b4bf;
+          --line:#33414d; --navy:#3f74ab; --navy2:#2c557f; --red:#e0584c; --red2:#c7453a;
+          --green:#4cc07a; --green-bg:#173626; --red-bg:#3d201c; --amber:#f5a623;
+          --lamp-off:#2b333c; --lamp-on:#ffc93c; --shadow:0 2px 10px rgba(0,0,0,.4);
+        }
+      }
+      * { box-sizing: border-box; }
+      body { margin:0; background:var(--bg); color:var(--ink);
+        font-family:"Be Vietnam Pro", system-ui, sans-serif; font-size:16px; line-height:1.5; }
+      button, select, input, textarea { font-family:inherit; font-size:1rem; color:var(--ink); }
+      button { cursor:pointer; }
+      .wrap { max-width:1060px; margin:0 auto; padding:14px 14px 48px; }
+      h1,h2,h3 { margin:0; line-height:1.25; }
+      p { margin:0; }
+
+      /* ---------- Tabs ---------- */
+      .tabbar { display:flex; gap:6px; flex-wrap:wrap; background:var(--panel); border:1px solid var(--line);
+        border-radius:var(--radius); padding:6px; box-shadow:var(--shadow); margin-bottom:14px; }
+      .tabbtn { flex:1 1 auto; min-height:46px; border:1px solid transparent; background:transparent;
+        border-radius:10px; font-weight:700; padding:8px 10px; color:var(--ink2); }
+      .tabbtn[aria-selected="true"] { background:var(--navy); color:#fff; }
+
+      .panel { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+        box-shadow:var(--shadow); padding:16px; margin-bottom:14px; }
+      .panel h2 { font-size:1.15rem; font-weight:800; margin-bottom:10px; }
+      .panel h3 { font-size:1rem; font-weight:700; margin:12px 0 6px; }
+
+      /* ---------- Segmented controls ---------- */
+      .segrow { display:flex; flex-wrap:wrap; gap:14px; }
+      .seg { flex:1 1 240px; }
+      .seg label.cap { display:block; font-size:.82rem; font-weight:700; letter-spacing:.04em;
+        text-transform:uppercase; color:var(--ink2); margin-bottom:6px; }
+      .segbtns { display:flex; gap:6px; }
+      .segbtns button { flex:1; min-height:48px; border-radius:10px; border:2px solid var(--line);
+        background:var(--panel2); font-weight:700; padding:6px 4px; }
+      .segbtns button[aria-pressed="true"] { background:var(--navy); border-color:var(--navy); color:#fff; }
+      .segbtns button.warn[aria-pressed="true"] { background:var(--red); border-color:var(--red); }
+
+      .fieldrow { display:flex; flex-wrap:wrap; gap:12px; }
+      .field { flex:1 1 200px; }
+      .field label { display:block; font-weight:600; margin-bottom:5px; font-size:.95rem; }
+      .field input[type="text"], .field select, textarea {
+        width:100%; min-height:46px; border:2px solid var(--line); border-radius:10px;
+        background:var(--panel); padding:9px 12px; }
+      textarea { min-height:64px; resize:vertical; font-size:1.05rem; }
+      .field input:focus, .field select:focus, textarea:focus { outline:3px solid var(--amber); outline-offset:1px; border-color:var(--amber); }
+
+      .srcrow { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
+      .radio-pill { display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:6px 14px;
+        border:2px solid var(--line); border-radius:999px; background:var(--panel2); font-weight:600; cursor:pointer; }
+      .radio-pill input { width:20px; height:20px; accent-color:var(--navy); }
+      .radio-pill:has(input:checked) { border-color:var(--navy); background:var(--navy); color:#fff; }
+
+      .btn { min-height:48px; border-radius:10px; border:2px solid var(--navy); background:var(--navy);
+        color:#fff; font-weight:700; padding:8px 18px; }
+      .btn:hover { background:var(--navy2); }
+      .btn.ghost { background:transparent; color:var(--navy); }
+      @media (prefers-color-scheme: dark){ .btn.ghost { color:var(--ink); border-color:var(--line); } }
+      .btn.red { background:var(--red); border-color:var(--red); }
+      .btn.red:hover { background:var(--red2); }
+      .btn:disabled { opacity:.45; cursor:not-allowed; }
+      .btn.small { min-height:40px; padding:5px 12px; font-size:.92rem; }
+
+      .preview { background:var(--panel2); border:1px dashed var(--line); border-radius:10px;
+        padding:10px 12px; margin-top:10px; font-size:.98rem; overflow-wrap:anywhere; }
+      .preview .mono { font-family:"JetBrains Mono", monospace; font-weight:700; letter-spacing:.06em; }
+      .masked { letter-spacing:.2em; color:var(--ink2); }
+      .muted { color:var(--ink2); font-size:.92rem; }
+      .count-badge { display:inline-block; background:var(--navy); color:#fff; border-radius:999px;
+        padding:2px 12px; font-weight:700; font-size:.9rem; }
+
+      /* ---------- Switches ---------- */
+      .switchrow { display:flex; flex-wrap:wrap; gap:10px 22px; align-items:center; margin-top:6px; }
+      .switch { display:inline-flex; align-items:center; gap:10px; min-height:44px; cursor:pointer; font-weight:600; }
+      .switch input { -webkit-appearance:none; appearance:none; width:52px; height:30px; flex:none;
+        border-radius:999px; background:var(--line); position:relative; cursor:pointer; margin:0; transition:background .2s; }
+      .switch input::after { content:""; position:absolute; top:3px; left:3px; width:24px; height:24px;
+        border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.3); transition:left .2s; }
+      .switch input:checked { background:var(--green); }
+      .switch input:checked::after { left:25px; }
+      .switch input:focus-visible { outline:3px solid var(--amber); outline-offset:2px; }
+      .switch input:disabled { opacity:.4; cursor:not-allowed; }
+      .switch .locknote { font-size:.85rem; color:var(--red); font-weight:700; }
+
+      /* ---------- Stage ---------- */
+      .stage { text-align:center; }
+      .lamp { width:110px; height:110px; border-radius:50%; margin:8px auto 4px;
+        background:radial-gradient(circle at 38% 34%, #ffffff55, transparent 55%), var(--lamp-off);
+        border:5px solid var(--line); transition:background .05s, box-shadow .05s; }
+      .lamp.on { background:radial-gradient(circle at 38% 34%, #fff8, transparent 55%), var(--lamp-on);
+        box-shadow:0 0 44px 10px rgba(255,201,60,.55); border-color:var(--amber); }
+      .lamp.on.dash { background:radial-gradient(circle at 38% 34%, #fff6, transparent 55%), #ff8c1a;
+        box-shadow:0 0 44px 10px rgba(255,140,26,.55); border-color:#e06f00; }
+      .nowchar { min-height:64px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
+      .nowchar .ch { font-size:2rem; font-weight:900; line-height:1.1; }
+      .nowchar .code { font-family:"JetBrains Mono", monospace; font-size:1.3rem; font-weight:700; letter-spacing:.15em; color:var(--navy); }
+      @media (prefers-color-scheme: dark){ .nowchar .code { color:var(--amber); } }
+      .semfig { display:flex; justify-content:center; padding:4px 0; }
+      .semfig svg { width:min(300px, 78vw); height:auto; }
+
+      .progressline { display:flex; justify-content:space-between; align-items:center; gap:10px;
+        font-weight:700; margin:10px 0 4px; flex-wrap:wrap; }
+      .progressbar { height:12px; border-radius:999px; background:var(--panel2); border:1px solid var(--line); overflow:hidden; }
+      .progressbar > div { height:100%; width:0%; background:var(--navy); transition:width .25s; }
+
+      .controls { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:12px; }
+      .controls .btn { flex:1 1 130px; max-width:230px; }
+
+      .speedbox { margin-top:14px; border-top:1px solid var(--line); padding-top:12px; }
+      .speedbox label { font-weight:700; }
+      .speedbox output { font-weight:800; color:var(--navy); }
+      @media (prefers-color-scheme: dark){ .speedbox output { color:var(--amber); } }
+      input[type="range"] { width:100%; min-height:36px; accent-color:var(--navy); }
+      .presets { display:flex; gap:8px; flex-wrap:wrap; }
+      .presets button { flex:1; min-height:44px; border-radius:10px; border:2px solid var(--line);
+        background:var(--panel2); font-weight:700; }
+      .presets button[aria-pressed="true"] { border-color:var(--navy); background:var(--navy); color:#fff; }
+
+      /* ---------- Answer / grading ---------- */
+      .gradewrap { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
+      .gcell { min-width:40px; text-align:center; border-radius:8px; padding:5px 3px 4px; border:2px solid var(--line); background:var(--panel2); }
+      .gcell .exp { display:block; font-weight:900; font-size:1.15rem; line-height:1.15; }
+      .gcell .got { display:block; font-size:.85rem; color:var(--ink2); font-weight:600; }
+      .gcell.ok { background:var(--green-bg); border-color:var(--green); }
+      .gcell.ok .exp { color:var(--green); }
+      .gcell.bad { background:var(--red-bg); border-color:var(--red); }
+      .gcell.bad .exp { color:var(--red); }
+      .gcell.space { min-width:16px; background:transparent; border-style:dashed; }
+      .scorebox { text-align:center; padding:14px; border-radius:12px; background:var(--panel2); border:2px solid var(--navy); margin-top:12px; }
+      .scorebox .score { font-size:2.4rem; font-weight:900; color:var(--navy); line-height:1.1; }
+      @media (prefers-color-scheme: dark){ .scorebox .score { color:var(--amber); } }
+
+      /* ---------- Phát tin Morse keypad ---------- */
+      .keypad { display:flex; flex-wrap:wrap; gap:8px; }
+      .keypad button { flex:1 1 100px; min-height:64px; border-radius:12px; border:2px solid var(--line);
+        background:var(--panel2); font-weight:800; font-size:1.05rem; }
+      .keypad button:active { background:var(--navy); color:#fff; }
+      .keypad .sym { display:block; font-size:1.5rem; line-height:1.1; }
+      .entryview { font-family:"JetBrains Mono", monospace; font-size:1.25rem; font-weight:700;
+        letter-spacing:.1em; background:var(--panel2); border:1px solid var(--line); border-radius:10px;
+        padding:10px 12px; min-height:52px; overflow-wrap:anywhere; }
+      .entryview .cur { color:var(--red); }
+
+      /* ---------- Semaphore dials ---------- */
+      .dials { display:flex; flex-wrap:wrap; gap:18px; justify-content:center; }
+      .dial { text-align:center; }
+      .dial .dtitle { font-weight:800; margin-bottom:6px; }
+      .dialdisc { position:relative; width:196px; height:196px; margin:0 auto; border-radius:50%;
+        background:var(--panel2); border:2px solid var(--line); }
+      .dialdisc .centerdot { position:absolute; left:50%; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px;
+        border-radius:50%; background:var(--ink2); }
+      .dialbtn { position:absolute; width:46px; height:46px; margin:-23px 0 0 -23px; border-radius:50%;
+        border:2px solid var(--line); background:var(--panel); font-weight:800; font-size:1rem; padding:0; }
+      .dialbtn[aria-pressed="true"] { background:var(--red); border-color:var(--red); color:#fff; }
+      .dialbtn small { display:block; font-size:.62rem; font-weight:600; line-height:1; }
+
+      /* ---------- Tables / grids ---------- */
+      .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(86px, 1fr)); gap:8px; }
+      .cellbtn { border:2px solid var(--line); background:var(--panel2); border-radius:12px; padding:8px 4px;
+        min-height:74px; font-weight:800; }
+      .cellbtn .big { display:block; font-size:1.45rem; line-height:1.15; }
+      .cellbtn .sub { display:block; font-family:"JetBrains Mono", monospace; font-weight:700; font-size:.95rem; color:var(--navy); letter-spacing:.08em; }
+      @media (prefers-color-scheme: dark){ .cellbtn .sub { color:var(--amber); } }
+      .cellbtn.sel { border-color:var(--red); box-shadow:0 0 0 2px var(--red) inset; }
+      .semgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px; }
+      .semcell { border:2px solid var(--line); background:var(--panel2); border-radius:12px; padding:6px 2px 4px; min-height:104px; }
+      .semcell .big { display:block; font-size:1.25rem; font-weight:900; text-align:center; }
+      .semcell svg { width:64px; height:auto; display:block; margin:0 auto; }
+      .semcell.sel { border-color:var(--red); box-shadow:0 0 0 2px var(--red) inset; }
+
+      table.ref { width:100%; border-collapse:collapse; margin:8px 0; }
+      table.ref th, table.ref td { border:1px solid var(--line); padding:7px 10px; text-align:left; }
+      table.ref th { background:var(--panel2); }
+      .histitem { border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:8px; background:var(--panel2); }
+      .histitem .top { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; font-weight:700; }
+      .note { border-left:5px solid var(--amber); background:var(--panel2); border-radius:0 10px 10px 0; padding:10px 12px; margin:10px 0; }
+      .hidden { display:none !important; }
+      .center { text-align:center; }
+      .bigfigwrap { display:flex; flex-direction:column; align-items:center; gap:4px; }
+      .bigfigwrap svg { width:min(280px, 74vw); height:auto; }
+      .kbd { font-family:"JetBrains Mono", monospace; background:var(--panel2); border:1px solid var(--line);
+        border-bottom-width:3px; border-radius:6px; padding:0 7px; font-weight:700; }
+
+    </style>
+  </head>
+  <body>
+<script>
+(function(){var v=document.createElement('div');v.id='tt-veil';v.setAttribute('style','position:fixed;inset:0;z-index:2147483000;background:#0b5cad;color:#fff;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;font-size:16px;padding:20px;text-align:center');v.textContent='Đang tải ứng dụng, đợi một chút…';document.body.appendChild(v);setTimeout(function(){var w=document.getElementById('tt-veil');if(w){w.textContent='Chưa tải được phần đăng nhập — có thể do mạng chậm hoặc bị chặn thư viện của Google. Kiểm tra mạng rồi tải lại trang.';}},15000);})();
+</script>
+
+    <div class="wrap">
+      <!-- ================= TAB BAR ================= -->
+      <nav class="tabbar" role="tablist" aria-label="Các phần của ứng dụng">
+        <button class="tabbtn" role="tab" id="tabbtn-main" aria-selected="true" aria-controls="tab-main" data-tab="main">Luyện tập &amp; Kiểm tra</button>
+        <button class="tabbtn" role="tab" id="tabbtn-morse" aria-selected="false" aria-controls="tab-morse" data-tab="morse">Bảng Morse</button>
+        <button class="tabbtn" role="tab" id="tabbtn-sem" aria-selected="false" aria-controls="tab-sem" data-tab="sem">Bảng Semaphore</button>
+        <button class="tabbtn" role="tab" id="tabbtn-rules" aria-selected="false" aria-controls="tab-rules" data-tab="rules">Quy ước &amp; Giáo viên</button>
+      </nav>
+
+      <!-- ================= TAB: MAIN ================= -->
+      <section id="tab-main" role="tabpanel" aria-labelledby="tabbtn-main">
+        <!-- Chế độ -->
+        <div class="panel">
+          <div class="segrow">
+            <div class="seg">
+              <label class="cap" id="cap-act">Hoạt động</label>
+              <div class="segbtns" role="group" aria-labelledby="cap-act">
+                <button id="actNhan" aria-pressed="true">📥 Nhận tin</button>
+                <button id="actPhat" aria-pressed="false">📤 Phát tin</button>
+              </div>
+            </div>
+            <div class="seg">
+              <label class="cap" id="cap-kind">Dạng truyền tin</label>
+              <div class="segbtns" role="group" aria-labelledby="cap-kind">
+                <button id="kindMorse" aria-pressed="true">Morse (tiếng + đèn)</button>
+                <button id="kindSem" aria-pressed="false">Semaphore (cờ tay)</button>
+              </div>
+            </div>
+            <div class="seg">
+              <label class="cap" id="cap-mode">Chế độ</label>
+              <div class="segbtns" role="group" aria-labelledby="cap-mode">
+                <button id="modeLuyen" aria-pressed="true">Luyện tập</button>
+                <button id="modeKiem" class="warn" aria-pressed="false">Kiểm tra</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="studentBox" class="hidden" style="margin-top:14px">
+            <div class="fieldrow">
+              <div class="field">
+                <label for="stuName">Họ và tên học sinh *</label>
+                <input type="text" id="stuName" placeholder="Ví dụ: Nguyễn Văn An" autocomplete="off" />
+              </div>
+              <div class="field">
+                <label for="stuClass">Lớp *</label>
+                <input type="text" id="stuClass" placeholder="Ví dụ: 6A6" autocomplete="off" />
+              </div>
+            </div>
+            <p class="muted" style="margin-top:6px">Chế độ Kiểm tra: kết quả và đáp án bị khóa cho tới khi nộp bài. Điểm = tỉ lệ ký tự đúng × 10.</p>
+          </div>
+
+          <div class="switchrow">
+            <label class="switch">
+              <input type="checkbox" id="showToggle" checked />
+              <span>Hiện kết quả</span>
+              <span class="locknote hidden" id="showLockNote">(đang khóa — Kiểm tra)</span>
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="abbrevToggle" />
+              <span>Dùng chữ viết tắt PH=F, GI=I, QU=Q</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Bản tin -->
+        <div class="panel">
+          <h2>Bản tin</h2>
+          <div class="srcrow" role="radiogroup" aria-label="Nguồn bản tin">
+            <label class="radio-pill"><input type="radio" name="src" value="custom" checked /> Tự nhập bản tin</label>
+            <label class="radio-pill"><input type="radio" name="src" value="auto" /> Hệ thống tự tạo</label>
+          </div>
+
+          <div id="customBox">
+            <div class="field">
+              <label for="customText">Nội dung bản tin (gõ tiếng Việt có dấu thoải mái)</label>
+              <textarea id="customText" rows="2">ĐỘI EM HỌC TẬP TỐT</textarea>
+            </div>
+          </div>
+
+          <div id="autoBox" class="hidden">
+            <div class="fieldrow">
+              <div class="field">
+                <label for="diffSel">Mức độ</label>
+                <select id="diffSel">
+                  <option value="easy">Dễ — 10 đến 15 ký tự</option>
+                  <option value="mid" selected>Trung bình — 16 đến 22 ký tự</option>
+                  <option value="hard">Khó — 25 đến 30 ký tự</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="typeSel">Kiểu bản tin</label>
+                <select id="typeSel">
+                  <option value="sentence" selected>Câu có nghĩa</option>
+                  <option value="random">Nhóm ký tự ngẫu nhiên</option>
+                  <option value="mixed">Hỗn hợp (câu + nhóm số)</option>
+                </select>
+              </div>
+              <div class="field" style="flex:0 1 170px">
+                <label aria-hidden="true">&nbsp;</label>
+                <button class="btn" id="genBtn" style="width:100%">🎲 Tạo bản tin mới</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="preview" id="msgPreview" aria-live="polite"></div>
+        </div>
+
+        <!-- Sân khấu phát / nhận -->
+        <div class="panel stage" id="stagePanel">
+          <h2 id="stageTitle">Nghe và xem tín hiệu</h2>
+
+          <!-- Morse stage -->
+          <div id="morseStage">
+            <div class="lamp" id="lamp" aria-label="Đèn tín hiệu Morse"></div>
+            <div class="nowchar" aria-live="polite">
+              <span class="ch" id="nowChar"></span>
+              <span class="code" id="nowCode"></span>
+            </div>
+            <p class="muted" style="margin-top:4px"><b>Tiếng còi theo mẫu còi chuẩn (một cao độ 1613 Hz)</b> — tích và te cùng cao độ, chỉ khác độ dài: tích ngắn gọn, te dài đều. Đèn sáng đúng theo độ dài tín hiệu.</p>
+          </div>
+
+          <!-- Semaphore stage -->
+          <div id="semStage" class="hidden">
+            <div class="semfig" id="mainSemFig"></div>
+            <div class="nowchar" aria-live="polite">
+              <span class="ch" id="nowSemChar"></span>
+              <span class="code" id="nowSemCode"></span>
+            </div>
+          </div>
+
+          <div class="progressline">
+            <span id="progressText">Ký tự 0 / 0</span>
+            <span class="muted">Đã phát: <b id="playCount">0</b> lần</span>
+          </div>
+          <div class="progressbar"><div id="progressBar"></div></div>
+
+          <div class="controls">
+            <button class="btn" id="playBtn">▶ Phát</button>
+            <button class="btn ghost" id="pauseBtn" disabled>⏸ Tạm dừng</button>
+            <button class="btn ghost" id="replayBtn">↺ Phát lại từ đầu</button>
+            <button class="btn red" id="stopBtn" disabled>■ Dừng</button>
+          </div>
+
+          <div class="speedbox" id="morseSpeedBox">
+            <label for="wpmRange">Tốc độ Morse: <output id="wpmOut">12 WPM</output></label>
+            <input type="range" id="wpmRange" min="5" max="30" step="1" value="12" />
+            <div class="presets">
+              <button data-wpm="5">Chậm — 5 WPM</button>
+              <button data-wpm="12" aria-pressed="true">Vừa — 12 WPM</button>
+              <button data-wpm="20">Nhanh — 20 WPM</button>
+            </div>
+            <p class="muted">Tốc độ tính theo từ chuẩn PARIS: 1 chấm = 1200 ÷ WPM mili-giây. Nhịp 1–3–1–3–7.</p>
+            <label class="switch" style="margin-top:8px">
+              <input type="checkbox" id="aidPitchToggle" />
+              <span>Hỗ trợ bước đầu: tích cao / te thấp (không giống còi thật, chỉ bật khi mới làm quen)</span>
+            </label>
+          </div>
+
+          <div class="speedbox hidden" id="semSpeedBox">
+            <label for="semRange">Tốc độ Semaphore: <output id="semOut">1,5 giây / chữ</output></label>
+            <input type="range" id="semRange" min="0.6" max="3" step="0.1" value="1.5" />
+            <div class="presets">
+              <button data-sem="2.5">Chậm — 2,5s</button>
+              <button data-sem="1.5" aria-pressed="true">Vừa — 1,5s</button>
+              <button data-sem="0.8">Nhanh — 0,8s</button>
+            </div>
+            <p class="muted">Thời gian giữ mỗi chữ. Khi đổi chữ, tay chuyển mượt theo đà phất cờ rồi mới giữ yên ở vị trí mới để đọc. Hết một từ, người phát về vị trí nghỉ (hai cờ buông xuống) một nhịp.</p>
+          </div>
+        </div>
+
+        <!-- NHẬN TIN: ô trả lời -->
+        <div class="panel" id="receivePanel">
+          <h2>Bản tin em nhận được</h2>
+          <div class="field">
+            <label for="answerText">Nghe / xem tín hiệu rồi gõ lại bản tin (gõ có dấu tiếng Việt cũng được chấm đúng)</label>
+            <textarea id="answerText" rows="2" placeholder="Gõ bản tin em nhận được vào đây…"></textarea>
+          </div>
+          <div class="controls" style="justify-content:flex-start">
+            <button class="btn" id="gradeBtn">✔ Kiểm tra</button>
+            <button class="btn ghost" id="clearAnsBtn">Xóa ô trả lời</button>
+          </div>
+          <div id="receiveResult"></div>
+        </div>
+
+        <!-- PHÁT TIN MORSE -->
+        <div class="panel hidden" id="sendMorsePanel">
+          <h2>Em tự phát Morse</h2>
+          <p class="muted">Dùng các nút dưới đây (hoặc phím <span class="kbd">.</span> chấm, <span class="kbd">-</span> gạch, <span class="kbd">/</span> ngắt chữ, <span class="kbd">Space</span> ngắt từ) để phát đúng bản tin ở trên. Mỗi lần bấm “Ngắt chữ” là chốt một chữ để máy chấm.</p>
+          <h3>Mã em đã phát</h3>
+          <div class="entryview" id="morseEntryView"><span class="muted">Chưa phát ký tự nào…</span></div>
+          <div class="keypad" style="margin-top:10px">
+            <button id="keyDot"><span class="sym">·</span>Chấm (tích)</button>
+            <button id="keyDash"><span class="sym">−</span>Gạch (te)</button>
+            <button id="keyLetter"><span class="sym">⏎</span>Ngắt chữ</button>
+            <button id="keyWord"><span class="sym">␣</span>Ngắt từ</button>
+            <button id="keyBack"><span class="sym">⌫</span>Xóa 1 dấu</button>
+            <button id="keyClear"><span class="sym">✕</span>Làm lại</button>
+          </div>
+          <div id="sendMorseResult"></div>
+          <div class="controls hidden" id="sendMorseSubmitRow" style="justify-content:flex-start">
+            <button class="btn red" id="sendMorseSubmit">Nộp bài</button>
+          </div>
+        </div>
+
+        <!-- PHÁT TIN SEMAPHORE -->
+        <div class="panel hidden" id="sendSemPanel">
+          <h2>Em tự phát Semaphore</h2>
+          <p class="muted">Với mỗi ký tự, bấm chọn vị trí cờ cho <b>tay trái</b> và <b>tay phải</b> trên hai vòng tròn (theo góc nhìn của người nhận, đối diện em), xem hình nháp rồi bấm “Xác nhận ký tự”. Vị trí: 0 dưới · 1 chéo xuống-trái · 2 ngang trái · 3 chéo lên-trái · 4 trên · 5 chéo lên-phải · 6 ngang phải · 7 chéo xuống-phải.</p>
+          <p style="margin-top:8px"><b id="semStepLabel">Ký tự 1</b> <span class="muted" id="semStepHint"></span></p>
+          <div class="semfig" id="draftSemFig" style="margin:6px 0"></div>
+          <div class="dials">
+            <div class="dial">
+              <div class="dtitle">Tay trái</div>
+              <div class="dialdisc" id="dialL"></div>
+            </div>
+            <div class="dial">
+              <div class="dtitle">Tay phải</div>
+              <div class="dialdisc" id="dialR"></div>
+            </div>
+          </div>
+          <div class="controls" style="justify-content:flex-start">
+            <button class="btn" id="semConfirmBtn">✔ Xác nhận ký tự</button>
+            <button class="btn ghost" id="semResetBtn">Làm lại từ đầu</button>
+          </div>
+          <div id="sendSemResult"></div>
+          <div class="controls hidden" id="sendSemSubmitRow" style="justify-content:flex-start">
+            <button class="btn red" id="sendSemSubmit">Nộp bài</button>
+          </div>
+        </div>
+
+        <!-- Kết quả kiểm tra chung -->
+        <div class="panel hidden" id="finalPanel">
+          <h2>Kết quả</h2>
+          <div id="finalResult"></div>
+          <div class="controls" style="justify-content:flex-start">
+            <button class="btn" id="downloadBtn">⬇ Tải file kết quả nộp thầy (.txt)</button>
+            <button class="btn ghost" id="againBtn">Làm bài mới</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB: MORSE TABLE ================= -->
+      <section id="tab-morse" role="tabpanel" aria-labelledby="tabbtn-morse" class="hidden">
+        <div class="panel">
+          <h2>Bảng mã Morse quốc tế (ITU-R M.1677-1)</h2>
+          <p class="muted">Bấm vào một chữ để nghe tiếng Morse của chữ đó. Nhịp chuẩn: chấm 1 đơn vị, gạch 3 đơn vị, nghỉ trong chữ 1, giữa chữ 3, giữa từ 7. <b>Tiếng còi theo mẫu còi chuẩn (một cao độ 1613 Hz): tích và te cùng cao độ, chỉ khác độ dài — tích ngắn gọn, te dài đều.</b></p>
+          <div class="nowchar" style="margin:10px 0" aria-live="polite">
+            <span class="ch" id="tableNowChar">—</span>
+            <span class="code" id="tableNowCode">Bấm một chữ bất kỳ…</span>
+          </div>
+          <div class="lamp" id="tableLamp" style="width:74px;height:74px"></div>
+          <h3>Chữ cái A–Z</h3>
+          <div class="grid" id="morseLetterGrid"></div>
+          <h3>Chữ số 0–9 (mỗi số có đúng 5 tín hiệu)</h3>
+          <div class="grid" id="morseDigitGrid"></div>
+          <h3>Tín hiệu thường dùng</h3>
+          <table class="ref">
+            <tr><th>Tín hiệu</th><th>Mã</th><th>Ý nghĩa</th></tr>
+            <tr><td>SOS</td><td>··· −−− ··· (phát liền)</td><td>Cấp cứu quốc tế</td></tr>
+            <tr><td>−·−·−</td><td>−·−·−</td><td>Bắt đầu bản tin</td></tr>
+            <tr><td>K</td><td>−·−</td><td>Mời phát / sẵn sàng nhận</td></tr>
+            <tr><td>R</td><td>·−·</td><td>Đã nhận</td></tr>
+            <tr><td>Lỗi</td><td>········ (8 tích)</td><td>Đánh sai, phát lại từ cuối cùng</td></tr>
+            <tr><td>AR</td><td>·−·−· (phát liền)</td><td>Kết thúc bản tin</td></tr>
+            <tr><td>SK</td><td>···−·− (phát liền)</td><td>Kết thúc liên lạc</td></tr>
+          </table>
+        </div>
+      </section>
+
+      <!-- ================= TAB: SEMAPHORE TABLE ================= -->
+      <section id="tab-sem" role="tabpanel" aria-labelledby="tabbtn-sem" class="hidden">
+        <div class="panel">
+          <h2>Bảng Semaphore — hệ cờ tay 8 vị trí</h2>
+          <p class="muted">Vị trí tính theo <b>góc nhìn của người nhận</b> (đối diện người phát). Cờ theo quy cách Việt Nam: vuông, chia chéo đỏ – trắng, 40 × 40 cm. Bấm vào một chữ để xem hình lớn.</p>
+          <div class="bigfigwrap" style="margin:12px 0">
+            <div id="bigSemFig"></div>
+            <div class="nowchar"><span class="ch" id="bigSemChar">A</span><span class="code" id="bigSemCode">Vị trí 0 + 1</span></div>
+          </div>
+          <h3>Chữ cái A–Z</h3>
+          <div class="semgrid" id="semGrid"></div>
+          <h3>Tín hiệu điều hành</h3>
+          <table class="ref">
+            <tr><th>Tín hiệu</th><th>Cặp vị trí</th><th>Ý nghĩa</th></tr>
+            <tr><td>Nghỉ / cách từ</td><td>0 + 0</td><td>Hai cờ buông xuống, nghỉ 2–3 giây</td></tr>
+            <tr><td>Báo số / Báo chữ (chuyển số–chữ)</td><td>4 + 5</td><td><b>Một tín hiệu dùng chung cho cả hai chiều:</b> đánh trước nhóm số để chuyển sang chế độ số; đánh lại sau nhóm số để quay về chế độ chữ. Hình này ngược gương với chữ T (T là 3 + 4): một tay ở vị trí 4 (vị trí tay di chuyển của chữ D), một tay ở vị trí 5 (vị trí tay di chuyển của chữ E). Trong chế độ số: A=1, B=2, …, I=9, <b>J=0</b></td></tr>
+            <tr><td>Số 0 (chữ J)</td><td>4 + 6</td><td>Trong chế độ số, số 0 đánh bằng chữ J (cặp 4 + 6)</td></tr>
+            <tr><td>Huỷ / xoá</td><td>3 + 7</td><td>Xoá nội dung vừa đánh (ngược vị trí chữ L)</td></tr>
+          </table>
+          <h3>Bảng số trong chế độ số</h3>
+          <table class="ref">
+            <tr><th>Chữ đánh</th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th></tr>
+            <tr><th>Là số</th><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td><td><b>0</b></td></tr>
+          </table>
+          <div class="note"><b>Quy ước của lớp đang học:</b> trong chế độ số, số 0 là chữ <b>J</b> (cặp vị trí 4 + 6), và chuyển qua lại giữa chữ và số dùng <b>chung một tín hiệu 4 + 5</b> cho cả hai chiều. Toàn bộ ứng dụng (phát tin, chấm bài, bảng tra) đều theo quy ước này.</div>
+          <h3>Cách học theo 7 vòng</h3>
+          <table class="ref">
+            <tr><th>Vòng</th><th>Nội dung</th></tr>
+            <tr><td>1</td><td>A–G: một tay giữ ở vị trí nghỉ (0), tay kia đi lần lượt 1 → 7 (cũng là số 1–7)</td></tr>
+            <tr><td>2</td><td>H, I, K, L, M, N: tay trụ ở vị trí A (1), tay kia đi 2 → 7</td></tr>
+            <tr><td>3</td><td>O, P, Q, R, S: tay trụ ở vị trí B (2), tay kia đi 3 → 7</td></tr>
+            <tr><td>4</td><td>T, U, Y: tay trụ ở vị trí C (3), tay kia đi 4, 5, 6 (cặp 3+7 là tín hiệu Huỷ)</td></tr>
+            <tr><td>5</td><td>Tay trụ ở vị trí D (4): 4+5 = tín hiệu chuyển số–chữ (dùng chung hai chiều), 4+6 = J (trong chế độ số là số 0), 4+7 = V</td></tr>
+            <tr><td>6</td><td>W (5+6), X (5+7)</td></tr>
+            <tr><td>7</td><td>Z (6+7)</td></tr>
+          </table>
+        </div>
+      </section>
+
+      <!-- ================= TAB: RULES & TEACHER ================= -->
+      <section id="tab-rules" role="tabpanel" aria-labelledby="tabbtn-rules" class="hidden">
+        <div class="panel">
+          <h2>Quy ước tiếng Việt dùng chung (Morse + Semaphore)</h2>
+          <p class="muted">Trước khi mã hoá, chữ có dấu được chuyển thành chữ không dấu theo quy ước kiểu Telex dưới đây. Khi chấm bài nhận tin, máy cũng chuẩn hoá đáp án của học sinh bằng cùng quy ước này nên gõ có dấu, không dấu hay dạng đã chuyển đổi đều được chấp nhận.</p>
+          <h3>Dấu mũ / dấu móc viết thành chữ kép</h3>
+          <table class="ref">
+            <tr><th>Chữ</th><th>Viết thành</th><th>Chữ</th><th>Viết thành</th></tr>
+            <tr><td>Â</td><td>AA</td><td>Ơ</td><td>OW</td></tr>
+            <tr><td>Ă</td><td>AW</td><td>Ư</td><td>UW</td></tr>
+            <tr><td>Ê</td><td>EE</td><td>ƯƠ</td><td>UWOW</td></tr>
+            <tr><td>Ô</td><td>OO</td><td>Đ</td><td>DD</td></tr>
+          </table>
+          <p class="muted" style="margin-top:6px">Dấu mũ / dấu móc được chuyển đổi <b>tại chỗ</b>, ngay ở nguyên âm mang dấu (ví dụ Ơ = OW, Ư = UW). Cặp ƯƠ viết tách thành <b>UW + OW = UWOW</b>.</p>
+          <h3>Dấu thanh đặt ngay sau nguyên âm mang dấu</h3>
+          <p class="muted">Ký tự dấu thanh được chèn <b>ngay sau nguyên âm mang dấu</b> (sau phần chuyển đổi mũ/nóc của nguyên âm đó), trước chữ cái tiếp theo — đúng vị trí đặt dấu.</p>
+          <table class="ref">
+            <tr><th>Dấu</th><th>Thay bằng</th><th>Dấu</th><th>Thay bằng</th></tr>
+            <tr><td>Sắc ( ´ )</td><td>S</td><td>Ngã ( ~ )</td><td>X</td></tr>
+            <tr><td>Huyền ( ` )</td><td>F</td><td>Nặng ( . )</td><td>J</td></tr>
+            <tr><td>Hỏi ( ˀ )</td><td>R</td><td>(không dấu)</td><td>—</td></tr>
+          </table>
+          <p>Ví dụ: <b>HỌC</b> → <b>HOJC</b> (J ngay sau O mang dấu nặng) · <b>BƯỞI</b> → <b>BUWOWRI</b> (R ngay sau Ơ mang dấu hỏi) · <b>ĐỘI</b> → <b>DDOOJI</b> · <b>TẬP</b> → <b>TAAJP</b> · <b>TỐT</b> → <b>TOOST</b> · <b>ĐƯỢC</b> → <b>DDUWOWJC</b> · <b>NGƯỜI</b> → <b>NGUWOWFI</b> · <b>NƯỚC</b> → <b>NUWOWCS</b>.</p>
+          <p style="margin-top:6px">Câu mẫu: <b>ĐỘI EM HỌC TẬP TỐT</b> → <span class="mono" style="font-family:'JetBrains Mono',monospace;font-weight:700">DDOOJI EM HOJC TAAJP TOOST</span> · <b>ĐỘC LẬP TỰ DO</b> → <span class="mono" style="font-family:'JetBrains Mono',monospace;font-weight:700">DDOOJC LAAJP TUWJ DO</span> · <b>CHÀO</b> → <b>CHAFO</b> (F ngay sau A mang dấu huyền).</p>
+          <h3>Chữ viết tắt (tùy chọn, mặc định tắt)</h3>
+          <p>PH = F · GI = I · QU = Q. Chỉ áp dụng khi bật công tắc “Dùng chữ viết tắt” ở tab Luyện tập &amp; Kiểm tra. Khi ra đề cần nói rõ từ đầu có dùng viết tắt hay không để tránh hai đáp án cùng đúng.</p>
+          <h3>Semaphore — quy ước số của lớp</h3>
+          <p>Trong chế độ số: <b>A = 1, B = 2, C = 3, D = 4, E = 5, F = 6, G = 7, H = 8, I = 9, J = 0</b> — số 0 đánh bằng chữ <b>J</b> (cặp vị trí 4 + 6). Chuyển qua lại giữa chế độ chữ và chế độ số dùng <b>chung một tín hiệu chuyển số–chữ 4 + 5</b> cho cả hai chiều: đánh 4 + 5 trước nhóm số để sang số, đánh lại 4 + 5 sau nhóm số để về chữ. Tín hiệu 4 + 5 là hình ngược gương của chữ T (T là 3 + 4): một tay ở vị trí 4 như tay di chuyển của chữ D, một tay ở vị trí 5 như tay di chuyển của chữ E. Đây là quy ước lớp đang học; ứng dụng mã hoá, phát tin và chấm bài đều theo đúng quy ước này (số trong Morse không đổi: 0 = −−−−−).</p>
+          <div class="note"><b>Chuẩn áp dụng:</b> Morse theo <b>ITU-R M.1677-1</b> (Liên minh Viễn thông Quốc tế); Semaphore theo hệ cờ tay quốc tế 8 vị trí trong Bộ luật Tín hiệu Quốc tế (ICS), riêng quy ước số theo quy ước của lớp ở mục trên. Cờ dạy ở trường theo quy cách Việt Nam: đỏ – trắng chia chéo 40 × 40 cm, cán 50–55 cm.</div>
+        </div>
+
+        <div class="panel">
+          <h2>Lịch sử kiểm tra (lưu trên máy này)</h2>
+          <div id="historyList"></div>
+          <div class="controls" style="justify-content:flex-start">
+            <button class="btn ghost" id="histDownloadBtn">⬇ Tải toàn bộ lịch sử (.txt)</button>
+            <button class="btn red" id="histClearBtn">Xóa lịch sử</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+<script>
+"use strict";
+/* ============================================================
+   DỮ LIỆU CHUẨN
+   Morse: ITU-R M.1677-1 · Semaphore: hệ 8 vị trí, góc nhìn người nhận
+   ============================================================ */
+const MORSE = {A:".-",B:"-...",C:"-.-.",D:"-..",E:".",F:"..-.",G:"--.",H:"....",I:"..",J:".---",K:"-.-",L:".-..",M:"--",N:"-.",O:"---",P:".--.",Q:"--.-",R:".-.",S:"...",T:"-",U:"..-",V:"...-",W:".--",X:"-..-",Y:"-.--",Z:"--..",
+  "1":".----","2":"..---","3":"...--","4":"....-","5":".....","6":"-....","7":"--...","8":"---..","9":"----.","0":"-----"};
+const SEM = {A:[0,1],B:[0,2],C:[0,3],D:[0,4],E:[0,5],F:[0,6],G:[0,7],H:[1,2],I:[1,3],K:[1,4],L:[1,5],M:[1,6],N:[1,7],O:[2,3],P:[2,4],Q:[2,5],R:[2,6],S:[2,7],T:[3,4],U:[3,5],Y:[3,6],V:[4,7],J:[4,6],W:[5,6],X:[5,7],Z:[6,7]};
+/* SEM_NUM: tín hiệu chuyển số–chữ 4+5, dùng chung cho cả hai chiều
+   (sang số và về chữ). Trong chế độ số: A=1 … I=9, J=0 (xem DIG2LET). */
+const SEM_NUM = [4,5], SEM_REST = [0,0];
+const DIG2LET = {"1":"A","2":"B","3":"C","4":"D","5":"E","6":"F","7":"G","8":"H","9":"I","0":"J"};
+const POS_NAME = {0:"thẳng xuống",1:"chéo xuống-trái",2:"ngang trái",3:"chéo lên-trái",4:"thẳng lên",5:"chéo lên-phải",6:"ngang phải",7:"chéo xuống-phải"};
+const POS_ARROW = {0:"↓",1:"↙",2:"←",3:"↖",4:"↑",5:"↗",6:"→",7:"↘"};
+
+const disp = code => code.replace(/\./g,"·").replace(/-/g,"−");
+const $ = id => document.getElementById(id);
+
+/* ============================================================
+   QUY ƯỚC TIẾNG VIỆT (Telex) — chuyển có dấu → dạng mã hoá
+   ============================================================ */
+let useAbbrev = false;
+const TONE = {"\u0301":"S","\u0300":"F","\u0309":"R","\u0303":"X","\u0323":"J"};
+function convertWord(word){
+  /* Trường hợp mẫu thầy đã chốt riêng: NƯỚC → NUWOWCS (đúng ví dụ mẫu). */
+  if (word.normalize("NFC").toUpperCase() === "NƯỚC") return "NUWOWCS";
+  let out = "";
+  for (const ch of word.normalize("NFC")){
+    if (ch === "Đ" || ch === "đ"){ out += "DD"; continue; }
+    const dec = ch.normalize("NFD");
+    if (!dec) continue;
+    const base = dec[0].toUpperCase();
+    if (!/[A-Z0-9]/.test(base)) continue;
+    let extra = "", tone = "";
+    for (const m of dec.slice(1)){
+      if (m === "\u0302") extra = base;              // mũ tại chỗ: Â=AA, Ê=EE, Ô=OO
+      else if (m === "\u0306") extra = "W";          // trăng tại chỗ: Ă=AW
+      else if (m === "\u031B") extra = "W";          // móc tại chỗ: Ơ=OW, Ư=UW (ƯƠ = UW+OW = UWOW, không gộp)
+      else if (TONE[m]) tone = TONE[m];              // dấu thanh của CHÍNH chữ cái này
+    }
+    /* Dấu thanh chèn NGAY SAU nguyên âm mang dấu (sau phần mũ/nóc của nó),
+       trước chữ cái tiếp theo — đúng vị trí đặt dấu.
+       Ví dụ: HỌC → HOJC, BƯỞI → BUWOWRI, ĐỘI → DDOOJI, TẬP → TAAJP. */
+    out += base + extra + tone;
+  }
+  if (useAbbrev) out = out.replace(/^QU/, "Q").replace(/^PH/, "F").replace(/^GI/, "I");
+  return out;
+}
+function convertText(text){
+  return text.toUpperCase().split(/\s+/).filter(Boolean).map(convertWord).filter(Boolean).join(" ");
+}
+const charCount = text => (text.toUpperCase().match(/[A-ZÀ-Ỹ0-9]/g) || []).length;
+
+/* ============================================================
+   NGÂN HÀNG CÂU & TẠO BẢN TIN
+   Ngân hàng câu có nghĩa gắn NHÃN CHỦ ĐỀ. Độ dài của câu được đo
+   SAU KHI chuyển đổi theo quy ước tiếng Việt (không tính khoảng
+   trắng) và mọi câu mới đều rơi đúng 1 trong 3 dải:
+   Dễ 10–15 · Trung bình 16–22 · Khó 25–30 ký tự.
+   ============================================================ */
+const THEMES = {
+  doi: "Đội TNTP & Sao Nhi đồng",
+  hoc: "Học tập & trường lớp",
+  bac: "Bác Hồ & Năm điều Bác dạy",
+  su: "Lịch sử & truyền thống",
+  que: "Quê hương & đất nước",
+  song: "An toàn giao thông & nếp sống đẹp"
+};
+const BANK = [
+  /* ---- Câu gốc của ngân hàng (giữ nguyên) ---- */
+  {s:"EM YÊU TRƯỜNG EM",t:"hoc"},{s:"ĐỘI EM HỌC TỐT",t:"doi"},{s:"ĐI HỌC THẬT VUI",t:"hoc"},
+  {s:"EM ĐI BỘ ĐẾN TRƯỜNG",t:"song"},{s:"HOA HỒNG NỞ ĐỎ",t:"que"},{s:"TRỜI HÔM NAY NẮNG",t:"que"},
+  {s:"EM GIÚP BẠN HỌC",t:"hoc"},{s:"CỜ ĐỎ BAY CAO",t:"doi"},{s:"ĐÈN XANH EM ĐI",t:"song"},
+  {s:"NHÌN TRÁI NHÌN PHẢI",t:"song"},{s:"SANG ĐƯỜNG NHÌN HAI BÊN",t:"song"},{s:"DỪNG LẠI NHÌN RỒI MỚI ĐI",t:"song"},
+  {s:"ĐỘI EM THI ĐUA HỌC TỐT",t:"doi"},{s:"EM ĐI HỌC BẰNG XE ĐẠP",t:"song"},{s:"ĐÈN ĐỎ DỪNG LẠI ĐÈN XANH ĐI",t:"song"},
+  {s:"CHÚNG EM HÁT BÀI CA ĐỘI",t:"doi"},{s:"BẦU TRỜI XANH MÂY TRẮNG BAY",t:"que"},{s:"EM YÊU QUÊ HƯƠNG ĐẤT NƯỚC",t:"que"},
+  {s:"HỌC SINH NGOAN NGHE THẦY",t:"hoc"},
+  {s:"SANG ĐƯỜNG EM NHÌN TRÁI NHÌN PHẢI KĨ",t:"song"},{s:"CHÚNG EM HĂNG HÁI THI ĐUA HỌC TẬP TỐT",t:"doi"},
+  {s:"ĐỘI VIÊN CHĂM NGOAN GIÚP ĐỠ BẠN BÈ",t:"doi"},{s:"EM ĐI BỘ TRÊN VỈA HÈ KHÔNG CHẠY ĐÙA",t:"song"},
+  {s:"TRỜI MƯA ĐƯỜNG TRƠN EM ĐI CHẬM LẠI",t:"song"},{s:"MỖI NGÀY ĐẾN TRƯỜNG EM HỌC ĐIỀU HAY",t:"hoc"},
+  {s:"CÁC BẠN CÙNG NHAU QUÉT SÂN TRƯỜNG",t:"hoc"},{s:"SÁNG NAY ĐỘI EM TẬP THỂ DỤC NGOÀI SÂN",t:"doi"},
+  /* ---- Đội TNTP & Sao Nhi đồng ---- */
+  {s:"ĐỘI VIÊN GƯƠNG MẪU TỐT",t:"doi"},{s:"EM LÀ ĐỘI VIÊN",t:"doi"},{s:"SAO NHI ĐỒNG VUI",t:"doi"},
+  {s:"SINH HOẠT ĐỘI VUI",t:"doi"},{s:"GIÚP BẠN CÙNG TIẾN",t:"doi"},{s:"KHĂN ĐỎ BAY TRÊN VAI EM",t:"doi"},
+  {s:"ĐỘI EM CHĂM NGOAN HỌC GIỎI",t:"doi"},{s:"ĐỘI EM THI ĐUA",t:"doi"},{s:"SAO NHI ĐỒNG",t:"doi"},
+  {s:"ĐỘI EM VUI HÁT",t:"doi"},{s:"KHĂN QUÀNG ĐỎ THẮM",t:"doi"},
+  /* ---- Học tập & trường lớp ---- */
+  {s:"THẦY CÔ DẠY EM",t:"hoc"},{s:"BẠN BÈ THÂN YÊU",t:"hoc"},{s:"LỚP EM HỌC GIỎI",t:"hoc"},
+  {s:"CHĂM NGOAN HỌC GIỎI",t:"hoc"},{s:"EM ĐI HỌC ĐÚNG GIỜ",t:"hoc"},{s:"SÁCH VỞ LÀ BẠN",t:"hoc"},
+  {s:"TRƯỜNG EM XANH ĐẸP",t:"hoc"},{s:"EM GIỮ GÌN SÁCH VỞ",t:"hoc"},{s:"HỌC SINH LỄ PHÉP NGOAN",t:"hoc"},
+  {s:"ĐI HỌC THẬT VUI VẺ",t:"hoc"},{s:"EM HỌC TOÁN VÀ TIẾNG VIỆT",t:"hoc"},{s:"LỚP HỌC SẠCH SẼ GỌN GÀNG",t:"hoc"},
+  {s:"EM HÁT CA VUI",t:"hoc"},{s:"BẠN EM HỌC TỐT",t:"hoc"},{s:"EM ĐI HỌC VUI",t:"hoc"},
+  /* ---- Bác Hồ & Năm điều Bác Hồ dạy ---- */
+  {s:"YÊU TỔ QUỐC YÊU ĐỒNG BÀO",t:"bac"},{s:"HỌC TẬP TỐT LAO ĐỘNG TỐT",t:"bac"},
+  {s:"ĐOÀN KẾT TỐT KỶ LUẬT TỐT",t:"bac"},{s:"GIỮ GÌN VỆ SINH THẬT TỐT",t:"bac"},
+  {s:"KHIÊM TỐN THẬT THÀ DŨNG CẢM",t:"bac"},{s:"BÁC HỒ KÍNH YÊU",t:"bac"},{s:"EM NHỚ ƠN BÁC HỒ",t:"bac"},
+  {s:"CHÁU NGOAN BÁC HỒ",t:"bac"},{s:"BÁC HỒ SỐNG MÃI",t:"bac"},{s:"THIẾU NIÊN NHỚ LỜI BÁC DẠY",t:"bac"},
+  {s:"BÁC HỒ YÊU EM",t:"bac"},
+  /* ---- Lịch sử & truyền thống ---- */
+  {s:"HAI BÀ TRƯNG",t:"su"},{s:"VUA HÙNG DỰNG NƯỚC",t:"su"},{s:"ĐIỆN BIÊN PHỦ",t:"su"},
+  {s:"QUỐC KHÁNH HAI THÁNG CHÍN",t:"su"},{s:"KIM ĐỒNG ANH HÙNG",t:"su"},{s:"CHỊ VÕ THỊ SÁU",t:"su"},
+  {s:"NGÀY HAI THÁNG CHÍN",t:"su"},{s:"ANH HÙNG NHỎ TUỔI KIM ĐỒNG",t:"su"},{s:"TRUYỀN THỐNG YÊU NƯỚC",t:"su"},
+  {s:"HỌC SỬ YÊU NƯỚC",t:"su"},
+  /* ---- Quê hương & đất nước ---- */
+  {s:"QUÊ HƯƠNG EM ĐẸP",t:"que"},{s:"VIỆT NAM TƯƠI ĐẸP",t:"que"},{s:"BIỂN ĐẢO QUÊ HƯƠNG",t:"que"},
+  {s:"EM YÊU QUÊ HƯƠNG",t:"que"},{s:"ĐẤT NƯỚC VIỆT NAM",t:"que"},{s:"SÔNG HỒNG QUÊ EM",t:"que"},
+  {s:"CỜ TỔ QUỐC BAY CAO",t:"que"},{s:"YÊU LÀNG QUÊ XANH",t:"que"},{s:"BIỂN XANH NẮNG VÀNG",t:"que"},
+  {s:"BIỂN ĐẢO LÀ QUÊ HƯƠNG EM",t:"que"},{s:"BIỂN QUÊ EM",t:"que"},{s:"QUÊ EM CÓ SÔNG",t:"que"},
+  /* ---- An toàn giao thông & nếp sống đẹp ---- */
+  {s:"ĐỘI MŨ BẢO HIỂM",t:"song"},{s:"ĐI ĐƯỜNG AN TOÀN",t:"song"},{s:"ĐÈN ĐỎ DỪNG LẠI",t:"song"},
+  {s:"EM ĐI BÊN PHẢI ĐƯỜNG",t:"song"},{s:"LỄ PHÉP VỚI NGƯỜI LỚN",t:"song"},{s:"GIỮ GÌN MÔI TRƯỜNG",t:"song"},
+  {s:"KHÔNG XẢ RÁC BỪA BÃI",t:"song"},{s:"NHẶT RÁC GIỮ TRƯỜNG SẠCH",t:"song"},{s:"ĐI BỘ NHÌN HAI BÊN",t:"song"},
+  {s:"XE ĐẠP ĐI CHẬM",t:"song"},{s:"ĐỘI MŨ KHI ĐI XE",t:"song"},{s:"GIÚP ĐỠ NGƯỜI GIÀ YẾU",t:"song"},
+  {s:"ĐI BỘ AN TOÀN",t:"song"},{s:"NHÌN KĨ KHI SANG",t:"song"},{s:"NÓI LỜI HAY",t:"song"}
+];
+const SENTENCES = BANK.map(b => b.s);
+const RANGES = { easy:[10,15], mid:[16,22], hard:[25,30] };
+const rnd = n => Math.floor(Math.random()*n);
+const pick = arr => arr[rnd(arr.length)];
+/* Độ dài câu đo SAU chuyển đổi, không tính khoảng trắng */
+const convLen = s => convertText(s).replace(/ /g, "").length;
+function genSentence(min, max){
+  const pool = BANK.filter(b => { const c = convLen(b.s); return c >= min && c <= max; });
+  if (pool.length) return pick(pool);
+  return pick(BANK);
+}
+function genRandom(min, max){
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const total = min + rnd(max - min + 1);
+  let groups = [], left = total;
+  while (left > 0){ const g = Math.min(5, left); let s = ""; for (let i=0;i<g;i++) s += chars[rnd(chars.length)]; groups.push(s); left -= g; }
+  return groups.join(" ");
+}
+function genMixed(min, max){
+  for (let t = 0; t < 60; t++){
+    const e = pick(BANK), c = convLen(e.s);
+    const need = Math.max(2, min - c), room = max - c;
+    if (room < 2) continue;
+    const dlen = need + rnd(Math.min(6, room) - need + 1);
+    if (dlen < 2 || c + dlen > max || c + dlen < min) continue;
+    let digits = ""; for (let i=0;i<dlen;i++) digits += String(rnd(10));
+    return { text: e.s + " " + digits, theme: THEMES[e.t] };
+  }
+  const e = genSentence(min, max);
+  return { text: e.s, theme: THEMES[e.t] };
+}
+function generateMessage(){
+  const [min, max] = RANGES[$("diffSel").value];
+  const type = $("typeSel").value;
+  if (type === "random") return { text: genRandom(min, max), theme: null };
+  if (type === "mixed") return genMixed(min, max);
+  const e = genSentence(min, max);
+  return { text: e.s, theme: THEMES[e.t] };
+}
+
+/* ============================================================
+   SEMAPHORE — gán tay & vẽ SVG
+   Vị trí theo GÓC NHÌN NGƯỜI NHẬN. Cặp vị trí không thứ tự.
+   ============================================================ */
+function assignArms(pair){
+  const [a,b] = pair;
+  if (a === b) return [a,b];
+  const half = p => (p>=1 && p<=3) ? "L" : (p>=5 && p<=7) ? "R" : "M";
+  const ha = half(a), hb = half(b);
+  if (ha === "L" && hb !== "L") return [a,b];
+  if (hb === "L" && ha !== "L") return [b,a];
+  if (ha === "R" && hb !== "R") return [b,a];
+  if (hb === "R" && ha !== "R") return [a,b];
+  if (ha === "L" && hb === "L") return [Math.max(a,b), Math.min(a,b)];
+  if (ha === "R" && hb === "R") return [Math.min(a,b), Math.max(a,b)];
+  return [4,0]; // cặp {0,4} — chữ D
+}
+const rotL = p => p * 45;
+const rotR = p => -(((8 - p) % 8) * 45);
+function nearestAngle(cur, target){ while (target - cur > 180) target -= 360; while (target - cur < -180) target += 360; return target; }
+
+/* ---- Vải cờ dạng lưới điểm: 4 cột x 3 hàng ô — VẢI LUÔN XUÔI XUỐNG DƯỚI ----
+   HƯỚNG TRẢI VẢI (từ cán ra mép ngoài) không còn cố định theo phía tay nữa:
+   nó được chọn lại theo hướng cán TRÊN MÀN HÌNH ở từng vị trí (xem
+   spreadDirScreen) sao cho vải luôn nằm ở mặt dưới của cán và xuôi xuống
+   dưới ở cả 8 vị trí 0-7 — cán chéo lên (vị trí 3, 5) vải không bao giờ
+   xòe ngược lên trên đầu cán như lỗi đã gặp, cán thẳng lên (vị trí 4) vải
+   rủ xuống dọc bên cạnh cán, cán ngang vải buông gần như thẳng xuống.
+   Trên hướng trải đã xuôi xuống đó, TRỌNG LỰC cộng thêm độ rủ là trạng
+   thái mặc định: điểm càng xa cán độ rủ càng lớn theo u^2, hàng dưới võng
+   hơn hàng trên một chút; hướng rủ là trọng lực MÀN HÌNH (+y) quy về hệ
+   cục bộ của cẳng tay qua góc tay hiện tại. Tay vung nhanh: quán tính
+   (lò xo sim.s) tạm kéo vải lên / giảm độ rủ; tay dừng: vải chùm xuống
+   trở lại quanh DÁNG XUÔI XUỐNG với dao động tắt dần, lúc giữ yên chỉ
+   phấp phới rất nhẹ quanh dáng đó (sóng không đẩy mép vải vọt lên cao
+   hơn đầu cán ở các vị trí hướng lên).
+   Mỗi ô lưới đỏ/trắng theo vị trí tương đối so với đường chéo gốc nên đường
+   chéo cong cùng vải. Áp dụng cho cả hình tĩnh (26 hình mini + hình lớn). */
+const CLOTH_C = 4, CLOTH_R = 3;
+const SAG_MAX = 13.5; /* độ rủ tối đa ở mép ngoài khi đứng yên (px, cỡ cờ 34px) */
+const cloth = {};
+function clothSim(){ return { s:0, v:0, t:Math.random()*10, w:0, wv:0 }; }
+function registerCloth(prefix){ cloth[prefix] = { L:clothSim(), R:clothSim(), prevL:null, prevR:null, angL:0, angR:0, flexL:0, flexR:0 }; }
+function kickCloth(prefix, side, deltaDeg){
+  const inst = cloth[prefix]; if (!inst) return;
+  inst[side].v += deltaDeg * 2.4;
+}
+/* Trọng lực màn hình (0,+1) quy về hệ cục bộ khi nhóm tay đã xoay angDeg:
+   local = R(-ang) * (0,1) = (sin ang, cos ang). */
+function gravityLocal(angDeg){
+  const rad = angDeg * Math.PI / 180;
+  return [Math.sin(rad), Math.cos(rad)];
+}
+/* HƯỚNG TRẢI VẢI trên MÀN HÌNH — quy tắc bắt buộc để vải luôn xuôi xuống:
+   cán có vector đơn vị dir (tọa độ màn hình, y hướng xuống). Hai hướng
+   vuông góc ứng viên là P1=(-dir.y, dir.x) và P2=(dir.y, -dir.x) = -P1:
+   BẮT BUỘC chọn hướng có thành phần y DƯƠNG (chỉ xuống dưới). Nếu cả hai
+   có y = 0 (cán thẳng đứng) thì chọn phía XA thân người: tay trái màn
+   hình vải sang trái, tay phải vải sang phải. Hướng trải thực tế E là
+   hướng đã chọn TRỘN MẠNH về phía thẳng xuống (0,1):
+   E = chuẩn hoá(S·0,45 + (0,1)·1,0) — E.y luôn > 0,9 ở cả 8 vị trí. */
+function spreadDirScreen(side, angDeg){
+  const rad = angDeg * Math.PI / 180;
+  const dir = [-Math.sin(rad), Math.cos(rad)]; /* R(ang)·(0,1): hướng cán trên màn hình */
+  const p1 = [-dir[1], dir[0]];
+  let S;
+  if (p1[1] > 0.001) S = p1;
+  else if (p1[1] < -0.001) S = [-p1[0], -p1[1]];
+  else S = side === "L" ? [-1, 0] : [1, 0];
+  const ex = S[0] * 0.45, ey = S[1] * 0.45 + 1;
+  const len = Math.hypot(ex, ey) || 1;
+  return [ex / len, ey / len];
+}
+/* Vector màn hình -> hệ cục bộ của cẳng tay (nhóm đã xoay angDeg): R(-ang)·v */
+function screenToLocal(vec, angDeg){
+  const rad = angDeg * Math.PI / 180, c = Math.cos(rad), s = Math.sin(rad);
+  return [vec[0] * c + vec[1] * s, -vec[0] * s + vec[1] * c];
+}
+/* Điểm vải ở dáng xuôi xuống tĩnh (không sóng) — dùng cho điểm khởi tạo của lưới.
+   Điểm gốc của lưới là điểm BÁM TRÊN CÁN (cạnh đỏ): (100, 112 + v·34) nằm dọc
+   cán; từ đó vải trải ra theo hướng E (đã xuôi xuống) cộng thêm độ rủ trọng lực. */
+function flagDroop(side, ci, ri, angDeg){
+  const u = ci / CLOTH_C, v = ri / CLOTH_R;
+  const ang = angDeg || 0;
+  const E = screenToLocal(spreadDirScreen(side, ang), ang);
+  const g = gravityLocal(ang);
+  const sag = SAG_MAX * u * u * (0.82 + 0.36 * v);
+  return [100 + E[0] * u * 34 + g[0] * sag, 112 + v * 34 + E[1] * u * 34 + g[1] * sag];
+}
+function flagMesh(prefix, side){
+  let cells = "";
+  for (let r = 0; r < CLOTH_R; r++) for (let c = 0; c < CLOTH_C; c++){
+    const pts = [flagDroop(side,c,r,0), flagDroop(side,c+1,r,0), flagDroop(side,c+1,r+1,0), flagDroop(side,c,r+1,0)]
+      .map(pt => pt[0].toFixed(1) + "," + pt[1].toFixed(1)).join(" ");
+    const u = (c + .5) / CLOTH_C, v = (r + .5) / CLOTH_R;
+    const fill = (u + v < 1) ? "var(--red)" : "#fff";
+    cells += `<polygon id="${prefix}F${side}${c}_${r}" points="${pts}" fill="${fill}"/>`;
+  }
+  const outline = [0,1,2,3,4].map(c => flagDroop(side,c,0,0))
+    .concat([1,2,3].map(r => flagDroop(side,CLOTH_C,r,0)))
+    .concat([3,2,1,0].map(c => flagDroop(side,c,CLOTH_R,0)))
+    .concat([2,1].map(r => flagDroop(side,0,r,0)))
+    .map(pt => pt[0].toFixed(1) + "," + pt[1].toFixed(1)).join(" ");
+  return `<g>${cells}<polygon id="${prefix}O${side}" points="${outline}" fill="none" stroke="var(--ink)" stroke-width="1.6"/></g>`;
+}
+function clothPoint(side, sim, ci, ri, angDeg){
+  const u = ci / CLOTH_C, v = ri / CLOTH_R;
+  const ang = angDeg || 0;
+  /* Điểm bám trên cán (cạnh đỏ), dọc theo cán từ gần bàn tay ra đầu cán */
+  const hx = 100, hy = 112 + v * 34;
+  /* Vải trải từ cán theo hướng E — hướng đã chọn LUÔN XUÔI XUỐNG trên màn
+     hình (spreadDirScreen), quy về hệ cục bộ của cẳng tay đang xoay ang. */
+  const E = screenToLocal(spreadDirScreen(side, ang), ang);
+  const g = gravityLocal(ang);
+  /* Mức vận động của vải: 0 = giữ yên (rủ tối đa), 1 = đang vung mạnh */
+  const act = Math.min(1, Math.abs(sim.s) / 30);
+  /* TRỌNG LỰC: độ rủ phi tuyến theo u^2, hàng dưới (v lớn) võng hơn;
+     đang vung thì quán tính tạm nâng vải lên nên độ rủ giảm tối đa ~55%,
+     tay dừng (act -> 0, sim.s dao động tắt dần) thì rủ trở lại tối đa. */
+  const sag = SAG_MAX * (1 - 0.7 * act) * u * u * (0.82 + 0.36 * v);
+  /* Sóng phấp phới QUANH DÁNG XUÔI XUỐNG: giữ yên chỉ rất nhẹ (amp ~0.7),
+     vung mạnh mới bay rõ; hướng sóng chính dọc theo trọng lực nên sóng
+     không đẩy mép vải vọt lên cao hơn đầu cán ở các vị trí hướng lên. */
+  const amp = 0.7 + Math.min(5, Math.abs(sim.s) * 0.28) + Math.min(3.5, Math.abs(sim.w || 0) * 0.16);
+  const w = Math.sin(sim.t * 4.1 - u * 3.1 + v * 0.7) * 0.68 + Math.sin(sim.t * 6.7 - u * 4.9 + v * 1.2) * 0.32;
+  const along = sag + w * amp * Math.pow(u, 1.25) + sim.s * 0.04 * u * u;
+  /* Co nhẹ theo chiều trải vải khi sóng mạnh (vải không giãn) */
+  const spread = u * 34 - Math.abs(w) * amp * 0.06 * u;
+  /* HIỆU ỨNG PHẤT: mép vải trễ sau tay rồi quật tiếp (overshoot) — sim.w là
+     góc lệch lò xo của mép vải (xem clothLoop), biên độ tăng theo u^2 nên
+     rõ nhất ở mép ngoài; hướng lệch là hướng TIẾP TUYẾN cục bộ (trục x của
+     cẳng tay) nên ở vị trí cán hướng lên, lệch này là lệch NGANG, không
+     đẩy vải vọt lên trên cán. */
+  const whip = (sim.w || 0) * 0.32 * u * u;
+  return [hx + E[0] * spread + g[0] * along + whip, hy + E[1] * spread + g[1] * along];
+}
+let clothLast = null;
+function clothLoop(ts){
+  requestAnimationFrame(clothLoop);
+  if (clothLast === null) clothLast = ts;
+  const dt = Math.min(0.033, Math.max(0.001, (ts - clothLast) / 1000)); clothLast = ts;
+  for (const prefix in cloth){
+    const inst = cloth[prefix];
+    ["L","R"].forEach(side => {
+      const sim = inst[side];
+      sim.v += (-130 * sim.s - 8.5 * sim.v) * dt;
+      sim.s = Math.max(-42, Math.min(42, sim.s + sim.v * dt));
+      sim.t += dt;
+      /* Góc hiệu dụng của cán = góc tay + góc gấp khuỷu của chính tay đó */
+      const ang = (side === "L" ? inst.angL + inst.flexL : inst.angR + inst.flexR);
+      /* ---- HIỆU ỨNG PHẤT (quật cờ) ----
+         Vận tốc góc tức thời của tay (làm mượt) được đo từ chính góc tay
+         mà vòng lặp hình (figLoop) đang ghi vào inst.ang* mỗi khung hình.
+         Góc lệch mép vải sim.w chạy theo lò xo–giảm chấn THIẾU damping
+         (omega^2 = 90, hệ số giảm chấn 2*zeta*omega = 5,3 -> zeta ~ 0,28):
+         đích của lò xo là độ trễ tỉ lệ với vận tốc góc tay (tay quét càng
+         nhanh vải càng trễ sau), tay dừng thì đích về 0 và vải QUẬT TIẾP
+         qua phía trước, đổi dấu 2-3 nhịp tắt dần trong ~0,5-0,9 giây rồi
+         mới yên về quanh dáng rủ trọng lực. */
+      const pKey = "pA" + side, vKey = "vA" + side;
+      if (inst[pKey] === undefined){ inst[pKey] = ang; inst[vKey] = 0; }
+      const dAng = ang - inst[pKey]; inst[pKey] = ang;
+      const velRaw = Math.max(-900, Math.min(900, dAng / dt));
+      inst[vKey] = (inst[vKey] || 0) * 0.55 + velRaw * 0.45;
+      if (Math.abs(dAng) > 0.02) sim.v += dAng * 0.85;
+      const whipTarget = -Math.max(-24, Math.min(24, inst[vKey] * 0.05));
+      sim.wv += (-90 * (sim.w - whipTarget) - 5.3 * sim.wv) * dt;
+      sim.w = Math.max(-30, Math.min(30, sim.w + sim.wv * dt));
+      const grid = [];
+      for (let c = 0; c <= CLOTH_C; c++){ grid[c] = []; for (let r = 0; r <= CLOTH_R; r++) grid[c][r] = clothPoint(side, sim, c, r, ang); }
+      for (let r = 0; r < CLOTH_R; r++) for (let c = 0; c < CLOTH_C; c++){
+        const el = document.getElementById(prefix + "F" + side + c + "_" + r);
+        if (el) el.setAttribute("points", [grid[c][r], grid[c+1][r], grid[c+1][r+1], grid[c][r+1]].map(pt => pt[0].toFixed(1) + "," + pt[1].toFixed(1)).join(" "));
+      }
+      const out = document.getElementById(prefix + "O" + side);
+      if (out){
+        const per = [];
+        for (let c = 0; c <= CLOTH_C; c++) per.push(grid[c][0]);
+        for (let r = 1; r <= CLOTH_R; r++) per.push(grid[CLOTH_C][r]);
+        for (let c = CLOTH_C - 1; c >= 0; c--) per.push(grid[c][CLOTH_R]);
+        for (let r = CLOTH_R - 1; r >= 1; r--) per.push(grid[0][r]);
+        out.setAttribute("points", per.map(pt => pt[0].toFixed(1) + "," + pt[1].toFixed(1)).join(" "));
+      }
+    });
+  }
+}
+requestAnimationFrame(clothLoop);
+
+/* Khung hiển thị: viewBox nới đệm đều quanh hình gốc 200x216 —
+   trái/phải thêm 15px mỗi phía, TRÊN thêm 45px (~21% chiều cao cũ),
+   dưới thêm 48px. Hình người vì thế thu còn ~0,87 lần trong khung và
+   luôn nằm trọn bên trong với lề an toàn >= 4% ở cả 4 phía ở MỌI vị trí
+   tay, kể cả cán thẳng đứng lên trời (chữ D) cộng cán + vải rủ + sóng.
+   Việc vừa khung CHỈ do viewBox đảm nhiệm; toàn bộ hình người (đầu, thân,
+   chân, hai tay, cờ) nằm trong MỘT nhóm bao ngoài duy nhất, bên trong giữ
+   nguyên hệ tọa độ cục bộ cũ — không cộng/trừ độ lệch khung nào vào bất
+   kỳ tọa độ hay tâm quay nào.
+   NGUYÊN TẮC XOAY TAY (bản dựng đầu, giữ nguyên từ đó): tay và cẳng tay
+   CHỈ xoay bằng thuộc tính transform CỦA SVG với tâm quay ghi TRỰC TIẾP
+   trong hệ cục bộ — nhóm tay rotate(góc, 100, 62) quanh điểm VAI, nhóm
+   cẳng tay lồng bên trong rotate(gócGấp, 100, 95) quanh điểm KHUỶU —
+   đặt bằng setAttribute ở mọi khung hình, cho cả hình động lẫn hình tĩnh.
+   TUYỆT ĐỐI không xoay tay/cẳng tay bằng CSS (transform + origin):
+   tâm quay CSS bị lệch khỏi điểm vai thật khiến tay tách khỏi thân. */
+const SEM_VB = { x:-15, y:-45, w:230, h:264 };
+function semFigureSVG(idPrefix, animated, useCloth){
+  /* Tay 2 đoạn: vai (100,62) -> khuỷu (100,95) -> bàn tay (100,128).
+     Đoạn cánh tay trên BẮT ĐẦU ĐÚNG TẠI ĐIỂM VAI (100,62) trên thân,
+     cẳng tay bắt đầu đúng tại điểm khuỷu (100,95).
+     Cán cờ trùng trọn cạnh hoist của lá cờ và cạnh đó thuộc tam giác ĐỎ.
+     MỌI hình (động, hình lớn và 26 hình mini tĩnh) đều dùng vải lưới điểm
+     (flagMesh) với dáng rủ trọng lực — không còn hình vuông cứng ở đâu cả;
+     hình tĩnh được registerCloth để lưới giữ dáng rủ đúng theo góc tay. */
+  const flagL = flagMesh(idPrefix, "L");
+  const flagR = flagMesh(idPrefix, "R");
+  return `<svg viewBox="${SEM_VB.x} ${SEM_VB.y} ${SEM_VB.w} ${SEM_VB.h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Hình người phát semaphore">
+   <g id="${idPrefix}Figure">
+    <circle cx="100" cy="34" r="16" fill="var(--panel2)" stroke="var(--ink)" stroke-width="3"/>
+    <line x1="100" y1="52" x2="100" y2="118" stroke="var(--ink)" stroke-width="5" stroke-linecap="round"/>
+    <line x1="100" y1="118" x2="80" y2="182" stroke="var(--ink)" stroke-width="5" stroke-linecap="round"/>
+    <line x1="100" y1="118" x2="120" y2="182" stroke="var(--ink)" stroke-width="5" stroke-linecap="round"/>
+    <g id="${idPrefix}ArmL">
+      <line x1="100" y1="62" x2="100" y2="95" stroke="var(--ink)" stroke-width="5" stroke-linecap="round"/>
+      <g id="${idPrefix}ForeL">
+        <line x1="100" y1="95" x2="100" y2="128" stroke="var(--ink)" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="100" cy="95" r="4" fill="var(--ink)"/>
+        <rect x="97.5" y="104" width="5" height="42" fill="#8a6d3b"/>
+        ${flagL}
+      </g>
+    </g>
+    <g id="${idPrefix}ArmR">
+      <line x1="100" y1="62" x2="100" y2="95" stroke="var(--ink)" stroke-width="5" stroke-linecap="round"/>
+      <g id="${idPrefix}ForeR">
+        <line x1="100" y1="95" x2="100" y2="128" stroke="var(--ink)" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="100" cy="95" r="4" fill="var(--ink)"/>
+        <rect x="97.5" y="104" width="5" height="42" fill="#8a6d3b"/>
+        ${flagR}
+      </g>
+    </g>
+   </g>
+  </svg>`;
+}
+/* Tay gấp khi chữ trùng: TAY DI CHUYỂN theo hệ 7 vòng = tay giữ vị trí CAO HƠN
+   trong cặp (vòng 1 trụ 0, vòng 2 trụ 1, vòng 3 trụ 2, vòng 4 trụ 3, vòng 5 trụ 4
+   -> gấp tay còn lại; vòng 6-7 gấp tay vị trí cao hơn). Cặp 2 vị trí bằng nhau /
+   tín hiệu điều hành lặp: gấp tay PHẢI theo góc nhìn người nhận. */
+function foldSideFor(pair){
+  if (pair[0] === pair[1]) return "R";
+  const hi = Math.max(pair[0], pair[1]);
+  const [pl, pr] = assignArms(pair);
+  if (pl === hi && pr !== hi) return "L";
+  return "R";
+}
+/* ============================================================
+   CHUYỂN TAY LINH HOẠT NHƯ NGƯỜI THẬT KHI ĐỔI CHỮ
+   - Mỗi lần đổi vị trí, tay dành một khoảng CHUYỂN RIÊNG ở đầu nhịp:
+     thời lượng tỉ lệ với khoảng góc phải quét (35-55% thời gian giữ
+     1 chữ, kẹp trong [150, 750] ms); phần còn lại của nhịp giữ yên ở
+     vị trí đích để người nhận đọc. Tổng nhịp giây/chữ không đổi.
+   - Quỹ đạo góc: MINIMUM-JERK s(u) = 10u^3 - 15u^4 + 6u^5 trên đường
+     góc ngắn nhất — vận tốc góc bằng 0 ở hai đầu, đỉnh ở giữa quãng;
+     góc được ghi TỪNG KHUNG HÌNH bằng vòng lặp requestAnimationFrame
+     (figLoop), khung đầu đúng bằng góc chữ trước, không bước nhảy.
+   - KHUỶU LỎNG THEO ĐÀ: cẳng tay trễ sau cánh tay — góc gấp khuỷu
+     phụ = sin(pi*u) * (6 + 10 * quét/180) độ, max giữa quãng, về 0 ở
+     đích. Hai tay cùng chuyển: tay quét ít hơn bắt đầu trễ 6% thời
+     lượng chuyển. Gấp phụ này cộng vào cùng transform khuỷu với gấp
+     tách chữ trùng 85 độ (hai cơ chế không bao giờ chạy cùng lúc vì
+     chữ trùng thì không đổi vị trí).
+   - Tới đích: NẨY DẶT tắt dần ~1-2 độ trong ~240 ms rồi ổn định.
+   Toàn bộ vẫn xoay bằng thuộc tính transform SVG quanh vai (100,62)
+   và khuỷu (100,95) trong tọa độ cục bộ qua applyFig — TUYỆT ĐỐI
+   không dùng CSS transform/origin.
+   ============================================================ */
+function minJerk(u){ u = Math.min(1, Math.max(0, u)); return u * u * u * (10 + u * (-15 + 6 * u)); }
+function transDurMs(holdMs, sweepDeg){
+  if (sweepDeg < 0.5) return 0;
+  const f = 0.35 + 0.20 * Math.min(1, sweepDeg / 180);
+  return Math.round(Math.min(750, Math.max(150, holdMs * f)));
+}
+function semHoldMs(){
+  const el = document.getElementById("semRange");
+  const v = el ? parseFloat(el.value) : 1.5;
+  return (isNaN(v) ? 1.5 : v) * 1000;
+}
+const figAnims = {};
+function applyFig(prefix, state){
+  const gL = $(prefix + "ArmL"), gR = $(prefix + "ArmR");
+  if (!gL || !gR) return;
+  gL.setAttribute("transform", `rotate(${state.l || 0} 100 62)`);
+  gR.setAttribute("transform", `rotate(${state.r || 0} 100 62)`);
+  let flexL = 0, flexR = 0;
+  if (state.flex){ if ((state.flexSide || "R") === "L") flexL = -85 * state.flex; else flexR = 85 * state.flex; }
+  flexL += state.animFlexL || 0;
+  flexR += state.animFlexR || 0;
+  const fL = $(prefix + "ForeL"), fR = $(prefix + "ForeR");
+  if (fL) fL.setAttribute("transform", `rotate(${flexL} 100 95)`);
+  if (fR) fR.setAttribute("transform", `rotate(${flexR} 100 95)`);
+  const inst = cloth[prefix];
+  if (inst){ inst.angL = state.l || 0; inst.angR = state.r || 0; inst.flexL = flexL; inst.flexR = flexR; }
+}
+function animateFigureTo(prefix, state, tl, tr, holdMs){
+  const fromL = state.l || 0, fromR = state.r || 0;
+  const toL = nearestAngle(fromL, tl), toR = nearestAngle(fromR, tr);
+  const sweepL = Math.abs(toL - fromL), sweepR = Math.abs(toR - fromR);
+  const sweep = Math.max(sweepL, sweepR);
+  const dur = transDurMs(holdMs || semHoldMs(), sweep);
+  state.animFlexL = 0; state.animFlexR = 0;
+  if (dur <= 0){
+    delete figAnims[prefix];
+    state.l = toL; state.r = toR;
+    applyFig(prefix, state);
+    return 0;
+  }
+  let delayL = 0, delayR = 0;
+  if (sweepL > 0.5 && sweepR > 0.5){ if (sweepL < sweepR) delayL = Math.round(dur * 0.06); else delayR = Math.round(dur * 0.06); }
+  figAnims[prefix] = { state, phase:"go", t0: performance.now(), dur, fromL, toL, fromR, toR, sweepL, sweepR, delayL, delayR,
+    ampL: sweepL > 0.5 ? Math.min(2, 0.5 + sweepL / 90) : 0, ampR: sweepR > 0.5 ? Math.min(2, 0.5 + sweepR / 90) : 0 };
+  applyFig(prefix, state); /* khung đầu: góc đúng bằng góc chữ trước */
+  return dur;
+}
+function stepFigAnim(prefix, now){
+  const a = figAnims[prefix];
+  if (!a) return;
+  const st = a.state;
+  if (a.phase === "go"){
+    let done = true;
+    const arms = [
+      { key:"l", fKey:"animFlexL", from:a.fromL, to:a.toL, sweep:a.sweepL, delay:a.delayL, sign:-1 },
+      { key:"r", fKey:"animFlexR", from:a.fromR, to:a.toR, sweep:a.sweepR, delay:a.delayR, sign:1 }
+    ];
+    arms.forEach(arm => {
+      if (arm.sweep <= 0.5){ st[arm.key] = arm.to; st[arm.fKey] = 0; return; }
+      const effDur = Math.max(1, a.dur - arm.delay);
+      const u = Math.min(1, Math.max(0, (now - a.t0 - arm.delay) / effDur));
+      if (u < 1) done = false;
+      st[arm.key] = arm.from + (arm.to - arm.from) * minJerk(u);
+      st[arm.fKey] = (u > 0 && u < 1) ? arm.sign * Math.sin(Math.PI * u) * (6 + 10 * Math.min(1, arm.sweep / 180)) : 0;
+    });
+    if (done){
+      st.l = a.toL; st.r = a.toR; st.animFlexL = 0; st.animFlexR = 0;
+      a.phase = "settle"; a.t0 = now;
+    }
+  } else { /* settle: nẩy dặt tắt dần quanh vị trí đích */
+    const t = now - a.t0, DUR = 240;
+    if (t >= DUR){ st.l = a.toL; st.r = a.toR; delete figAnims[prefix]; }
+    else {
+      const dec = Math.exp(-t / 85), osc = Math.sin(2 * Math.PI * t / 170) * dec;
+      st.l = a.toL + a.ampL * osc;
+      st.r = a.toR + a.ampR * osc;
+    }
+  }
+  applyFig(prefix, st);
+}
+function figLoop(ts){
+  requestAnimationFrame(figLoop);
+  for (const p in figAnims) stepFigAnim(p, ts);
+}
+requestAnimationFrame(figLoop);
+
+function setForeFlex(prefix, state, flex, durMs, side){
+  if (!state) return;
+  state.flex = flex;
+  if (side) state.flexSide = side;
+  /* CHỈ gấp đúng 1 tay (flexSide); tay còn lại giữ nguyên duỗi thẳng làm
+     mốc. Gấp được applyFig ghi bằng transform SVG quanh ĐIỂM KHUỶU cục
+     bộ (100,95), cộng dồn với góc gấp phụ theo đà khi chuyển vị trí. */
+  applyFig(prefix, state);
+  if (flex) kickCloth(prefix, state.flexSide || "R", 50 * flex);
+}
+/* Trả về thời lượng chuyển (ms) khi hình có state (hình động); hình tĩnh
+   (state = null, 26 hình mini) vẫn đặt tức thời như trước. */
+function setFigure(prefix, pair, state, holdMs){
+  const [pl, pr] = assignArms(pair);
+  const gL = $(prefix + "ArmL"), gR = $(prefix + "ArmR");
+  if (!gL || !gR) return 0;
+  const tl = rotL(pl), tr = rotR(pr);
+  const inst = cloth[prefix];
+  if (state){
+    return animateFigureTo(prefix, state, tl, tr, holdMs);
+  }
+  gL.setAttribute("transform", `rotate(${tl} 100 62)`);
+  gR.setAttribute("transform", `rotate(${tr} 100 62)`);
+  if (inst){
+    inst.angL = tl; inst.angR = tr;
+    if (inst.prevL !== null && inst.prevL !== undefined){ const d = Math.abs(tl - inst.prevL); if (d > 4) kickCloth(prefix, "L", d); }
+    if (inst.prevR !== null && inst.prevR !== undefined){ const d = Math.abs(tr - inst.prevR); if (d > 4) kickCloth(prefix, "R", d); }
+    inst.prevL = tl; inst.prevR = tr;
+  }
+  return 0;
+}
+
+/* Chuỗi bước semaphore cho 1 bản tin đã chuyển đổi.
+   QUY ƯỚC SỐ CỦA LỚP: chế độ số A=1 … I=9, J=0. Chuyển chế độ dùng CHUNG
+   MỘT tín hiệu 4+5 cho cả hai chiều (sang số và quay lại chữ đều 4+5) —
+   hình ngược gương của chữ T (3+4). */
+function buildSemSteps(converted){
+  const steps = [];
+  let numMode = false;
+  converted.split(" ").forEach((word, wi, arr) => {
+    [...word].forEach(ch => {
+      if (/\d/.test(ch)){
+        if (!numMode){ steps.push({type:"num", pair:SEM_NUM, label:"Báo số / Báo chữ (4+5)"}); numMode = true; }
+        steps.push({type:"char", ch, pair:SEM[DIG2LET[ch]], digit:true});
+      } else if (SEM[ch]){
+        if (numMode){ steps.push({type:"alpha", pair:SEM_NUM, label:"Báo số / Báo chữ (4+5)"}); numMode = false; }
+        steps.push({type:"char", ch, pair:SEM[ch]});
+      }
+    });
+    if (wi < arr.length - 1) steps.push({type:"space", pair:SEM_REST, label:"Nghỉ / cách từ"});
+  });
+  let n = 0;
+  steps.forEach(s => { if (s.type === "char") s.charNo = ++n; });
+  return { steps, totalChars: n };
+}
+/* Sự kiện Morse cho 1 bản tin đã chuyển đổi. Đơn vị: chấm=1, gạch=3, nghỉ trong chữ=1, giữa chữ=3, giữa từ=7 */
+function buildMorseEvents(converted){
+  const events = [];
+  let charNo = 0;
+  converted.split(" ").forEach((word, wi, arr) => {
+    [...word].forEach((ch, ci) => {
+      const code = MORSE[ch]; if (!code) return;
+      charNo++;
+      [...code].forEach((el, ei) => {
+        events.push({on:true, units: el === "." ? 1 : 3, ch, code, charNo});
+        if (ei < code.length - 1) events.push({on:false, units:1});
+      });
+      if (ci < word.length - 1) events.push({on:false, units:3});
+    });
+    if (wi < arr.length - 1) events.push({on:false, units:7});
+  });
+  return { events, totalChars: charNo };
+}
+</script>
+
+<script>
+"use strict";
+/* ============================================================
+   TRẠNG THÁI & BẢN TIN HIỆN TẠI
+   ============================================================ */
+const S = {
+  activity: "nhan",        // nhan | phat
+  kind: "morse",           // morse | sem
+  mode: "luyen",           // luyen | kiemtra
+  show: true,
+  submitted: false,
+  plays: 0,
+  msg: { original: "", converted: "" },
+  lastResult: null
+};
+const showEffective = () => S.mode === "kiemtra" && !S.submitted ? false : S.show;
+
+function refreshMessage(){
+  const src = document.querySelector('input[name="src"]:checked').value;
+  let original, theme = null;
+  if (src === "custom"){
+    original = $("customText").value;
+  } else {
+    if (!S.generated) S.generated = generateMessage();
+    original = S.generated.text;
+    theme = S.generated.theme;
+  }
+  S.msgTheme = theme;
+  S.msg = { original: original.trim(), converted: convertText(original) };
+  renderPreview();
+  resetWork();
+}
+function renderPreview(){
+  const box = $("msgPreview");
+  const n = charCount(S.msg.original);
+  /* Nhãn chủ đề chỉ là thông tin nguồn bản tin (không phải đáp án) nên
+     hiện cả ở chế độ Kiểm tra; nội dung/kết quả bản tin vẫn ẩn như cũ. */
+  const themeLine = S.msgTheme ? `<b>Chủ đề:</b> ${escapeHtml(S.msgTheme)}<br>` : "";
+  if (showEffective()){
+    const codes = S.msg.converted.split(" ").map(w => [...w].map(c => MORSE[c] ? disp(MORSE[c]) : c).join(" ")).join("  /  ");
+    box.innerHTML = themeLine + `<b>Bản tin:</b> ${escapeHtml(S.msg.original)} &nbsp;<span class="count-badge">${n} ký tự</span><br>` +
+      `<b>Sau chuyển đổi:</b> <span class="mono">${escapeHtml(S.msg.converted) || "—"}</span><br>` +
+      `<b>Mã Morse:</b> <span class="mono">${escapeHtml(codes)}</span>`;
+  } else {
+    box.innerHTML = themeLine + `<b>Bản tin:</b> <span class="masked">••••••••••</span> &nbsp;<span class="count-badge">${n} ký tự</span><br>` +
+      `<span class="muted">Kết quả đang ẩn — hãy nghe / xem tín hiệu và tự ghi lại bản tin.</span>`;
+  }
+}
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* ============================================================
+   ÂM THANH MORSE — TIẾNG CÒI THEO MẪU CÒI CHUẨN THẦY GỬI:
+   tích và te CÙNG một cao độ (1613 Hz), CHỈ khác độ dài
+   (1 vs 3 đơn vị) như còi thật — người thổi giữ nguyên ống còi,
+   chỉ ngắt hơi ngắn hay dài. Thông số đo từ file mẫu (FFT):
+   cao độ cơ bản 1613 Hz ổn định ±2 Hz; âm sắc gần sine thuần
+   nhưng đầy hơn một chút nhờ hài bậc 2 và bậc 3 rất nhỏ.
+   Bộ phát = 3 dao động sine CÙNG PHA qua một bao hình chung:
+   cơ bản 1613 Hz (gain 1), hài 2 ở 3226 Hz (gain 0.035),
+   hài 3 ở 4839 Hz (gain 0.028); hài bậc 4 trở lên bỏ qua.
+   KHÔNG tạp âm hơi, KHÔNG detune/chùm hợp âm, KHÔNG rung tần
+   số, KHÔNG chao/trượt tần, KHÔNG compressor.
+   Bao hình chung: attack tuyến tính 0 → 1 trong 9 ms, giữ
+   nguyên mức trong thân tiếng, release tuyến tính về 0
+   trong 12 ms ở cuối — ngắt gọn nhưng sạch, không click.
+   Tần số đặt cố định và chỉ đổi khi bật công tắc hỗ trợ
+   bước đầu (mặc định TẮT); hai cao độ hỗ trợ cũng xây bằng
+   đúng công thức âm sắc này (sine + hài 0,035 / 0,028).
+   Khoảng lặng giữa các tín hiệu là lặng hoàn toàn.
+   ============================================================ */
+const WHISTLE_F = 1613;
+const HARM2_GAIN = 0.035;
+const HARM3_GAIN = 0.028;
+const AID_DOT = 2200, AID_DASH = 1500;
+let aidPitch = false;
+let AC = null, whistleGain = null, toneOsc = null, harmOsc = null, harmGain = null, harm3Osc = null, harm3Gain = null;
+function audioInit(){
+  if (AC) { if (AC.state === "suspended") AC.resume(); return; }
+  try {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    whistleGain = AC.createGain(); whistleGain.gain.value = 0;
+    whistleGain.connect(AC.destination);
+    const t0 = AC.currentTime;
+    /* Âm cơ bản: sine tại 1613 Hz, gain tương đối 1 */
+    toneOsc = AC.createOscillator(); toneOsc.type = "sine"; toneOsc.frequency.value = WHISTLE_F;
+    toneOsc.connect(whistleGain); toneOsc.start(t0);
+    /* Hài bậc 2: sine tại 3226 Hz, gain tương đối 0,035 (≈ −29 dB), cùng pha, cùng thời điểm bắt đầu */
+    harmOsc = AC.createOscillator(); harmOsc.type = "sine"; harmOsc.frequency.value = WHISTLE_F * 2;
+    harmGain = AC.createGain(); harmGain.gain.value = HARM2_GAIN;
+    harmOsc.connect(harmGain); harmGain.connect(whistleGain); harmOsc.start(t0);
+    /* Hài bậc 3: sine tại 4839 Hz, gain tương đối 0,028 (≈ −31 dB), cùng pha, cùng thời điểm bắt đầu */
+    harm3Osc = AC.createOscillator(); harm3Osc.type = "sine"; harm3Osc.frequency.value = WHISTLE_F * 3;
+    harm3Gain = AC.createGain(); harm3Gain.gain.value = HARM3_GAIN;
+    harm3Osc.connect(harm3Gain); harm3Gain.connect(whistleGain); harm3Osc.start(t0);
+  } catch(e){ AC = null; }
+}
+function baseFreq(isDash){ return aidPitch ? (isDash ? AID_DASH : AID_DOT) : WHISTLE_F; }
+function setToneFreq(freq){
+  if (!toneOsc) return;
+  /* Đặt thẳng tần số đích cho cả 3 dao động cùng pha, không ramp, không chao tần */
+  toneOsc.frequency.value = freq;
+  if (harmOsc) harmOsc.frequency.value = freq * 2;
+  if (harm3Osc) harm3Osc.frequency.value = freq * 3;
+}
+function beep(on, isDash){
+  if (!AC) return;
+  if (AC.state === "suspended") AC.resume();
+  const t = AC.currentTime;
+  const g = whistleGain.gain;
+  g.cancelScheduledValues(t);
+  g.setValueAtTime(g.value, t);
+  if (on){
+    setToneFreq(baseFreq(isDash));
+    /* Attack tuyến tính mượt 0 → mức ổn định trong 9 ms (theo mẫu còi chuẩn) */
+    g.linearRampToValueAtTime(0.22, t + 0.009);
+  } else {
+    /* Release tuyến tính về 0 trong 12 ms ở cuối tiếng, tắt hẳn, không click */
+    g.linearRampToValueAtTime(0, t + 0.012);
+  }
+}
+function setLamp(lampEl, on){
+  lampEl.classList.toggle("on", !!on);
+  lampEl.classList.remove("dash");
+}
+function playLetterTone(code, wpm, lampEl, done){
+  audioInit();
+  const unit = 1200 / wpm;
+  const seq = [];
+  [...code].forEach((el, i) => { seq.push({on:true, ms: el === "." ? unit : 3*unit, dash: el !== "."}); if (i < code.length-1) seq.push({on:false, ms: unit}); });
+  let i = 0;
+  (function next(){
+    if (i >= seq.length){ beep(false); setLamp(lampEl, false); if (done) done(); return; }
+    const s = seq[i++];
+    beep(s.on, s.dash); setLamp(lampEl, s.on);
+    setTimeout(next, s.ms);
+  })();
+}
+
+/* ============================================================
+   TRÌNH PHÁT — dùng chung cho Nhận tin (và xem trước)
+   ============================================================ */
+const player = { playing:false, paused:false, timer:null, flexTimer:null, labelTimer:null, stepToken:0, idx:0, events:null, steps:null, total:0, semState:{l:0,r:0,flex:0}, prevPair:null, prevType:null };
+function setControls(){
+  $("playBtn").disabled = player.playing && !player.paused;
+  $("pauseBtn").disabled = !player.playing;
+  $("pauseBtn").textContent = player.paused ? "▶ Tiếp tục" : "⏸ Tạm dừng";
+  $("stopBtn").disabled = !player.playing;
+  $("replayBtn").disabled = false;
+}
+function setProgress(cur, total){
+  $("progressText").textContent = `Ký tự ${cur} / ${total}`;
+  $("progressBar").style.width = total ? Math.round(cur/total*100) + "%" : "0%";
+}
+function signalOff(){
+  beep(false);
+  setLamp($("lamp"), false, false);
+}
+function stopPlayback(resetPos){
+  clearTimeout(player.timer);
+  clearTimeout(player.flexTimer);
+  clearTimeout(player.labelTimer);
+  player.stepToken++;
+  player.playing = false; player.paused = false;
+  player.prevPair = null; player.prevType = null;
+  if (player.semState.flex) setForeFlex("main", player.semState, 0, 120);
+  signalOff();
+  if (resetPos){
+    player.idx = 0; setProgress(0, player.total);
+    $("nowChar").textContent = ""; $("nowCode").textContent = "";
+    $("nowSemChar").textContent = ""; $("nowSemCode").textContent = "";
+    setFigure("main", SEM_REST, player.semState);
+  }
+  setControls();
+}
+function startPlayback(fromStart){
+  if (S.mode === "kiemtra" && !validStudent()){ alert2("Em hãy nhập Họ tên và Lớp trước khi bắt đầu kiểm tra nhé!"); return; }
+  if (!S.msg.converted){ alert2("Chưa có bản tin. Em hãy nhập hoặc tạo một bản tin trước."); return; }
+  audioInit();
+  if (fromStart || !player.playing){ stopPlayback(true); }
+  clearTimeout(player.timer);
+  player.playing = true; player.paused = false;
+  if (fromStart) S.plays++;
+  $("playCount").textContent = S.plays;
+  if (S.kind === "morse"){
+    if (fromStart || !player.events){ const b = buildMorseEvents(S.msg.converted); player.events = b.events; player.total = b.totalChars; player.idx = 0; }
+    playMorseStep();
+  } else {
+    if (fromStart || !player.steps){ const b = buildSemSteps(S.msg.converted); player.steps = b.steps; player.total = b.totalChars; player.idx = 0; }
+    playSemStep();
+  }
+  setControls();
+}
+function playMorseStep(){
+  if (!player.playing || player.paused) return;
+  if (player.idx >= player.events.length){
+    signalOff(); player.playing = false;
+    $("nowChar").textContent = ""; $("nowCode").textContent = showEffective() ? "— Hết bản tin —" : "";
+    setProgress(player.total, player.total); setControls(); return;
+  }
+  const ev = player.events[player.idx++];
+  const unit = 1200 / parseFloat($("wpmRange").value);
+  if (ev.on){
+    const isDash = ev.units === 3;
+    beep(true, isDash); setLamp($("lamp"), true);
+    if (showEffective()){ $("nowChar").textContent = ev.ch; $("nowCode").textContent = disp(ev.code); }
+    else { $("nowChar").textContent = ""; $("nowCode").textContent = ""; }
+    setProgress(ev.charNo, player.total);
+  } else { signalOff(); }
+  player.timer = setTimeout(playMorseStep, ev.units * unit);
+}
+function playSemStep(){
+  if (!player.playing || player.paused) return;
+  if (player.idx >= player.steps.length){
+    player.playing = false; setProgress(player.total, player.total);
+    $("nowSemChar").textContent = ""; $("nowSemCode").textContent = showEffective() ? "— Hết bản tin —" : "";
+    setControls(); return;
+  }
+  const st = player.steps[player.idx++];
+  const hold = parseFloat($("semRange").value) * 1000;
+  /* Ký tự trùng với ký tự ngay trước (cùng cặp vị trí, không qua nhịp nghỉ giữa từ):
+     CHỈ gấp khuỷu 1 tay di chuyển (tay còn lại giữ thẳng làm mốc) rồi mở ra trong ~45% thời gian giữ chữ, phần còn lại giữ thẳng. */
+  const isRepeat = !!(player.prevPair && st.type !== "space" && player.prevType !== "space" &&
+    st.pair[0] === player.prevPair[0] && st.pair[1] === player.prevPair[1]);
+  player.prevPair = st.pair; player.prevType = st.type;
+  /* CHUYỂN TAY MƯỢT: tay quét sang vị trí mới bằng quỹ đạo minimum-jerk
+     trong khoảng chuyển riêng ở đầu nhịp (transMs); chữ chỉ được tính là
+     "đang hiển thị để đọc" (nhãn + tiến độ) SAU khi chuyển xong. Tổng
+     nhịp vẫn đúng hold như lịch cũ. Chữ trùng: transMs = 0, gấp khuỷu
+     tách chữ chạy như cũ. */
+  const transMs = setFigure("main", st.pair, player.semState, hold);
+  const token = ++player.stepToken;
+  const showStep = () => {
+    if (token !== player.stepToken || !player.playing || player.paused) return;
+    if (st.type === "char"){
+      setProgress(st.charNo, player.total);
+      if (showEffective()){
+        $("nowSemChar").textContent = st.ch;
+        $("nowSemCode").textContent = `Vị trí ${st.pair[0]} + ${st.pair[1]} (${POS_NAME[st.pair[0]]} · ${POS_NAME[st.pair[1]]})`;
+      } else { $("nowSemChar").textContent = ""; $("nowSemCode").textContent = ""; }
+    } else if (st.type === "space"){
+      if (showEffective()){ $("nowSemChar").textContent = "␣"; $("nowSemCode").textContent = "Nghỉ — hết một từ"; }
+      else { $("nowSemChar").textContent = ""; $("nowSemCode").textContent = ""; }
+    } else { // num / alpha
+      if (showEffective()){
+        $("nowSemChar").textContent = st.type === "num" ? "🔢" : "🔤";
+        $("nowSemCode").textContent = `Tín hiệu ${st.label} — vị trí ${st.pair[0]} + ${st.pair[1]}`;
+      } else { $("nowSemChar").textContent = ""; $("nowSemCode").textContent = ""; }
+    }
+  };
+  if (transMs > 0) player.labelTimer = setTimeout(showStep, transMs); else showStep();
+  if (isRepeat){
+    const flexDur = hold * 0.45, half = Math.round(flexDur / 2);
+    setForeFlex("main", player.semState, 1, half, foldSideFor(st.pair));
+    player.flexTimer = setTimeout(() => { if (player.playing && !player.paused) setForeFlex("main", player.semState, 0, half); }, half);
+  }
+  player.timer = setTimeout(playSemStep, hold);
+}
+
+/* ============================================================
+   CHẤM BÀI — NHẬN TIN
+   ============================================================ */
+function gradeData(studentRaw){
+  const target = S.msg.converted;
+  const stuConv = convertText(studentRaw || "");
+  const tWords = target.split(" ").filter(Boolean), sFlat = stuConv.replace(/ /g, "");
+  let idx = 0, correct = 0, total = 0;
+  const rows = [];
+  tWords.forEach((w, wi) => {
+    [...w].forEach(ch => {
+      const got = sFlat[idx] || "";
+      const ok = got === ch;
+      if (ok) correct++;
+      total++; idx++;
+      rows.push({exp: ch, got: got || "—", ok});
+    });
+    if (wi < tWords.length - 1) rows.push({space:true});
+  });
+  const extra = Math.max(0, sFlat.length - idx);
+  const score = total ? Math.round(correct/total*100)/10 : 0;
+  return { correct, total, extra, score, rows, stuConv };
+}
+function gradeHtml(g, showAnswer){
+  let h = `<div class="gradewrap">`;
+  g.rows.forEach(r => {
+    if (r.space){ h += `<span class="gcell space"></span>`; return; }
+    h += `<span class="gcell ${r.ok ? "ok" : "bad"}"><span class="exp">${showAnswer ? r.exp : "•"}</span><span class="got">${r.ok ? "✓" : "em: " + escapeHtml(r.got)}</span></span>`;
+  });
+  h += `</div>`;
+  if (g.extra) h += `<p class="muted" style="margin-top:6px">Em gõ thừa ${g.extra} ký tự so với bản tin.</p>`;
+  h += `<div class="scorebox"><div class="muted">Đúng ${g.correct} / ${g.total} ký tự</div><div class="score">${g.score.toFixed(1).replace(".", ",")} / 10</div></div>`;
+  return h;
+}
+function doGradeReceive(submit){
+  if (!S.msg.converted){ alert2("Chưa có bản tin."); return; }
+  if (S.mode === "kiemtra" && !validStudent()){ alert2("Em hãy nhập Họ tên và Lớp trước nhé!"); return; }
+  const g = gradeData($("answerText").value);
+  S.lastResult = { kind:"nhan-" + S.kind, g };
+  if (S.mode === "luyen"){
+    $("receiveResult").innerHTML = gradeHtml(g, true);
+  } else if (submit){
+    finishTest(gradeHtml(g, true));
+  }
+}
+
+/* ============================================================
+   PHÁT TIN — MORSE (gõ mã bằng nút / phím)
+   ============================================================ */
+const sendM = { letters: [], cur: "", results: [], done:false };
+function expectedMorseLetters(){
+  const out = [];
+  S.msg.converted.split(" ").filter(Boolean).forEach(w => [...w].forEach(ch => { if (MORSE[ch]) out.push({ch, code: MORSE[ch]}); }));
+  return out;
+}
+function renderSendMorse(){
+  const exp = expectedMorseLetters();
+  let h = "";
+  sendM.letters.forEach((code, i) => {
+    const ok = sendM.results[i];
+    const mark = S.mode === "luyen" ? (ok ? " ✓" : " ✗") : "";
+    h += `<span style="color:${S.mode === "luyen" ? (ok ? "var(--green)" : "var(--red)") : "inherit"}">${disp(code)}${mark}</span> `;
+  });
+  if (sendM.cur) h += `<span class="cur">${disp(sendM.cur)}</span>`;
+  $("morseEntryView").innerHTML = h || `<span class="muted">Chưa phát ký tự nào…</span>`;
+  const doneCount = sendM.letters.length;
+  setProgress(doneCount, exp.length);
+  const res = $("sendMorseResult");
+  if (S.mode === "luyen"){
+    if (doneCount && doneCount >= exp.length) res.innerHTML = sendScoreHtml("morse");
+    else if (doneCount) {
+      const last = exp[doneCount-1];
+      res.innerHTML = sendM.results[doneCount-1]
+        ? `<p style="color:var(--green);font-weight:700;margin-top:8px">✓ Đúng chữ ${escapeHtml(last.ch)} (${disp(last.code)})</p>`
+        : `<p style="color:var(--red);font-weight:700;margin-top:8px">✗ Chưa đúng. Chữ ${escapeHtml(last.ch)} phải là: ${disp(last.code)}</p>`;
+    } else res.innerHTML = "";
+  }
+}
+function sendScoreHtml(which){
+  let correct = 0, total = 0, rowsHtml = "";
+  if (which === "morse"){
+    const exp = expectedMorseLetters(); total = exp.length;
+    rowsHtml = exp.map((e, i) => {
+      const ok = sendM.results[i]; if (ok) correct++;
+      return `<span class="gcell ${ok ? "ok" : "bad"}"><span class="exp">${e.ch}</span><span class="got">${ok ? "✓" : disp(sendM.letters[i] || "—")}</span></span>`;
+    }).join("");
+  } else {
+    total = sendS.perChar.length;
+    rowsHtml = sendS.perChar.map(pc => {
+      if (pc.ok) correct++;
+      return `<span class="gcell ${pc.ok ? "ok" : "bad"}"><span class="exp">${pc.ch}</span><span class="got">${pc.ok ? "✓" : "✗"}</span></span>`;
+    }).join("");
+  }
+  const score = total ? Math.round(correct/total*100)/10 : 0;
+  S.lastResult = { kind:"phat-" + which, g:{correct, total, score, extra:0, rows:[]} };
+  return `<div class="gradewrap">${rowsHtml}</div><div class="scorebox"><div class="muted">Đúng ${correct} / ${total} ký tự</div><div class="score">${score.toFixed(1).replace(".", ",")} / 10</div></div>`;
+}
+function sendMorseCommit(){
+  const exp = expectedMorseLetters();
+  if (sendM.letters.length >= exp.length) return;
+  if (!sendM.cur) return;
+  const i = sendM.letters.length;
+  sendM.letters.push(sendM.cur);
+  sendM.results.push(sendM.cur === exp[i].code);
+  sendM.cur = "";
+  audioInit(); beep(false);
+  renderSendMorse();
+}
+function sendMorseKey(action){
+  if (S.activity !== "phat" || S.kind !== "morse") return;
+  audioInit();
+  if (action === "dot" || action === "dash"){
+    if (sendM.letters.length >= expectedMorseLetters().length && !sendM.cur) return;
+    sendM.cur += action === "dot" ? "." : "-";
+    beep(true, action !== "dot"); setLamp($("lamp"), true);
+    setTimeout(() => { beep(false, action !== "dot"); setLamp($("lamp"), false, false); }, action === "dot" ? 110 : 260);
+  } else if (action === "letter" || action === "word"){ sendMorseCommit(); }
+  else if (action === "back"){ sendM.cur = sendM.cur.slice(0, -1); }
+  else if (action === "clear"){ sendM.letters = []; sendM.cur = ""; sendM.results = []; }
+  renderSendMorse();
+}
+
+/* ============================================================
+   PHÁT TIN — SEMAPHORE (chọn vị trí 2 tay)
+   ============================================================ */
+const sendS = { steps: [], idx: 0, stepResults: [], perChar: [], selL: 0, selR: 0, state: {l:0, r:0, flex:0} };
+function initSendSem(){
+  const b = buildSemSteps(S.msg.converted);
+  sendS.steps = b.steps.filter(s => s.type !== "space");
+  sendS.total = b.totalChars;
+  sendS.idx = 0; sendS.stepResults = []; sendS.perChar = [];
+  sendS.selL = 0; sendS.selR = 0;
+  renderSendSem();
+}
+function renderSendSem(){
+  document.querySelectorAll("#dialL .dialbtn").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.pos === sendS.selL)));
+  document.querySelectorAll("#dialR .dialbtn").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.pos === sendS.selR)));
+  setFigure("draft", [sendS.selL, sendS.selR].sort((a, b) => a - b), sendS.state);
+  const st = sendS.steps[sendS.idx];
+  const res = $("sendSemResult");
+  if (!st){
+    $("semStepLabel").textContent = "Đã phát xong bản tin!";
+    $("semStepHint").textContent = "";
+    setProgress(sendS.total, sendS.total);
+    if (S.mode === "luyen") res.innerHTML = sendScoreHtml("sem");
+    $("semConfirmBtn").disabled = true;
+    return;
+  }
+  $("semConfirmBtn").disabled = false;
+  const charSteps = sendS.steps.filter(s => s.type === "char");
+  const curCharNo = st.type === "char" ? charSteps.indexOf(st) + 1 : (charSteps.filter(s => sendS.steps.indexOf(s) < sendS.idx).length + 1);
+  setProgress(Math.max(0, curCharNo - 1), sendS.total);
+  if (S.mode === "luyen"){
+    if (st.type === "char") { $("semStepLabel").textContent = `Ký tự ${curCharNo} / ${sendS.total}: chữ “${st.ch}”`; $("semStepHint").textContent = st.digit ? "(chữ số — đánh theo vị trí của chữ " + DIG2LET[st.ch] + ")" : ""; }
+    else { $("semStepLabel").textContent = `Tín hiệu: ${st.label}`; $("semStepHint").textContent = st.type === "num" ? "(tín hiệu chuyển số–chữ 4+5: sau đó A=1 … I=9, J=0)" : "(tín hiệu chuyển số–chữ 4+5: quay lại đánh chữ)"; }
+  } else {
+    $("semStepLabel").textContent = `Bước ${sendS.idx + 1} / ${sendS.steps.length}`;
+    $("semStepHint").textContent = "(có thể là ký tự hoặc tín hiệu chuyển số–chữ 4+5)";
+  }
+  const prev = sendS.idx > 0 ? sendS.stepResults[sendS.idx - 1] : null;
+  if (S.mode === "luyen" && prev !== null && prev !== undefined){
+    const prevStep = sendS.steps[sendS.idx - 1];
+    res.innerHTML = prev
+      ? `<p style="color:var(--green);font-weight:700;margin-top:8px">✓ Đúng vị trí (${prevStep.pair[0]} + ${prevStep.pair[1]})</p>`
+      : `<p style="color:var(--red);font-weight:700;margin-top:8px">✗ Chưa đúng — đáp án là vị trí ${prevStep.pair[0]} + ${prevStep.pair[1]} (${POS_NAME[prevStep.pair[0]]} · ${POS_NAME[prevStep.pair[1]]})</p>`;
+  } else if (S.mode === "luyen") res.innerHTML = "";
+}
+function semConfirm(){
+  const st = sendS.steps[sendS.idx];
+  if (!st) return;
+  const prevSt = sendS.idx > 0 ? sendS.steps[sendS.idx - 1] : null;
+  const got = [sendS.selL, sendS.selR].sort((a, b) => a - b);
+  const ok = got[0] === st.pair[0] && got[1] === st.pair[1];
+  sendS.stepResults.push(ok);
+  sendS.idx++;
+  /* Ký tự vừa xác nhận trùng cặp vị trí với ký tự ngay trước: gấp khuỷu 1 tay–mở ra trên hình nháp */
+  if (prevSt && prevSt.pair[0] === st.pair[0] && prevSt.pair[1] === st.pair[1]){
+    setForeFlex("draft", sendS.state, 1, 220, foldSideFor(st.pair));
+    setTimeout(() => setForeFlex("draft", sendS.state, 0, 220), 240);
+  }
+  // gộp kết quả theo ký tự
+  if (st.type === "char"){
+    const start = sendS.stepResults.length - (sendS.steps[sendS.idx-1] && sendS.idx >= 2 && sendS.steps[sendS.idx-2].type !== "char" && sendS.steps[sendS.idx-2].type !== "space" ? 2 : 1);
+    const slice = sendS.stepResults.slice(start);
+    sendS.perChar.push({ ch: st.ch, ok: slice.every(Boolean) });
+  }
+  renderSendSem();
+}
+
+/* ============================================================
+   KIỂM TRA — nộp bài, lịch sử, tải file
+   ============================================================ */
+function validStudent(){ return $("stuName").value.trim() !== "" && $("stuClass").value.trim() !== ""; }
+function alert2(msg){
+  const old = $("alertBox");
+  if (old) old.remove();
+  const d = document.createElement("div");
+  d.id = "alertBox"; d.className = "note"; d.style.borderLeftColor = "var(--red)";
+  d.innerHTML = `<b>⚠ ${escapeHtml(msg)}</b>`;
+  $("tab-main").prepend(d);
+  d.scrollIntoView({behavior:"smooth", block:"start"});
+  setTimeout(() => d.remove(), 5000);
+}
+function resultText(r){
+  const actName = { "nhan-morse":"Nhận tin Morse", "nhan-sem":"Nhận tin Semaphore", "phat-morse":"Phát tin Morse", "phat-sem":"Phát tin Semaphore" }[r.kind] || r.kind;
+  return [
+    "KẾT QUẢ KIỂM TRA TRUYỀN TIN",
+    "Họ tên: " + $("stuName").value.trim(),
+    "Lớp: " + $("stuClass").value.trim(),
+    "Hoạt động: " + actName,
+    "Bản tin gốc: " + S.msg.original,
+    "Bản tin sau chuyển đổi: " + S.msg.converted,
+    `Đúng ${r.g.correct} / ${r.g.total} ký tự`,
+    "Điểm: " + r.g.score.toFixed(1).replace(".", ",") + " / 10",
+    "Số lần phát tín hiệu đã dùng: " + S.plays,
+    "Thời gian nộp: " + new Date().toLocaleString("vi-VN")
+  ].join("\n");
+}
+function finishTest(detailHtml){
+  S.submitted = true;
+  applyShowLock();
+  renderPreview();
+  const r = S.lastResult;
+  $("finalResult").innerHTML = detailHtml +
+    `<p style="margin-top:10px"><b>${escapeHtml($("stuName").value.trim())}</b> — Lớp ${escapeHtml($("stuClass").value.trim())} · Đã phát tín hiệu ${S.plays} lần</p>`;
+  $("finalPanel").classList.remove("hidden");
+  $("finalPanel").scrollIntoView({behavior:"smooth"});
+  const hist = loadHistory();
+  hist.unshift({ name: $("stuName").value.trim(), cls: $("stuClass").value.trim(), date: new Date().toLocaleString("vi-VN"),
+    kind: r.kind, score: r.g.score, correct: r.g.correct, total: r.g.total, plays: S.plays, msg: S.msg.original });
+  localStorage.setItem("ltmt_history", JSON.stringify(hist.slice(0, 100)));
+  renderHistory();
+}
+function download(name, text){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], {type:"text/plain;charset=utf-8"}));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function loadHistory(){ try { return JSON.parse(localStorage.getItem("ltmt_history") || "[]"); } catch(e){ return []; } }
+function renderHistory(){
+  const hist = loadHistory();
+  const box = $("historyList");
+  if (!hist.length){ box.innerHTML = `<p class="muted">Chưa có lần kiểm tra nào được lưu trên máy này.</p>`; return; }
+  const names = { "nhan-morse":"Nhận Morse", "nhan-sem":"Nhận Semaphore", "phat-morse":"Phát Morse", "phat-sem":"Phát Semaphore" };
+  box.innerHTML = hist.map(h => `<div class="histitem"><div class="top"><span>${escapeHtml(h.name)} — ${escapeHtml(h.cls)}</span><span>${h.score.toFixed(1).replace(".", ",")} / 10</span></div>
+    <div class="muted">${names[h.kind] || h.kind} · Đúng ${h.correct}/${h.total} ký tự · Phát ${h.plays} lần · ${escapeHtml(h.date)}<br>Bản tin: ${escapeHtml(h.msg)}</div></div>`).join("");
+}
+
+/* ============================================================
+   RESET & ĐIỀU PHỐI GIAO DIỆN
+   ============================================================ */
+function resetWork(){
+  stopPlayback(true);
+  S.plays = 0; $("playCount").textContent = "0";
+  S.submitted = false; S.lastResult = null;
+  $("answerText").value = "";
+  $("receiveResult").innerHTML = "";
+  $("finalPanel").classList.add("hidden");
+  sendM.letters = []; sendM.cur = ""; sendM.results = [];
+  if (S.kind === "morse") renderSendMorse();
+  initSendSem();
+  applyShowLock();
+  renderPreview();
+}
+function applyShowLock(){
+  const locked = S.mode === "kiemtra" && !S.submitted;
+  $("showToggle").disabled = locked;
+  $("showLockNote").classList.toggle("hidden", !locked);
+  if (locked) $("showToggle").checked = false; else $("showToggle").checked = S.show;
+}
+function applyLayout(){
+  $("actNhan").setAttribute("aria-pressed", String(S.activity === "nhan"));
+  $("actPhat").setAttribute("aria-pressed", String(S.activity === "phat"));
+  $("kindMorse").setAttribute("aria-pressed", String(S.kind === "morse"));
+  $("kindSem").setAttribute("aria-pressed", String(S.kind === "sem"));
+  $("modeLuyen").setAttribute("aria-pressed", String(S.mode === "luyen"));
+  $("modeKiem").setAttribute("aria-pressed", String(S.mode === "kiemtra"));
+  $("studentBox").classList.toggle("hidden", S.mode !== "kiemtra");
+  $("morseStage").classList.toggle("hidden", S.kind !== "morse");
+  $("semStage").classList.toggle("hidden", S.kind !== "sem");
+  $("morseSpeedBox").classList.toggle("hidden", S.kind !== "morse");
+  $("semSpeedBox").classList.toggle("hidden", S.kind !== "sem");
+  $("stagePanel").classList.toggle("hidden", S.activity !== "nhan");
+  $("receivePanel").classList.toggle("hidden", S.activity !== "nhan");
+  $("sendMorsePanel").classList.toggle("hidden", !(S.activity === "phat" && S.kind === "morse"));
+  $("sendSemPanel").classList.toggle("hidden", !(S.activity === "phat" && S.kind === "sem"));
+  $("gradeBtn").textContent = S.mode === "kiemtra" ? "Nộp bài & chấm điểm" : "✔ Kiểm tra";
+  $("sendMorseSubmitRow").classList.toggle("hidden", S.mode !== "kiemtra");
+  $("sendSemSubmitRow").classList.toggle("hidden", S.mode !== "kiemtra");
+  $("stageTitle").textContent = S.kind === "morse" ? "Nghe tiếng và xem đèn tín hiệu" : "Xem người phát cờ Semaphore";
+  applyShowLock();
+}
+</script>
+
+<script>
+"use strict";
+/* ============================================================
+   KHỞI TẠO HÌNH & BẢNG TRA
+   ============================================================ */
+$("mainSemFig").innerHTML = semFigureSVG("main", true, true);
+registerCloth("main");
+setFigure("main", SEM_REST, player.semState);
+$("draftSemFig").innerHTML = semFigureSVG("draft", true, true);
+registerCloth("draft");
+$("bigSemFig").innerHTML = semFigureSVG("big", false, true);
+registerCloth("big");
+const bigState = { l:0, r:0, flex:0 };
+
+/* Vòng chọn vị trí cờ (2 tay) */
+function buildDial(el, isLeft){
+  // Đặt nút theo hướng thật của từng vị trí: dùng vector hướng chuẩn
+  const DIR = {0:[0,1],1:[-.707,.707],2:[-1,0],3:[-.707,-.707],4:[0,-1],5:[.707,-.707],6:[1,0],7:[.707,.707]};
+  el.innerHTML = `<span class="centerdot"></span>` + Object.keys(DIR).map(k => {
+    const p = +k, v = DIR[p];
+    const x = 98 + 72 * v[0], y = 98 + 72 * v[1];
+    return `<button class="dialbtn" data-pos="${p}" style="left:${x}px;top:${y}px" aria-pressed="${p === 0}" aria-label="Vị trí ${p} — ${POS_NAME[p]}">${p}<small>${POS_ARROW[p]}</small></button>`;
+  }).join("");
+  el.querySelectorAll(".dialbtn").forEach(b => b.addEventListener("click", () => {
+    if (isLeft) sendS.selL = +b.dataset.pos; else sendS.selR = +b.dataset.pos;
+    renderSendSem();
+  }));
+}
+buildDial($("dialL"), true);
+buildDial($("dialR"), false);
+
+/* Bảng Morse */
+function buildMorseGrid(el, chars){
+  el.innerHTML = chars.map(c => `<button class="cellbtn" data-ch="${c}"><span class="big">${c}</span><span class="sub">${disp(MORSE[c])}</span></button>`).join("");
+  el.querySelectorAll(".cellbtn").forEach(b => b.addEventListener("click", () => {
+    el.querySelectorAll(".cellbtn").forEach(x => x.classList.remove("sel"));
+    b.classList.add("sel");
+    $("tableNowChar").textContent = b.dataset.ch;
+    $("tableNowCode").textContent = disp(MORSE[b.dataset.ch]);
+    playLetterTone(MORSE[b.dataset.ch], parseFloat($("wpmRange").value), $("tableLamp"), null);
+  }));
+}
+buildMorseGrid($("morseLetterGrid"), [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"]);
+buildMorseGrid($("morseDigitGrid"), [..."0123456789"]);
+
+/* Bảng Semaphore */
+(function buildSemGrid(){
+  const chars = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
+  $("semGrid").innerHTML = chars.map((c, i) => `<button class="semcell" data-ch="${c}"><span class="big">${c}</span><span id="mini${c}"></span></button>`).join("");
+  chars.forEach(c => {
+    const host = $("mini" + c);
+    host.innerHTML = semFigureSVG("m" + c, false);
+    registerCloth("m" + c);
+    setFigure("m" + c, SEM[c], null);
+  });
+  setFigure("big", SEM.A, bigState);
+  $("semGrid").querySelectorAll(".semcell").forEach(b => b.addEventListener("click", () => {
+    $("semGrid").querySelectorAll(".semcell").forEach(x => x.classList.remove("sel"));
+    b.classList.add("sel");
+    const c = b.dataset.ch;
+    setFigure("big", SEM[c], bigState);
+    $("bigSemChar").textContent = c;
+    $("bigSemCode").textContent = `Vị trí ${SEM[c][0]} + ${SEM[c][1]} (${POS_NAME[SEM[c][0]]} · ${POS_NAME[SEM[c][1]]})`;
+  }));
+})();
+
+/* ============================================================
+   SỰ KIỆN ĐIỀU KHIỂN
+   ============================================================ */
+document.querySelectorAll(".tabbtn").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".tabbtn").forEach(x => x.setAttribute("aria-selected", String(x === b)));
+  ["main","morse","sem","rules"].forEach(t => $("tab-" + t).classList.toggle("hidden", t !== b.dataset.tab));
+}));
+$("actNhan").addEventListener("click", () => { S.activity = "nhan"; applyLayout(); resetWork(); });
+$("actPhat").addEventListener("click", () => { S.activity = "phat"; applyLayout(); resetWork(); });
+$("kindMorse").addEventListener("click", () => { S.kind = "morse"; applyLayout(); resetWork(); });
+$("kindSem").addEventListener("click", () => { S.kind = "sem"; applyLayout(); resetWork(); });
+$("modeLuyen").addEventListener("click", () => { S.mode = "luyen"; applyLayout(); resetWork(); });
+$("modeKiem").addEventListener("click", () => { S.mode = "kiemtra"; applyLayout(); resetWork(); });
+
+$("showToggle").addEventListener("change", e => { S.show = e.target.checked; renderPreview(); });
+$("abbrevToggle").addEventListener("change", e => { useAbbrev = e.target.checked; S.generated = null; refreshMessage(); });
+
+document.querySelectorAll('input[name="src"]').forEach(r => r.addEventListener("change", () => {
+  const auto = document.querySelector('input[name="src"]:checked').value === "auto";
+  $("customBox").classList.toggle("hidden", auto);
+  $("autoBox").classList.toggle("hidden", !auto);
+  if (auto && !S.generated) S.generated = generateMessage();
+  refreshMessage();
+}));
+$("customText").addEventListener("input", () => { if (document.querySelector('input[name="src"]:checked').value === "custom") refreshMessage(); });
+$("genBtn").addEventListener("click", () => { S.generated = generateMessage(); refreshMessage(); });
+$("diffSel").addEventListener("change", () => { S.generated = generateMessage(); refreshMessage(); });
+$("typeSel").addEventListener("change", () => { S.generated = generateMessage(); refreshMessage(); });
+
+$("playBtn").addEventListener("click", () => startPlayback(true));
+$("replayBtn").addEventListener("click", () => startPlayback(true));
+$("pauseBtn").addEventListener("click", () => {
+  if (!player.playing) return;
+  if (player.paused){ player.paused = false; S.kind === "morse" ? playMorseStep() : playSemStep(); }
+  else { player.paused = true; clearTimeout(player.timer); clearTimeout(player.flexTimer); clearTimeout(player.labelTimer); player.stepToken++; if (player.semState.flex) setForeFlex("main", player.semState, 0, 120); signalOff(); }
+  setControls();
+});
+$("stopBtn").addEventListener("click", () => stopPlayback(true));
+
+$("wpmRange").addEventListener("input", e => {
+  $("wpmOut").textContent = e.target.value + " WPM";
+  document.querySelectorAll("[data-wpm]").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.wpm === +e.target.value)));
+});
+document.querySelectorAll("[data-wpm]").forEach(b => b.addEventListener("click", () => {
+  $("wpmRange").value = b.dataset.wpm;
+  $("wpmRange").dispatchEvent(new Event("input"));
+}));
+$("semRange").addEventListener("input", e => {
+  $("semOut").textContent = (+e.target.value).toFixed(1).replace(".", ",") + " giây / chữ";
+  document.querySelectorAll("[data-sem]").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.sem === +e.target.value)));
+});
+document.querySelectorAll("[data-sem]").forEach(b => b.addEventListener("click", () => {
+  $("semRange").value = b.dataset.sem;
+  $("semRange").dispatchEvent(new Event("input"));
+}));
+
+$("gradeBtn").addEventListener("click", () => doGradeReceive(S.mode === "kiemtra"));
+$("clearAnsBtn").addEventListener("click", () => { $("answerText").value = ""; $("receiveResult").innerHTML = ""; });
+
+/* Phát tin Morse */
+$("keyDot").addEventListener("click", () => sendMorseKey("dot"));
+$("keyDash").addEventListener("click", () => sendMorseKey("dash"));
+$("keyLetter").addEventListener("click", () => sendMorseKey("letter"));
+$("keyWord").addEventListener("click", () => sendMorseKey("word"));
+$("keyBack").addEventListener("click", () => sendMorseKey("back"));
+$("keyClear").addEventListener("click", () => sendMorseKey("clear"));
+document.addEventListener("keydown", e => {
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return;
+  if ($("tab-main").classList.contains("hidden")) return;
+  if (S.activity === "phat" && S.kind === "morse"){
+    if (e.key === ".") sendMorseKey("dot");
+    else if (e.key === "-") sendMorseKey("dash");
+    else if (e.key === "/"){ e.preventDefault(); sendMorseKey("letter"); }
+    else if (e.key === " "){ e.preventDefault(); sendMorseKey("word"); }
+    else if (e.key === "Backspace") sendMorseKey("back");
+  }
+});
+$("sendMorseSubmit").addEventListener("click", () => {
+  if (!validStudent()){ alert2("Em hãy nhập Họ tên và Lớp trước nhé!"); return; }
+  if (sendM.cur) sendMorseCommit();
+  const total = expectedMorseLetters().length;
+  if (sendM.letters.length < total){ alert2(`Em mới phát ${sendM.letters.length} / ${total} chữ. Hãy phát đủ bản tin rồi nộp nhé!`); return; }
+  S.lastResult = null;
+  const html = sendScoreHtml("morse");
+  finishTest(html);
+});
+
+/* Phát tin Semaphore */
+$("semConfirmBtn").addEventListener("click", semConfirm);
+$("semResetBtn").addEventListener("click", () => initSendSem());
+$("sendSemSubmit").addEventListener("click", () => {
+  if (!validStudent()){ alert2("Em hãy nhập Họ tên và Lớp trước nhé!"); return; }
+  if (sendS.idx < sendS.steps.length){ alert2(`Em mới phát ${sendS.idx} / ${sendS.steps.length} bước. Hãy phát đủ bản tin rồi nộp nhé!`); return; }
+  S.lastResult = null;
+  const html = sendScoreHtml("sem");
+  finishTest(html);
+});
+
+/* Kết quả & lịch sử */
+$("downloadBtn").addEventListener("click", () => {
+  if (!S.lastResult) return;
+  download(`ket-qua-truyen-tin-${$("stuName").value.trim().replace(/\s+/g, "-")}.txt`, resultText(S.lastResult));
+});
+$("againBtn").addEventListener("click", () => {
+  if (document.querySelector('input[name="src"]:checked').value === "auto") S.generated = generateMessage();
+  refreshMessage();
+});
+$("histDownloadBtn").addEventListener("click", () => {
+  const hist = loadHistory();
+  if (!hist.length){ alert2("Chưa có lịch sử để tải."); return; }
+  const names = { "nhan-morse":"Nhận Morse", "nhan-sem":"Nhận Semaphore", "phat-morse":"Phát Morse", "phat-sem":"Phát Semaphore" };
+  const text = "LỊCH SỬ KIỂM TRA TRUYỀN TIN\n\n" + hist.map((h, i) =>
+    `${i+1}. ${h.name} — Lớp ${h.cls} — ${h.date}\n   ${names[h.kind] || h.kind}: đúng ${h.correct}/${h.total} ký tự, điểm ${h.score.toFixed(1).replace(".", ",")}/10, phát ${h.plays} lần\n   Bản tin: ${h.msg}`).join("\n");
+  download("lich-su-kiem-tra-truyen-tin.txt", text);
+});
+$("histClearBtn").addEventListener("click", () => { localStorage.removeItem("ltmt_history"); renderHistory(); });
+
+$("aidPitchToggle").addEventListener("change", e => { aidPitch = e.target.checked; });
+
+/* Khởi động */
+applyLayout();
+refreshMessage();
+renderHistory();
+</script>
+
+
+  <script src="app-config.js"></script>
+<script type="module" src="auth-layer.js"></script>
+</body>
+</html>
