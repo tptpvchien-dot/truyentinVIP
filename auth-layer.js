@@ -58,6 +58,12 @@ style.textContent = `
 .tt-mrow .tt-mhead{font-size:14.5px;margin-bottom:6px}
 .tt-badge{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;font-weight:700;margin-left:6px}
 .tt-b-pending{background:#fff3cd;color:#7a5b00}.tt-b-active{background:#d9f2d9;color:#205c20}.tt-b-stopped{background:#f8d7da;color:#842029}
+#tab-main .segrow{gap:12px}
+#tab-main .seg{flex:1 1 200px;background:#f2f6fc;border:1.5px solid #d5dfef;border-radius:12px;padding:10px 12px 12px}
+#tab-main .segbtns{gap:5px}
+#tab-main .segbtns button{min-height:36px;padding:3px 4px;font-size:.9rem;border-radius:8px;border-width:1.5px}
+#ttAiBtn{margin-top:8px}
+#ttAiNote{font-size:12.5px;color:#205c20;margin-top:6px;line-height:1.45}
 .tt-acts{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .tt-acts button{background:#e8f1fa;color:#0b4a80;border:1px solid #bcd4ee;border-radius:7px;padding:5px 9px;cursor:pointer;font-size:12.5px;font-weight:600}
 .tt-acts button.danger{background:#fdecea;color:#a12622;border-color:#f0c4c0}
@@ -160,6 +166,7 @@ if (location.protocol === "file:") {
   boot();
 }
 
+function displayName(p) { return (p && (p.nickname || p.name || p.username)) || ""; }
 function emailFor(username) {
   return username.trim().toLowerCase().replace(/\s+/g, "") + EMAIL_DOMAIN;
 }
@@ -309,6 +316,7 @@ function showAuthForms() {
   <div id="tt-form-reg" style="display:none">
     <div class="tt-field"><label>Họ và tên</label><input id="rg-name" placeholder="vd: Nguyễn Văn An"></div>
     <div class="tt-field"><label>Lớp</label><input id="rg-class" placeholder="vd: 6A1"></div>
+    <div class="tt-field"><label>Biệt danh (không bắt buộc — nếu có sẽ hiển thị thay họ tên)</label><input id="rg-nick" placeholder="vd: An béo"></div>
     <div class="tt-field"><label>Tên đăng nhập (chữ thường không dấu, 3–30 ký tự)</label><input id="rg-user" autocomplete="username" placeholder="vd: an6a1"></div>
     <div class="tt-field"><label>Mật khẩu (ít nhất 6 ký tự)</label><input id="rg-pass" type="password" autocomplete="new-password"></div>
     <button class="tt-btn" id="btn-reg">Đăng ký</button>
@@ -333,6 +341,7 @@ function showAuthForms() {
   });
   $("btn-reg").addEventListener("click", async () => {
     const name = $("rg-name").value.trim(), cls = $("rg-class").value.trim();
+    const nick = $("rg-nick").value.trim();
     const u = $("rg-user").value, p = $("rg-pass").value;
     if (!name || !cls) { showErr("Em điền đủ Họ và tên và Lớp nhé."); return; }
     if (!usernameOk(u)) { showErr("Tên đăng nhập không hợp lệ (chữ thường không dấu, số, dấu . _ -, 3–30 ký tự)."); return; }
@@ -341,7 +350,7 @@ function showAuthForms() {
     try {
       const cred = await createUserWithEmailAndPassword(auth, emailFor(u), p);
       await setDoc(doc(db, "profiles", cred.user.uid), {
-        username: u.trim().toLowerCase(), name, className: cls,
+        username: u.trim().toLowerCase(), name, className: cls, nickname: nick, aiEnabled: false,
         role: "member", status: "pending", expiry: null, createdAt: serverTimestamp()
       });
     } catch (e) { showErr(errText(e.code)); btn.disabled = false; btn.textContent = "Đăng ký"; }
@@ -363,6 +372,7 @@ function grantAccess() {
   if (sn && myProfile.name) { sn.value = myProfile.name; sn.dispatchEvent(new Event("input", { bubbles: true })); }
   if (sc && myProfile.className) { sc.value = myProfile.className; sc.dispatchEvent(new Event("input", { bubbles: true })); }
   buildChip();
+  mountAiButton();
   syncHistory();
   setInterval(syncHistory, 20000);
 }
@@ -377,12 +387,8 @@ function buildChip() {
   chip.style.display = "flex";
   chip.innerHTML = "";
   const label = document.createElement("span");
-  label.textContent = "👤 " + (myProfile.username || "");
+  label.textContent = "👤 " + displayName(myProfile);
   chip.appendChild(label);
-  const bAI = document.createElement("button");
-  bAI.textContent = "✨ Tạo bản tin AI";
-  bAI.addEventListener("click", openAiPanel);
-  chip.appendChild(bAI);
   if (myIsAdmin) {
     const bAd = document.createElement("button");
     bAd.textContent = "🛠 Quản trị";
@@ -479,7 +485,7 @@ function renderAdminList(body, members) {
   const draw = (filter) => {
     list.innerHTML = "";
     const f = (filter || "").toLowerCase();
-    members.filter((m) => !f || (m.username || "").includes(f) || (m.name || "").toLowerCase().includes(f) || (m.className || "").toLowerCase().includes(f))
+    members.filter((m) => !f || (m.username || "").includes(f) || (m.name || "").toLowerCase().includes(f) || (m.nickname || "").toLowerCase().includes(f) || (m.className || "").toLowerCase().includes(f))
       .forEach((m) => list.appendChild(memberRow(body, members, m)));
     if (!list.children.length) list.innerHTML = "<p>Không có thành viên nào khớp.</p>";
   };
@@ -503,13 +509,13 @@ function renderAdminList(body, members) {
       const sAuth = getAuth(secondary);
       const cred = await createUserWithEmailAndPassword(sAuth, emailFor(u), p);
       await setDoc(doc(db, "profiles", cred.user.uid), {
-        username: u.trim().toLowerCase(), name, className: cls, role: "member",
+        username: u.trim().toLowerCase(), name, className: cls, nickname: "", aiEnabled: false, role: "member",
         status: "pending", expiry: null, createdAt: serverTimestamp()
       });
       await updateDoc(doc(db, "profiles", cred.user.uid), { status: "active" });
       await signOut(sAuth);
       msg.textContent = "Đã tạo và kích hoạt: " + u.trim().toLowerCase();
-      const nm = { uid: cred.user.uid, username: u.trim().toLowerCase(), name, className: cls, role: "member", status: "active", expiry: null };
+      const nm = { uid: cred.user.uid, username: u.trim().toLowerCase(), name, className: cls, nickname: "", aiEnabled: false, role: "member", status: "active", expiry: null };
       members.push(nm); members.sort((a, b) => (a.username || "").localeCompare(b.username || "")); draw(body.querySelector("#adm-search").value);
     } catch (e) {
       msg.textContent = errText(e.code);
@@ -526,8 +532,8 @@ function memberRow(body, members, m) {
   const statusLabel = m.status === "pending" ? "Chờ kích hoạt" : m.status === "stopped" ? "Đã ngừng" : expired ? "Hết hạn" : "Đang dùng";
   const badgeCls = m.status === "pending" ? "tt-b-pending" : m.status === "stopped" ? "tt-b-stopped" : expired ? "tt-b-stopped" : "tt-b-active";
   row.innerHTML = `
-    <div class="tt-mhead"><b>${esc(m.username)}</b> — ${esc(m.name || "")} · Lớp ${esc(m.className || "")}
-      <span class="tt-badge ${badgeCls}">${statusLabel}</span></div>
+    <div class="tt-mhead"><b>${esc(displayName(m))}</b> <span style="color:#666">(@${esc(m.username || "")})</span> · Lớp ${esc(m.className || "")}
+      <span class="tt-badge ${badgeCls}">${statusLabel}</span>${m.aiEnabled ? ' <span class="tt-badge tt-b-active">✨ AI</span>' : ""}</div>
     <div style="font-size:13px;color:#555;margin-bottom:6px">Hạn dùng: ${m.expiry ? "đến hết ngày " + esc(m.expiry) : "không giới hạn"}</div>
     <div class="tt-acts">
       <button data-a="toggle">${m.status === "active" ? "Ngừng" : "Kích hoạt"}</button>
@@ -536,7 +542,9 @@ function memberRow(body, members, m) {
       <button data-a="d90">+90 ngày</button>
       <input type="date" data-a="date" value="${m.expiry || ""}">
       <button data-a="setdate">Đặt hạn</button>
-      <button data-a="edit">Sửa tên/lớp</button>
+      <button data-a="edit">Sửa thông tin</button>
+      <button data-a="ai">${m.aiEnabled ? "✨ AI: Đang bật" : "✨ AI: Đang tắt"}</button>
+      <button data-a="reset">🔑 Đặt lại MK</button>
       <button data-a="hist">Lịch sử</button>
       <button data-a="del" class="danger">Xoá hồ sơ</button>
     </div>
@@ -555,7 +563,31 @@ function memberRow(body, members, m) {
   row.querySelector('[data-a="edit"]').addEventListener("click", async () => {
     const name = prompt("Họ và tên:", m.name || ""); if (name === null) return;
     const cls = prompt("Lớp:", m.className || ""); if (cls === null) return;
-    upd({ name: name.trim(), className: cls.trim() });
+    const nick = prompt("Biệt danh (để trống nếu không có — có biệt danh thì hiển thị biệt danh thay họ tên):", m.nickname || ""); if (nick === null) return;
+    upd({ name: name.trim(), className: cls.trim(), nickname: nick.trim() });
+  });
+  row.querySelector('[data-a="ai"]').addEventListener("click", () => upd({ aiEnabled: !m.aiEnabled }));
+  row.querySelector('[data-a="reset"]').addEventListener("click", () => {
+    const box = row.querySelector(".tt-histbox");
+    const email = emailFor(m.username || "");
+    const url = "https://console.firebase.google.com/project/" + (cfg.projectId || "") + "/authentication/users";
+    box.innerHTML = `<div class="tt-hist" style="text-align:left;line-height:1.55">
+      <b>Đặt lại mật khẩu cho ${esc(m.username)}</b><br>
+      Google không cho trang web tự đổi mật khẩu của tài khoản khác — việc đổi chỉ làm được trong trang quản trị của Google, thầy làm 3 bước:<br>
+      1) Bấm nút “Mở trang tài khoản Google” dưới đây, tìm dòng <b>${esc(email)}</b>, bấm dấu ⋮ ở cuối dòng → <b>Delete account</b> (Xoá tài khoản).<br>
+      2) Quay lại đây bấm “Đã xoá — dọn hồ sơ cũ”.<br>
+      3) Báo học sinh đăng ký lại bằng đúng tên đăng nhập <b>${esc(m.username)}</b> với mật khẩu mới, rồi thầy kích hoạt lại như thường.
+      <div class="tt-acts" style="margin-top:8px">
+        <button data-r="open">Mở trang tài khoản Google</button>
+        <button data-r="clean" class="danger">Đã xoá — dọn hồ sơ cũ</button>
+        <button data-r="hide">Để sau</button>
+      </div></div>`;
+    box.querySelector('[data-r="open"]').addEventListener("click", () => window.open(url, "_blank"));
+    box.querySelector('[data-r="hide"]').addEventListener("click", () => { box.innerHTML = ""; });
+    box.querySelector('[data-r="clean"]').addEventListener("click", async () => {
+      if (!confirm("Thầy đã xoá tài khoản " + email + " trong trang Google rồi chứ ạ? Bấm OK để em dọn hồ sơ cũ của " + m.username + ".")) return;
+      try { await deleteDoc(ref); reload(); } catch (e) { alert(errText(e.code)); }
+    });
   });
   row.querySelector('[data-a="del"]').addEventListener("click", async () => {
     if (!confirm("Xoá HỒ SƠ của " + m.username + "? (Tài khoản đăng nhập vẫn còn trên Firebase; muốn xoá hẳn/đặt lại mật khẩu thì xoá tài khoản trong Firebase Console — xem hướng dẫn Phần J.)")) return;
@@ -652,56 +684,51 @@ async function generateMessageSmart(theme, level) {
   return { text: c, ai: usedAi };
 }
 
-function openAiPanel() {
-  const body = openPanel("✨ Tạo bản tin bằng AI");
-  body.innerHTML = `
-    <div class="tt-field"><label>Chủ đề</label>
-      <select class="tt-sel" id="ai-theme">${THEMES.map((t) => `<option>${esc(t)}</option>`).join("")}</select></div>
-    <div class="tt-field"><label>Mức độ</label>
-      <select class="tt-sel" id="ai-level">
-        <option value="de">Dễ (10–15 ký tự sau chuyển đổi)</option>
-        <option value="tb" selected>Trung bình (16–22 ký tự)</option>
-        <option value="kho">Khó (25–30 ký tự)</option>
-      </select></div>
-    <button class="tt-btn" id="ai-go">Tạo bản tin</button>
-    <div class="tt-aiout" id="ai-out">Câu được tạo sẽ hiện ở đây.</div>
-    <div class="tt-acts">
-      <button id="ai-fill">⬇ Đưa vào ô nhập bản tin</button>
-      <button id="ai-copy">Sao chép</button>
-    </div>
-    <p class="tt-note">Câu do AI (Gemini của Google) soạn mới theo chủ đề, đã kiểm độ dài sau chuyển đổi theo quy ước của lớp và tránh trùng các câu đã tạo trước. Nếu AI chưa được bật trong Firebase Console hoặc mất mạng, hệ thống tự dùng bộ tạo dự phòng (câu ghép đa dạng) để không gián đoạn buổi luyện.</p>`;
-  let current = "";
-  body.querySelector("#ai-go").addEventListener("click", async () => {
-    const out = body.querySelector("#ai-out");
-    const btn = body.querySelector("#ai-go");
-    btn.disabled = true; btn.textContent = "Đang tạo…";
-    out.textContent = "Đang soạn câu mới…";
+function fillCustomText(text) {
+  const radio = document.querySelector('input[name="src"][value="custom"]');
+  if (radio && !radio.checked) { radio.checked = true; radio.dispatchEvent(new Event("change", { bubbles: true })); }
+  const ta = $("customText");
+  if (ta) {
+    ta.value = text;
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    ta.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+}
+
+function aiAllowed() { return myIsAdmin || (myProfile && myProfile.aiEnabled === true); }
+
+/* Nút "Tạo bản tin AI" đặt ngay dưới nút "Tạo bản tin mới" trong mục
+   Hệ thống tự tạo — chỉ hiện với quản trị hoặc tài khoản được tích AI.
+   Chủ đề chọn NGẪU NHIÊN, mức độ lấy theo ô "Mức độ" ngay phía trên. */
+function mountAiButton() {
+  const gen = $("genBtn");
+  if (!gen || !aiAllowed() || $("ttAiBtn")) return;
+  const host = gen.parentElement;
+  if (!host) return;
+  const btn = document.createElement("button");
+  btn.className = "btn";
+  btn.id = "ttAiBtn";
+  btn.style.width = "100%";
+  btn.textContent = "✨ Tạo bản tin AI";
+  const note = document.createElement("div");
+  note.id = "ttAiNote";
+  host.appendChild(btn);
+  host.appendChild(note);
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    btn.textContent = "✨ Đang tạo…";
+    note.textContent = "Đang soạn câu mới (chủ đề ngẫu nhiên)…";
     try {
-      const r = await generateMessageSmart(body.querySelector("#ai-theme").value, body.querySelector("#ai-level").value);
-      current = r.text;
-      out.innerHTML = `${esc(r.text)}<div class="tt-conv">${esc(convertText(r.text))} · ${convertedLength(r.text)} ký tự ${r.ai ? "· do AI soạn" : "· bộ tạo dự phòng"}</div>`;
+      const theme = THEMES[Math.floor(Math.random() * THEMES.length)];
+      const ds = $("diffSel");
+      const level = ds && ds.value === "easy" ? "de" : ds && ds.value === "hard" ? "kho" : "tb";
+      const r = await generateMessageSmart(theme, level);
+      fillCustomText(r.text);
+      note.textContent = (r.ai ? "AI soạn" : "Bộ tạo dự phòng") + " · Chủ đề: " + theme + " · " + convertedLength(r.text) + " ký tự — đã đưa vào ô “Tự nhập bản tin”, chọn mục đó rồi Phát/Luyện như thường.";
     } catch (e) {
-      out.textContent = "Chưa tạo được câu. Kiểm tra mạng rồi thử lại.";
+      note.textContent = "Chưa tạo được câu. Kiểm tra mạng rồi thử lại.";
     }
-    btn.disabled = false; btn.textContent = "Tạo bản tin";
-  });
-  body.querySelector("#ai-fill").addEventListener("click", () => {
-    if (!current) { alert("Tạo một câu trước đã ạ."); return; }
-    const radio = document.querySelector('input[name="src"][value="custom"]');
-    if (radio && !radio.checked) { radio.checked = true; radio.dispatchEvent(new Event("change", { bubbles: true })); }
-    const ta = $("customText");
-    if (ta) {
-      ta.value = current;
-      ta.dispatchEvent(new Event("input", { bubbles: true }));
-      $("tt-panel").style.display = "none";
-      ta.scrollIntoView({ behavior: "smooth", block: "center" });
-    } else {
-      alert("Không tìm thấy ô nhập bản tin. Câu của thầy: " + current);
-    }
-  });
-  body.querySelector("#ai-copy").addEventListener("click", async () => {
-    if (!current) { alert("Tạo một câu trước đã ạ."); return; }
-    try { await navigator.clipboard.writeText(current); alert("Đã sao chép: " + current); }
-    catch (e) { alert("Câu của thầy: " + current); }
+    btn.disabled = false;
+    btn.textContent = "✨ Tạo bản tin AI";
   });
 }
