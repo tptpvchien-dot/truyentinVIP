@@ -769,9 +769,13 @@ function renderAdminList(body, members, schools, adminsSet) {
   // nhập | Tình trạng | Xoá (theo đúng yêu cầu của thầy).
   const poolBox = body.querySelector("#pool-box");
   const poolStatusLabel = (en) => {
-    if (en.status === "quota") return en.statusDay === todayStr() ? "⏳ Hết quota (hôm nay)" : "⏳ Hết quota (" + esc(en.statusDay) + ")";
-    if (en.status === "error") return "✖ Lỗi";
-    return "✔ Tốt";
+    /* Màu tình trạng: Tốt = xanh lá, Hết quota = vàng, Lỗi = đỏ. */
+    let main;
+    if (en.status === "quota") main = `<span style="color:#d97706;font-weight:700">⏳ Hết quota${en.statusDay && en.statusDay !== todayStr() ? " (" + esc(en.statusDay) + ")" : ""}</span>`;
+    else if (en.status === "error") main = `<span style="color:#c0392b;font-weight:700">✖ Lỗi</span>`;
+    else main = `<span style="color:#1d9d55;font-weight:700">✔ Tốt</span>`;
+    if (en.checkedAt) main += `<br><span style="color:#888;font-size:11px">kiểm tra ${esc(new Date(en.checkedAt).toLocaleTimeString("vi-VN"))}</span>`;
+    return main;
   };
   const drawPool = (pool) => {
     if (!poolBox) return;
@@ -806,7 +810,13 @@ function renderAdminList(body, members, schools, adminsSet) {
       drawPool(await loadKeyPool(true));
     }));
   };
-  loadKeyPool(true).then(drawPool).catch(() => { if (poolBox) poolBox.innerHTML = "<p class='tt-note'>Không tải được kho — kiểm tra Rules đã có mục apiKeys chưa.</p>"; });
+  loadKeyPool(true).then(async (pool) => {
+    drawPool(pool);
+    /* Tự kiểm tra THẬT từng khóa ngay khi mở panel (gọi thử
+       Gemini) để tình trạng hiển thị là đúng lúc này, không
+       phải số liệu cũ — vẽ lại bảng sau mỗi khóa kiểm tra xong. */
+    for (const en of pool) { await verifyPoolKey(en); drawPool(pool); }
+  }).catch(() => { if (poolBox) poolBox.innerHTML = "<p class='tt-note'>Không tải được kho — kiểm tra Rules đã có mục apiKeys chưa.</p>"; });
   const tbody = body.querySelector("#adm-tbody");
   const sortVal = (m, k) => {
     switch (k) {
@@ -1148,7 +1158,7 @@ async function loadKeyPool(force) {
     const snap = await getDocs(collection(db, "apiKeys"));
     snap.forEach((d) => {
       const v = d.data() || {};
-      if (v.key) _pool.push({ id: d.id, key: v.key, addedByName: v.addedByName || "", at: v.addedAt && v.addedAt.toDate ? v.addedAt.toDate().getTime() : 0, status: v.status || "ok", statusDay: v.statusDay || "" });
+      if (v.key) _pool.push({ id: d.id, key: v.key, addedByName: v.addedByName || "", at: v.addedAt && v.addedAt.toDate ? v.addedAt.toDate().getTime() : 0, status: v.status || "ok", statusDay: v.statusDay || "", checkedAt: v.checkedAt || 0 });
     });
     _pool.sort((a, b) => a.at - b.at);
   } catch (e) {}
@@ -1180,6 +1190,47 @@ async function deletePoolKey(entry) {
   if (_pool) _pool = _pool.filter((x) => x.id !== entry.id);
   try { await deleteDoc(doc(db, "apiKeys", entry.id)); }
   catch (e) { try { await updateDoc(doc(db, "apiKeys", entry.id), { status: "error", statusDay: todayStr() }); } catch (_) {} }
+}
+/* KIỂM TRA THẬT một khóa trong kho: gọi thử Gemini một câu cực
+   ngắn để biết tình trạng ĐÚNG LÚC NÀY (trước đây tình trạng chỉ
+   đổi khi chính ứng dụng vấp lỗi, nên khóa hết hạn mức ở nơi
+   khác vẫn báo "Tốt"). Kết quả: 200 → tốt, 429 → hết quota,
+   401/khóa sai → lỗi; mạng treo thì giữ nguyên (chưa kết luận
+   được). Ghi kèm thời điểm kiểm tra để quản trị biết độ tươi. */
+async function verifyPoolKey(entry) {
+  let verdict = null;
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 6000);
+    let resp;
+    try {
+      resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": entry.key },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "Chào" }] }],
+          generationConfig: { maxOutputTokens: 5, thinkingConfig: { thinkingBudget: 0 } }
+        }),
+        signal: ctl.signal
+      });
+    } finally { clearTimeout(timer); }
+    if (resp.ok) verdict = "ok";
+    else if (resp.status === 429) verdict = "quota";
+    else if (resp.status === 401) verdict = "error";
+    else if (resp.status === 400) {
+      const t = await resp.text().catch(() => "");
+      if (/API key not valid/i.test(t)) verdict = "error";
+    }
+  } catch (e) { /* treo/mất mạng: chưa kết luận được */ }
+  entry.checkedAt = Date.now();
+  if (verdict && verdict !== entry.status) {
+    entry.status = verdict;
+    if (verdict === "quota") entry.statusDay = todayStr();
+    try { await updateDoc(doc(db, "apiKeys", entry.id), { status: verdict, statusDay: entry.statusDay || "", checkedAt: entry.checkedAt }); } catch (e) {}
+  } else {
+    try { await updateDoc(doc(db, "apiKeys", entry.id), { checkedAt: entry.checkedAt }); } catch (e) {}
+  }
+  return verdict;
 }
 
 /* Khóa chung kiểu cũ ở config/ai (quản trị dán ở các bản trước). */
@@ -1322,7 +1373,7 @@ const THEME_HINTS = {
 };
 
 async function aiCandidates(theme, level, exclude, deadlineTs, wordsAdj) {
-  const dl = deadlineTs || (Date.now() + 15000);
+  const dl = deadlineTs || (Date.now() + 20000);
   /* Số từ gợi ý theo mức, có thể dịch ngắn/dài theo phản hồi độ
      lệch của vòng trước (wordsAdj): câu lệch dải bị BỎ và viết
      lại câu khác đúng cỡ — không bao giờ cắt câu cho vừa dải. */
@@ -1358,12 +1409,16 @@ QUY TẮC BẮT BUỘC về hình thức: mỗi câu CHỈ gồm chữ cái ti�
   if (cand.length) {
     let lastErr = null;
     for (const c of cand) {
-      /* Hạn chót 15 giây cho TOÀN BỘ quá trình tạo bằng AI:
-         quá hạn thì dừng ngay (ai-timeout) để nút AI tự chuyển
-         sang tạo bản tin thường, không chờ thêm. */
+      /* Hạn chót 20 giây cho TOÀN BỘ quá trình tạo bằng AI:
+         quá hạn thì dừng ngay (ai-timeout) để kịp tạo bản tin
+         thường cho lần bấm này, không chờ thêm. */
       if (Date.now() > dl) throw new Error("ai-timeout");
       try {
-        return await callGeminiDirect(c.key, prompt, splitLines, dl);
+        const lines = await callGeminiDirect(c.key, prompt, splitLines, dl);
+        /* Khóa trong kho gọi thành công mà tình trạng đang ghi
+           khác "tốt" → tự chữa về "tốt" cho đúng thực tế. */
+        if (c.src === "pool" && c.entry && c.entry.status !== "ok") { try { await markPoolKey(c.entry, "ok"); } catch (_) {} }
+        return lines;
       } catch (e) {
         lastErr = e;
         if (e.status === 503) throw e;
@@ -1463,8 +1518,8 @@ async function generateMessageSmart(firstTheme, level) {
   const band = LEVEL_BANDS[level];
   const seen = allSeenSet();
   const raws = recentRaws();
-  /* Hạn chót 15 giây cho cả quá trình (mọi vòng, mọi khóa). */
-  const deadline = Date.now() + 15000;
+  /* Hạn chót 20 giây cho cả quá trình (mọi vòng, mọi khóa). */
+  const deadline = Date.now() + 20000;
   let lastErr = null;
   let adj = 0; // phản hồi độ lệch cho vòng sau: <0 viết ngắn lại, >0 viết dài ra
   for (let round = 0; round < 3; round++) {
@@ -1512,10 +1567,13 @@ function aiAllowed() { return myIsAdmin || (myProfile && myProfile.aiEnabled ===
 /* Nút "Tạo bản tin AI" đặt ngay dưới nút "Tạo bản tin mới" trong mục
    Hệ thống tự tạo — chỉ hiện với quản trị hoặc tài khoản được tích AI.
    Chủ đề chọn NGẪU NHIÊN, mức độ lấy theo ô "Mức độ" ngay phía trên. */
-/* Khi AI không dùng được (chưa có khóa nào, khóa chết/hết hạn,
-   hết quota, Google quá tải kéo dài): nút "Tạo bản tin AI" TỰ
-   CHUYỂN THÀNH nút tạo bản tin thường cho đến khi có khóa mới
-   được lưu qua nút 🔑. */
+/* CHÍNH SÁCH NÚT AI (theo yêu cầu mới nhất của thầy): nút
+   "Tạo bản tin AI" KHÔNG BAO GIỜ tự đổi chức năng. Mỗi lần bấm
+   đều thử AI trước; nếu AI lỗi (không khóa / khóa chết / hết
+   lượt / quá tải / quá 20 giây) thì tự động tạo ngay một bản
+   tin THƯỜNG cho lần bấm đó, nút giữ nguyên là nút AI để lần
+   sau thử lại. Các hàm dưới đây chỉ còn lo việc khôi phục nhãn
+   nút sau mỗi lần bấm. */
 let aiBroken = false;
 function runSystemGen() {
   const auto = document.querySelector('input[name="src"][value="auto"]');
@@ -1556,13 +1614,6 @@ function mountAiButton() {
   const fab = $("fabGen");
   if (fab) { fab.textContent = "✨ Tạo bản tin AI"; fab.dataset.ai = "1"; }
   btn.addEventListener("click", async () => {
-    /* AI đã bị đánh dấu không dùng được: nút này giờ là nút tạo
-       bản tin thường. */
-    if (aiBroken) {
-      runSystemGen();
-      note.textContent = "Đã tạo bằng bộ tạo bản tin thường (AI chưa dùng được — nhập khóa mới ở nút 🔑 xanh để bật lại AI).";
-      return;
-    }
     /* Tôn trọng MỌI cài đặt của người dùng, không chỉ mức độ:
        Kiểu bản tin = "Ngẫu nhiên" là việc của bộ tạo hệ thống (AI
        chỉ soạn câu có nghĩa) — chuyển thẳng cho bộ tạo hệ thống. */
@@ -1605,21 +1656,32 @@ function mountAiButton() {
       if (window.ttShowDone) window.ttShowDone();
       note.textContent = "AI soạn mới · Chủ đề: " + (r.theme || theme) + " · " + convertedLength(outText) + " ký tự · không trùng các bản tin trước — đã đưa vào ô “Tự nhập bản tin”, chọn mục đó rồi Phát/Luyện như thường.";
     } catch (e) {
-      /* AI không dùng được (không khóa / khóa chết / hết quota /
-         quá tải / mất kết nối): chuyển nút AI thành nút thường
-         VÀ tạo ngay một bản tin thường cho lần bấm này, không
-         để người dùng chờ vô định. */
+      /* AI lỗi vì bất kỳ lý do gì: TỰ ĐỘNG tạo ngay một bản tin
+         thường cho lần bấm này và KHÔNG thay đổi chức năng của
+         nút (theo yêu cầu mới nhất của thầy) — lần bấm sau vẫn
+         thử AI như thường. Dòng thông báo nói đúng nguyên nhân
+         để thầy biết cách xử lý nếu muốn dùng lại AI ngay. */
       const det = e ? [e.code, e.message].filter(Boolean).join(" · ").slice(0, 160) : "";
-      setAiBroken(true);
       runSystemGen();
-      note.textContent = /401|API key not valid/i.test(det)
-        ? "Khóa Gemini đã hết hiệu lực — đã chuyển sang tạo bản tin thường và tạo sẵn một bản tin. Muốn dùng lại AI: bấm nút 🔑 xanh, dán khóa mới."
-        : "AI đang không dùng được" + (det ? " (" + det + ")" : "") + " — đã chuyển sang tạo bản tin thường và tạo sẵn một bản tin cho thầy.";
+      refreshAiButtons();
+      if (/gemini-http-401|API key not valid/i.test(det)) {
+        note.textContent = "Khóa Gemini đã hết hiệu lực — đã tạo sẵn bản tin thường cho lần này. Muốn dùng lại AI: bấm nút 🔑 xanh, dán khóa mới.";
+      } else if (/gemini-http-429/.test(det)) {
+        note.textContent = "Khóa Gemini đã hết lượt miễn phí lúc này (lỗi 429) — đã tạo sẵn bản tin thường cho lần này. Đợi ít phút cho lượt miễn phí hồi lại, hoặc thêm khóa khác vào kho dùng chung.";
+      } else if (/ai-timeout/.test(det)) {
+        note.textContent = "Google AI quá 20 giây chưa trả lời (máy chủ quá tải hoặc mạng chậm) — đã tạo sẵn bản tin thường cho lần này. Thầy bấm lại nút AI sau ít phút.";
+      } else {
+        let noKey = false;
+        try { noKey = (await geminiKeyCandidates()).length === 0; } catch (_) {}
+        note.textContent = noKey
+          ? "Chưa có khóa Gemini nào — đã tạo sẵn bản tin thường cho lần này. Nhập khóa ở nút 🔑 xanh để bật AI."
+          : "AI đang không dùng được" + (det ? " (" + det + ")" : "") + " — đã tạo sẵn bản tin thường cho lần này.";
+      }
       return;
     }
     refreshAiButtons();
   });
-  /* Ngay từ đầu đã không có bất kỳ khóa nào thì nút AI sinh ra
-     ở dạng nút thường luôn, khỏi bấm thử rồi mới biết. */
-  geminiKeyCandidates().then((c) => { if (!c.length) setAiBroken(true); }).catch(() => {});
+  /* (Theo yêu cầu mới nhất của thầy: nút AI KHÔNG tự chuyển
+     thành nút thường nữa — kể cả khi chưa có khóa. Mọi lần bấm
+     đều thử AI trước; lỗi thì tạo thường cho lần đó.) */
 }
