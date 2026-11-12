@@ -54,6 +54,18 @@ style.textContent = `
 #tt-chip button.on{background:#ffb300;color:#083d73}
 .tt-chipinfo{display:flex;flex-direction:column;align-items:center;text-align:center;line-height:1.25;margin-right:2px;min-width:0}
 .tt-chipsub{font-size:12px;color:#cfe3f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
+.tabbar{display:none!important}
+.mainctl{display:none!important}
+.tt-namebtn{cursor:pointer}
+#tt-menu{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#fff;color:#14273c;border-radius:12px;box-shadow:0 14px 34px rgba(0,0,0,.35);padding:6px;min-width:242px;z-index:999995;text-align:left}
+#tt-menu.hidden{display:none}
+#tt-chip #tt-menu button{display:flex;width:100%;align-items:center;gap:8px;background:transparent;color:#14273c;border:none;border-radius:8px;padding:10px 12px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;font-family:system-ui,sans-serif}
+#tt-chip #tt-menu button:hover{background:#eef4fb}
+#tt-menu hr{border:none;border-top:1px solid #e3eaf2;margin:5px 4px}
+.tt-icogroup{display:inline-flex;gap:4px;background:rgba(255,255,255,.08);padding:3px;border-radius:10px;align-items:center}
+#tt-chip .tt-icobtn{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.25);cursor:pointer;font-size:15px;line-height:1}
+#tt-chip .tt-icobtn svg{width:18px;height:18px;display:block}
+#tt-chip .tt-icobtn.on{background:#f4b41a;color:#082d50;border-color:#f4b41a}
 .tt-figbtns{display:flex;gap:4px;align-items:center;background:rgba(255,255,255,.12);border-radius:8px;padding:3px 5px}
 .tt-figbtns span{font-size:12px;color:#cfe3f5}
 #tt-panel{position:fixed;inset:0;z-index:999985;background:rgba(4,25,45,.55);display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:18px 10px;font-family:system-ui,sans-serif}
@@ -418,6 +430,25 @@ function fitTopBar() {
   if (c && c.style.display !== "none") document.body.style.paddingTop = (c.offsetHeight + 4) + "px";
 }
 
+const ICO_WHISTLE = '<svg viewBox="0 0 26 26" fill="currentColor" aria-hidden="true"><path d="M25 7.6c0-.9-.7-1.6-1.6-1.6h-8.1c-.6-1-1.8-1.7-3-1.5C8.8 5 5.8 8.3 5.8 12.3c0 4.5 3.6 8.1 8.1 8.1 4 0 7.3-2.9 8-6.7h1.5c.9 0 1.6-.7 1.6-1.6V7.6z"/><circle cx="12.4" cy="12.2" r="2.2" fill="#082d50" opacity=".9"/></svg>';
+const ICO_FLAGS = '<svg viewBox="0 0 26 26" aria-hidden="true"><g stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><line x1="6.5" y1="24" x2="15.5" y2="4.5"/><line x1="19.5" y1="24" x2="10.5" y2="4.5"/></g><path d="M15.5 4.5l7.5 2.3-7 2.9z" fill="#e63946"/><path d="M10.5 4.5L3 6.8l7 2.9z" fill="#f4b41a"/></svg>';
+let ttIcoSyncDone = false;
+function paintBarIcons() {
+  const pairs = [["ttIcoMorse", "kindMorse"], ["ttIcoSem", "kindSem"], ["ttIcoLuyen", "modeLuyen"], ["ttIcoKiem", "modeKiem"]];
+  pairs.forEach(([barId, srcId]) => {
+    const b = $(barId), s = $(srcId);
+    if (b && s) b.classList.toggle("on", s.getAttribute("aria-pressed") === "true");
+  });
+}
+function syncBarIcons() {
+  paintBarIcons();
+  if (ttIcoSyncDone) return;
+  ttIcoSyncDone = true;
+  ["kindMorse", "kindSem", "modeLuyen", "modeKiem"].forEach((id) => {
+    const el = $(id);
+    if (el && window.MutationObserver) new MutationObserver(paintBarIcons).observe(el, { attributes: true, attributeFilter: ["aria-pressed"] });
+  });
+}
 function buildChip() {
   let chip = $("tt-chip");
   if (!chip) {
@@ -428,15 +459,21 @@ function buildChip() {
   }
   chip.style.display = "flex";
   chip.innerHTML = "";
-  // Tên người dùng + dòng Lớp/Giáo viên · trường ở ngay dưới tên
+  /* Tên người dùng: bấm vào mở MENU NGƯỜI DÙNG (toàn bộ mục của
+     thanh tab cũ + Lịch sử/Quản trị/Dung lượng/Cài đặt/Đăng xuất). */
   const info = document.createElement("div");
-  info.className = "tt-chipinfo";
+  info.className = "tt-chipinfo tt-namebtn";
+  info.title = "Mở menu người dùng";
   const line1 = document.createElement("span");
   line1.textContent = "👤 ";
   const nm = document.createElement("span");
   nm.textContent = displayName(myProfile);
   if (aiAllowed()) nm.className = "tt-rainbow";
   line1.appendChild(nm);
+  const caret = document.createElement("span");
+  caret.textContent = " ▾";
+  caret.style.opacity = ".75";
+  line1.appendChild(caret);
   info.appendChild(line1);
   const sub = document.createElement("span");
   sub.className = "tt-chipsub";
@@ -447,42 +484,76 @@ function buildChip() {
     sub.textContent = subLineFor(myProfile, schoolName, myIsAdmin);
     fitTopBar();
   });
-  const bHist = document.createElement("button");
-  bHist.textContent = "🕘 Lịch sử";
-  bHist.addEventListener("click", openMyHistory);
-  chip.appendChild(bHist);
-  if (myProfile && myProfile.role === "GV" && myProfile.schoolId) {
-    const bSch = document.createElement("button");
-    bSch.textContent = "🏫 Học sinh trường";
-    bSch.addEventListener("click", openSchoolPanel);
-    chip.appendChild(bSch);
-  }
+  /* Cụm nút ICON nhỏ ngay cạnh tên: chọn Dạng truyền tin (còi =
+     Morse, hai cờ = Semaphore) và Chế độ (bút = Luyện tập, bảng
+     kiểm = Kiểm tra). Bấm là bấm thay các nút tương ứng của ứng
+     dụng (đã ẩn khỏi màn hình chính); trạng thái đang chọn được
+     đồng bộ hai chiều qua aria-pressed. */
+  const mkIco = (id, html, title, targetId) => {
+    const b = document.createElement("button");
+    b.id = id;
+    b.className = "tt-icobtn";
+    b.innerHTML = html;
+    b.title = title;
+    b.setAttribute("aria-label", title);
+    b.addEventListener("click", () => { const t = $(targetId); if (t) t.click(); paintBarIcons(); });
+    return b;
+  };
+  const gKind = document.createElement("span");
+  gKind.className = "tt-icogroup";
+  gKind.appendChild(mkIco("ttIcoMorse", ICO_WHISTLE, "Morse (tiếng + đèn)", "kindMorse"));
+  gKind.appendChild(mkIco("ttIcoSem", ICO_FLAGS, "Semaphore (cờ tay)", "kindSem"));
+  chip.appendChild(gKind);
+  const gMode = document.createElement("span");
+  gMode.className = "tt-icogroup";
+  gMode.appendChild(mkIco("ttIcoLuyen", "🖊️", "Chế độ Luyện tập", "modeLuyen"));
+  gMode.appendChild(mkIco("ttIcoKiem", "📋", "Chế độ Kiểm tra", "modeKiem"));
+  chip.appendChild(gMode);
+  /* MENU NGƯỜI DÙNG (ẩn mặc định, bấm vào tên thì mở) */
+  const menu = document.createElement("div");
+  menu.id = "tt-menu";
+  menu.className = "hidden";
+  const closeMenu = () => menu.classList.add("hidden");
+  const item = (label, fn, closeAfter = true) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.addEventListener("click", () => { if (closeAfter) closeMenu(); fn(); });
+    menu.appendChild(b);
+    return b;
+  };
+  const nav = (label, tabId) => item(label, () => {
+    const t = $(tabId);
+    if (t) t.click();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  nav("🏠 Luyện tập & Kiểm tra", "tabbtn-main");
+  nav("📟 Bảng Morse", "tabbtn-morse");
+  nav("🚩 Bảng Semaphore", "tabbtn-sem");
+  nav("📜 Quy ước & Giáo viên", "tabbtn-rules");
+  menu.appendChild(document.createElement("hr"));
+  item("🕘 Lịch sử", openMyHistory);
+  if (myProfile && myProfile.role === "GV" && myProfile.schoolId) item("🏫 Học sinh trường", openSchoolPanel);
   if (myIsAdmin) {
-    const bAd = document.createElement("button");
-    bAd.textContent = "🛠 Quản trị";
-    bAd.addEventListener("click", openAdminPanel);
-    chip.appendChild(bAd);
-    const bUse = document.createElement("button");
-    bUse.textContent = "📊 Dung lượng";
-    bUse.addEventListener("click", openUsagePanel);
-    chip.appendChild(bUse);
+    item("🛠 Quản trị", openAdminPanel);
+    item("📊 Dung lượng", openUsagePanel);
   }
-  // Nút Cài đặt trên thanh ghim: mở/đóng ngăn cài đặt của ứng dụng
-  // (Hoạt động, Bản tin, họ tên/lớp, các công tắc) — chọn kiểu hình
-  // người que/3D KHÔNG đặt ở đây nữa, đã có ngay trên khung cờ.
-  const bSet = document.createElement("button");
-  bSet.textContent = "⚙️ Cài đặt";
-  bSet.addEventListener("click", () => {
+  item("⚙️ Cài đặt", () => {
     const d = $("settingsDrawer");
     if (!d) return;
     d.classList.toggle("hidden");
     if (!d.classList.contains("hidden")) d.scrollIntoView({ behavior: "smooth", block: "start" });
   });
-  chip.appendChild(bSet);
-  const bOut = document.createElement("button");
-  bOut.textContent = "Đăng xuất";
-  bOut.addEventListener("click", doLogout);
-  chip.appendChild(bOut);
+  item("🚪 Đăng xuất", doLogout);
+  chip.appendChild(menu);
+  info.addEventListener("click", (e) => { e.stopPropagation(); menu.classList.toggle("hidden"); });
+  if (!window.__ttMenuOutside) {
+    window.__ttMenuOutside = true;
+    document.addEventListener("click", (e) => {
+      const m = $("tt-menu"), c = $("tt-chip");
+      if (m && c && !m.classList.contains("hidden") && !c.contains(e.target)) m.classList.add("hidden");
+    });
+  }
+  syncBarIcons();
   requestAnimationFrame(fitTopBar);
   setTimeout(fitTopBar, 300);
 }
@@ -530,6 +601,12 @@ function metaFor(entry) {
   return { kindLabel: KIND_NAMES[k] || k, speedLabel };
 }
 function fmtScore(s) { const n = Number(s); return isNaN(n) ? String(s ?? "") : n.toFixed(1).replace(".", ","); }
+function fmtDur(sec) {
+  if (sec === null || sec === undefined || isNaN(Number(sec))) return "—";
+  const v = Math.max(0, Math.round(Number(sec)));
+  const m = Math.floor(v / 60), s = v % 60;
+  return m ? m + " phút " + s + " giây" : s + " giây";
+}
 function loadLocalHist() { try { return JSON.parse(localStorage.getItem("ltmt_history") || "[]"); } catch (e) { return []; } }
 let lastHistLen = -1;
 function startHistWatch() {
@@ -542,10 +619,10 @@ function startHistWatch() {
 }
 function histTableHTML(rows, firstColLabel, nameOf) {
   if (!rows.length) return "<p>Chưa có bài kiểm tra nào được lưu.</p>";
-  return `<div style="overflow-x:auto"><table class="tt-table"><thead><tr><th>${esc(firstColLabel)}</th><th>Thời gian làm bài</th><th>Dạng truyền tin</th><th>Tốc độ</th><th>Số điểm</th></tr></thead><tbody>${
+  return `<div style="overflow-x:auto"><table class="tt-table"><thead><tr><th>${esc(firstColLabel)}</th><th>Thời gian làm bài</th><th>Dạng truyền tin</th><th>Tốc độ</th><th>Thời lượng</th><th>Số điểm</th></tr></thead><tbody>${
     rows.map((r) => {
       const e = r.entry || {};
-      return `<tr><td>${esc(nameOf(r))}</td><td>${esc(e.date || "")}</td><td>${esc(r.kindLabel || metaFor(e).kindLabel)}</td><td>${esc(r.speedLabel || "—")}</td><td><b>${esc(fmtScore(e.score))}/10</b> <span style="color:#666">(đúng ${esc(e.correct ?? "")}/${esc(e.total ?? "")})</span></td></tr>`;
+      return `<tr><td>${esc(nameOf(r))}</td><td>${esc(e.date || "")}</td><td>${esc(r.kindLabel || metaFor(e).kindLabel)}</td><td>${esc(r.speedLabel || "—")}</td><td>${esc(fmtDur(e.dur))}</td><td><b>${esc(fmtScore(e.score))}/10</b> <span style="color:#666">(đúng ${esc(e.correct ?? "")}/${esc(e.total ?? "")})</span></td></tr>`;
     }).join("")
   }</tbody></table></div>`;
 }
@@ -820,7 +897,7 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
       if (!items.length) { box.innerHTML = "<div class='tt-hist'>Chưa có bài làm nào được đồng bộ từ máy của học sinh này.</div>"; return; }
       box.innerHTML = `<div class="tt-acts" style="margin:4px 0 8px"><button data-hall="1" class="danger">🗑 Xoá tất cả ${items.length} bài của ${esc(m.username || "")}</button></div>` + items.slice(0, 50).map((it) => {
         const e = it.entry || {};
-        return `<div class="tt-hist">🗓 ${esc(e.date || "")} · ${esc(it.kindLabel || "")}${it.speedLabel ? " · " + esc(it.speedLabel) : ""} · <b>${esc(fmtScore(e.score))}/10</b> · đúng ${esc(e.correct ?? "")}/${esc(e.total ?? "")} · “${esc(e.msg || "")}” <button data-hdel="${esc(it.id)}" class="tt-acts" style="background:#fdecea;color:#a12622;border:1px solid #f0c4c0;border-radius:6px;padding:1px 7px;cursor:pointer;font-size:12px;font-weight:600">✕ Xoá bài này</button></div>`;
+        return `<div class="tt-hist">🗓 ${esc(e.date || "")} · ${esc(it.kindLabel || "")}${it.speedLabel ? " · " + esc(it.speedLabel) : ""} · <b>${esc(fmtScore(e.score))}/10</b> · đúng ${esc(e.correct ?? "")}/${esc(e.total ?? "")}${e.dur != null ? " · ⏱ " + esc(fmtDur(e.dur)) : ""} · “${esc(e.msg || "")}” <button data-hdel="${esc(it.id)}" class="tt-acts" style="background:#fdecea;color:#a12622;border:1px solid #f0c4c0;border-radius:6px;padding:1px 7px;cursor:pointer;font-size:12px;font-weight:600">✕ Xoá bài này</button></div>`;
       }).join("");
       const delAll = box.querySelector("[data-hall]");
       if (delAll) delAll.addEventListener("click", async () => {
@@ -979,6 +1056,26 @@ async function aiCandidates(theme, level) {
   throw lastErr || new Error("AI unavailable");
 }
 
+/* Ép một câu về đúng dải độ dài của mức đã cài: quá dài thì cắt
+   bớt từ ở cuối câu, quá ngắn thì thêm một nhóm số ngắn. Nhờ hàm này,
+   bản tin do AI tạo ra LUÔN đúng mức độ theo cài đặt — kể cả khi AI
+   viết câu dài hơn yêu cầu hoặc phải dùng bộ tạo dự phòng. */
+function fitToBand(text, band) {
+  let words = String(text || "").trim().replace(/\s+/g, " ").split(" ").filter(Boolean);
+  if (!words.length) words = ["HỌC", "TẬP", "TỐT"];
+  while (words.length > 2 && convertedLength(words.join(" ")) > band.max) words.pop();
+  let t = words.join(" ");
+  let guard = 0;
+  while (convertedLength(t) < band.min && guard++ < 8) {
+    const need = band.min - convertedLength(t);
+    const dlen = Math.min(4, Math.max(2, need));
+    let d = "";
+    for (let i = 0; i < dlen; i++) d += String(Math.floor(Math.random() * 10));
+    t = t + " " + d;
+  }
+  return t;
+}
+
 async function generateMessageSmart(theme, level) {
   const band = LEVEL_BANDS[level];
   const seen = seenSet();
@@ -991,14 +1088,27 @@ async function generateMessageSmart(theme, level) {
     return null;
   };
   let usedAi = false;
+  let cands = [];
   try {
-    const cands = await aiCandidates(theme, level);
+    cands = await aiCandidates(theme, level);
     const v = pickValid(cands);
     if (v) { usedAi = true; rememberSeen(convertText(v)); return { text: v.toUpperCase(), ai: true }; }
   } catch (e) { /* rơi xuống bộ tạo dự phòng */ }
+  /* AI có câu nhưng chưa câu nào vừa dải: ép câu của AI về đúng
+     dải của mức đã cài (cắt bớt từ cuối / thêm nhóm số) thay vì
+     bỏ hẳn — bản tin AI luôn đúng mức độ theo cài đặt. */
+  for (const c of cands) {
+    const f = fitToBand(c, band);
+    const conv = convertText(f);
+    const len = convertedLength(f);
+    if (len >= band.min && len <= band.max && !seen.has(conv)) {
+      rememberSeen(conv);
+      return { text: f.toUpperCase(), ai: true };
+    }
+  }
   const mkCand = () => level === "nc" ? fallbackSentence() + " " + String(100 + Math.floor(Math.random() * 9900)) : fallbackSentence();
   for (let i = 0; i < 80; i++) {
-    const c = mkCand();
+    const c = fitToBand(mkCand(), band);
     const conv = convertText(c);
     const len = convertedLength(c);
     if (len >= band.min && len <= band.max && !seen.has(conv)) {
@@ -1006,7 +1116,8 @@ async function generateMessageSmart(theme, level) {
       return { text: c, ai: usedAi };
     }
   }
-  const c = mkCand();
+  /* Đường cuối cũng qua fitToBand: không bao giờ trả câu ngoài dải. */
+  const c = fitToBand(mkCand(), band);
   rememberSeen(convertText(c));
   return { text: c, ai: usedAi };
 }
@@ -1046,6 +1157,19 @@ function mountAiButton() {
   const fab = $("fabGen");
   if (fab) { fab.textContent = "✨ Tạo bản tin AI"; fab.dataset.ai = "1"; }
   btn.addEventListener("click", async () => {
+    /* Tôn trọng MỌI cài đặt của người dùng, không chỉ mức độ:
+       Kiểu bản tin = "Ngẫu nhiên" là việc của bộ tạo hệ thống (AI
+       chỉ soạn câu có nghĩa) — chuyển thẳng cho bộ tạo hệ thống. */
+    const tsEl = $("typeSel");
+    const typeVal = tsEl ? tsEl.value : "sentence";
+    if (typeVal === "random") {
+      const auto = document.querySelector('input[name="src"][value="auto"]');
+      if (auto && !auto.checked) { auto.checked = true; auto.dispatchEvent(new Event("change", { bubbles: true })); }
+      const gb = $("genBtn");
+      if (gb) gb.click();
+      note.textContent = "Kiểu “Ngẫu nhiên” — đã dùng bộ tạo hệ thống, đúng mức độ đã cài.";
+      return;
+    }
     btn.disabled = true;
     btn.textContent = "✨ Đang tạo…";
     note.textContent = "Đang soạn câu mới (chủ đề ngẫu nhiên)…";
@@ -1054,9 +1178,16 @@ function mountAiButton() {
       const ds = $("diffSel");
       const level = ds && ds.value === "easy" ? "de" : ds && ds.value === "hard" ? "kho" : ds && ds.value === "adv" ? "nc" : "tb";
       const r = await generateMessageSmart(theme, level);
-      fillCustomText(r.text);
+      let outText = r.text;
+      /* Kiểu "Hỗn hợp": bản tin AI phải kèm một nhóm số như cài đặt */
+      if (typeVal === "mixed" && !/\d/.test(outText)) {
+        const band = LEVEL_BANDS[level];
+        const extra = " " + String(100 + Math.floor(Math.random() * 900));
+        if (convertedLength(outText + extra) <= band.max) outText += extra;
+      }
+      fillCustomText(outText);
       if (window.ttShowDone) window.ttShowDone();
-      note.textContent = (r.ai ? "AI soạn" : "Bộ tạo dự phòng") + " · Chủ đề: " + theme + " · " + convertedLength(r.text) + " ký tự — đã đưa vào ô “Tự nhập bản tin”, chọn mục đó rồi Phát/Luyện như thường.";
+      note.textContent = (r.ai ? "AI soạn" : "Bộ tạo dự phòng") + " · Chủ đề: " + theme + " · " + convertedLength(outText) + " ký tự — đã đưa vào ô “Tự nhập bản tin”, chọn mục đó rồi Phát/Luyện như thường.";
     } catch (e) {
       note.textContent = "Chưa tạo được câu. Kiểm tra mạng rồi thử lại.";
     }
