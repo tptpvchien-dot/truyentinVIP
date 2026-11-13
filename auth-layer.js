@@ -338,6 +338,24 @@ async function resolveAccess(user) {
 }
 
 /* ---------------- Form đăng nhập / đăng ký ---------------- */
+/* KHÓA ĐĂNG KÝ: quản trị bật/tắt trong panel (doc config/app,
+   đọc được trước cả khi đăng nhập). Khi khóa: cổng KHÔNG hiện
+   tab/ form đăng ký nữa và nút đăng ký (nếu còn sót) cũng bị
+   chặn; Rules phía máy chủ đồng thời chặn tạo hồ sơ mới. */
+let _regLocked = false;
+let _regLockPromise = null;
+function fetchRegLock() {
+  if (!_regLockPromise) {
+    _regLockPromise = (async () => {
+      try {
+        const s = await getDoc(doc(db, "config", "app"));
+        _regLocked = !!(s.exists() && s.data().registrationLocked === true);
+      } catch (e) { _regLocked = false; /* không đọc được (chưa dán Rules mới / mất mạng): mặc định mở */ }
+      return _regLocked;
+    })();
+  }
+  return _regLockPromise;
+}
 function showAuthForms() {
   viewHTML(`
   <div class="tt-tabs">
@@ -366,8 +384,22 @@ function showAuthForms() {
     $("tt-form-login").style.display = ""; $("tt-form-reg").style.display = "none"; err.style.display = "none";
   });
   $("tab-reg").addEventListener("click", () => {
+    if (_regLocked) return;
     $("tab-reg").classList.add("on"); $("tab-login").classList.remove("on");
     $("tt-form-reg").style.display = ""; $("tt-form-login").style.display = "none"; err.style.display = "none";
+  });
+  /* Áp trạng thái khóa đăng ký ngay khi biết kết quả: ẩn hẳn
+     tab và form đăng ký, đưa người dùng về form đăng nhập. */
+  fetchRegLock().then((locked) => {
+    if (!locked) return;
+    const tabReg = $("tab-reg"), formReg = $("tt-form-reg");
+    if (tabReg) tabReg.style.display = "none";
+    if (formReg) formReg.style.display = "none";
+    const tabLogin = $("tab-login"), formLogin = $("tt-form-login");
+    if (tabLogin) tabLogin.classList.add("on");
+    if (formLogin) formLogin.style.display = "";
+    const note = document.querySelector("#tt-form-login .tt-note");
+    if (note) note.textContent = "Đăng ký tài khoản mới đang tạm khóa — em liên hệ thầy để được cấp tài khoản.";
   });
   $("btn-login").addEventListener("click", async () => {
     const u = $("li-user").value, p = $("li-pass").value;
@@ -377,6 +409,7 @@ function showAuthForms() {
     catch (e) { showErr(errText(e.code)); btn.disabled = false; btn.textContent = "Đăng nhập"; }
   });
   $("btn-reg").addEventListener("click", async () => {
+    if (_regLocked) { showErr("Đăng ký đang tạm khóa — em liên hệ thầy để được cấp tài khoản."); return; }
     const name = $("rg-name").value.trim(), cls = $("rg-class").value.trim();
     const u = $("rg-user").value, p = $("rg-pass").value;
     if (!name || !cls) { showErr("Em điền đủ Họ và tên và Lớp nhé."); return; }
@@ -386,7 +419,7 @@ function showAuthForms() {
     try {
       const cred = await createUserWithEmailAndPassword(auth, emailFor(u), p);
       await setDoc(doc(db, "profiles", cred.user.uid), {
-        username: u.trim().toLowerCase(), name, className: cls, nickname: "", aiEnabled: false, useSharedKeys: false,
+        username: u.trim().toLowerCase(), name, className: cls, nickname: "", aiEnabled: false, useSharedKeys: false, useClaudeBank: false,
         role: "member", status: "pending", expiry: null, createdAt: serverTimestamp()
       });
     } catch (e) { showErr(errText(e.code)); btn.disabled = false; btn.textContent = "Đăng ký"; }
@@ -735,6 +768,15 @@ async function openAdminPanel() {
 function renderAdminList(body, members, schools, adminsSet) {
   const schoolName = (id) => { const s = schools.find((x) => x.id === id); return s ? s.name : ""; };
   body.innerHTML = `
+    <div style="margin-bottom:14px"><b>🔒 Khóa đăng ký</b>
+      <p class="tt-note" style="margin:6px 0">Khi khóa: người ngoài <b>không thấy giao diện đăng ký</b> ở cổng và cũng không đăng ký được (máy chủ chặn cả khi cố tình gọi thẳng). Tài khoản đã có vẫn đăng nhập bình thường; thầy vẫn thêm thành viên thủ công ở mục dưới.</p>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="adm-reglock" style="width:19px;height:19px"> <span>Khóa đăng ký tài khoản mới</span> <span id="adm-reglock-state" style="color:#888;font-size:13px">đang đọc trạng thái…</span></label>
+    </div>
+    <div style="margin-bottom:14px"><b>📚 Kho bản tin Muse</b>
+      <p class="tt-note" style="margin:6px 0" id="muse-status">Đang đọc số liệu kho…</p>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input type="file" id="muse-file" accept=".json,application/json"><button class="tt-btn" id="muse-import" style="width:auto;padding:8px 14px">📥 Nạp kho từ file</button><span id="muse-import-msg" style="font-size:13px"></span></div>
+      <p class="tt-note" style="margin:6px 0">Kho này KHÔNG nằm trong dữ liệu bản tin thông thường — chỉ tài khoản được tích cột <b>“Kho Muse”</b> trong bảng dưới mới gọi ra được: khi AI không hoạt động, ứng dụng tự lấy bản tin từ kho này cho các tài khoản đó.</p>
+    </div>
     <div style="margin-bottom:14px"><b>🔑 Kho API Key dùng chung</b>
       <p class="tt-note" style="margin:6px 0">Khóa do người dùng nhập ở nút 🔑 xanh tự động vào kho này. Hệ thống tự xoay vòng sang khóa khác khi một khóa hết hạn mức; khóa hỏng hẳn tự bị xoá khỏi kho. Chỉ thành viên được tích cột <b>“Key chung”</b> trong bảng dưới mới dùng được kho này.</p>
       <div id="pool-box"><p>Đang tải kho…</p></div>
@@ -761,10 +803,79 @@ function renderAdminList(body, members, schools, adminsSet) {
       <thead><tr>
         <th data-k="name">Họ tên</th><th data-k="nickname">Biệt danh</th><th data-k="className">Lớp</th>
         <th data-k="expiry">Hạn dùng</th><th data-k="role">Vai trò</th><th data-k="schoolId">Trường</th>
-        <th data-k="aiEnabled">AI</th><th data-k="useSharedKeys">Key chung</th><th data-k="status">Thao tác</th>
+        <th data-k="aiEnabled">AI</th><th data-k="useSharedKeys">Key chung</th><th data-k="useClaudeBank">Kho Muse</th><th data-k="status">Thao tác</th>
       </tr></thead><tbody id="adm-tbody"></tbody>
     </table></div>
     <p class="tt-note">Bấm vào tiêu đề cột để sắp xếp (cột Thao tác sắp xếp theo trạng thái tài khoản). GV không hiển thị lớp và xem được lịch sử học sinh cùng trường.</p>`;
+  /* --- Khóa đăng ký: đọc/ghi doc config/app --- */
+  const reglockEl = body.querySelector("#adm-reglock");
+  const reglockState = body.querySelector("#adm-reglock-state");
+  (async () => {
+    try {
+      const s = await getDoc(doc(db, "config", "app"));
+      const locked = !!(s.exists() && s.data().registrationLocked === true);
+      reglockEl.checked = locked;
+      reglockState.textContent = locked ? "— đang KHÓA, cổng không hiện đăng ký" : "— đang MỞ, ai cũng đăng ký được";
+    } catch (e) { reglockState.textContent = "— không đọc được (kiểm tra Rules có mục config/app chưa)"; }
+  })();
+  reglockEl.addEventListener("change", async () => {
+    const locked = reglockEl.checked;
+    reglockState.textContent = "đang lưu…";
+    try {
+      await setDoc(doc(db, "config", "app"), { registrationLocked: locked }, { merge: true });
+      _regLocked = locked; _regLockPromise = Promise.resolve(locked);
+      reglockState.textContent = locked ? "— đang KHÓA, cổng không hiện đăng ký" : "— đang MỞ, ai cũng đăng ký được";
+    } catch (e) { reglockState.textContent = "— lưu thất bại: " + errText(e.code); reglockEl.checked = !locked; }
+  });
+  /* --- Kho bản tin Muse: số liệu + nạp kho từ file JSON --- */
+  const museStatus = body.querySelector("#muse-status");
+  const paintMuseStatus = async () => {
+    try {
+      const s = await getDoc(doc(db, "museBank", "meta"));
+      if (!s.exists()) { museStatus.textContent = "Kho đang TRỐNG — thầy nạp file kho ở ô dưới để bắt đầu dùng."; return; }
+      const c = (s.data() || {}).counts || {};
+      const total = ["de", "tb", "kho", "nc"].reduce((a, k) => a + (c[k] || 0), 0);
+      museStatus.innerHTML = "Kho hiện có <b>" + total.toLocaleString("vi-VN") + " bản tin</b> — Dễ: " + (c.de || 0).toLocaleString("vi-VN") + " · Trung bình: " + (c.tb || 0).toLocaleString("vi-VN") + " · Khó: " + (c.kho || 0).toLocaleString("vi-VN") + " · Nâng cao: " + (c.nc || 0).toLocaleString("vi-VN") + ".";
+    } catch (e) { museStatus.textContent = "Không đọc được kho (kiểm tra Rules đã có mục museBank chưa)."; }
+  };
+  paintMuseStatus();
+  body.querySelector("#muse-import").addEventListener("click", async () => {
+    const msg = body.querySelector("#muse-import-msg");
+    const file = body.querySelector("#muse-file").files[0];
+    if (!file) { msg.textContent = "Thầy chọn file kho (.json) trước đã ạ."; return; }
+    try {
+      msg.textContent = "Đang đọc file…";
+      const json = JSON.parse(await file.text());
+      const src = json.kept ? json.kept : json;
+      const keyMap = { de: "de", tb: "tb", kho: "kho", nc: "nc", easy: "de", mid: "tb", hard: "kho", adv: "nc" };
+      const per = { de: [], tb: [], kho: [], nc: [] };
+      for (const k of Object.keys(src || {})) {
+        const lv = keyMap[k]; if (!lv || !Array.isArray(src[k])) continue;
+        for (const it of src[k]) {
+          const t = typeof it === "string" ? it : (it && it.t);
+          const th = typeof it === "object" && it ? (it.th || "") : "";
+          if (t && String(t).trim().length > 2) per[lv].push({ t: String(t).trim(), th });
+        }
+      }
+      const total = per.de.length + per.tb.length + per.kho.length + per.nc.length;
+      if (!total) { msg.textContent = "File không có bản tin hợp lệ nào (cần dạng {de:[...], tb:[...], kho:[...], nc:[...]})."; return; }
+      if (!confirm("Nạp " + total.toLocaleString("vi-VN") + " bản tin vào kho Muse? Dữ liệu kho cũ sẽ bị THAY THẾ.")) return;
+      const CH = 500;
+      let doneDocs = 0;
+      const totalDocs = ["de", "tb", "kho", "nc"].reduce((a, lv) => a + Math.ceil(per[lv].length / CH), 0);
+      for (const lv of ["de", "tb", "kho", "nc"]) {
+        for (let i = 0; i * CH < per[lv].length; i++) {
+          await setDoc(doc(db, "museBank", lv + "_" + i), { items: per[lv].slice(i * CH, (i + 1) * CH) });
+          doneDocs++;
+          msg.textContent = "Đang nạp… " + doneDocs + "/" + totalDocs + " phần";
+        }
+      }
+      await setDoc(doc(db, "museBank", "meta"), { counts: { de: per.de.length, tb: per.tb.length, kho: per.kho.length, nc: per.nc.length }, updatedAt: serverTimestamp() });
+      _museMeta = null; _museChunks = {};
+      msg.textContent = "✔ Đã nạp xong " + total.toLocaleString("vi-VN") + " bản tin vào kho Muse.";
+      paintMuseStatus();
+    } catch (e) { msg.textContent = "Nạp thất bại: " + (e && e.message ? e.message.slice(0, 120) : errText(e && e.code)); }
+  });
   // Kho API Key dùng chung: bảng Key | Thời gian nhập | Người
   // nhập | Tình trạng | Xoá (theo đúng yêu cầu của thầy).
   const poolBox = body.querySelector("#pool-box");
@@ -828,6 +939,7 @@ function renderAdminList(body, members, schools, adminsSet) {
       case "schoolId": return schoolName(m.schoolId).toLowerCase();
       case "aiEnabled": return m.aiEnabled ? 1 : 0;
       case "useSharedKeys": return m.useSharedKeys ? 1 : 0;
+      case "useClaudeBank": return m.useClaudeBank ? 1 : 0;
       default: return m.status || "";
     }
   };
@@ -841,7 +953,7 @@ function renderAdminList(body, members, schools, adminsSet) {
     });
     tbody.innerHTML = "";
     list.forEach((m) => { const r = memberRows(members, schools, adminsSet, m, schoolName); tbody.appendChild(r.tr); tbody.appendChild(r.detail); });
-    if (!list.length) tbody.innerHTML = "<tr><td colspan='9'>Không có thành viên nào khớp.</td></tr>";
+    if (!list.length) tbody.innerHTML = "<tr><td colspan='10'>Không có thành viên nào khớp.</td></tr>";
     body.querySelectorAll("#adm-table th").forEach((th) => {
       const base = th.textContent.replace(/ [▲▼]$/, "");
       th.textContent = base + (th.dataset.k === admState.k ? (admState.dir === 1 ? " ▲" : " ▼") : "");
@@ -888,7 +1000,7 @@ function renderAdminList(body, members, schools, adminsSet) {
       const sAuth = getAuth(secondary);
       const cred = await createUserWithEmailAndPassword(sAuth, emailFor(u), p);
       await setDoc(doc(db, "profiles", cred.user.uid), {
-        username: u.trim().toLowerCase(), name, className: cls, nickname: "", aiEnabled: false, useSharedKeys: false,
+        username: u.trim().toLowerCase(), name, className: cls, nickname: "", aiEnabled: false, useSharedKeys: false, useClaudeBank: false,
         role: role === "GV" ? "GV" : "HS", schoolId,
         status: "pending", expiry: null, createdAt: serverTimestamp()
       });
@@ -922,6 +1034,7 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
     <td><select data-f="school"><option value="">— Chưa gán —</option>${schools.map((s) => `<option value="${s.id}"${m.schoolId === s.id ? " selected" : ""}>${esc(s.name)}</option>`).join("")}</select></td>
     <td style="text-align:center"><input type="checkbox" data-f="ai" ${m.aiEnabled ? "checked" : ""} style="width:18px;height:18px"></td>
     <td style="text-align:center"><input type="checkbox" data-f="shared" ${m.useSharedKeys ? "checked" : ""} style="width:18px;height:18px"></td>
+    <td style="text-align:center"><input type="checkbox" data-f="claude" ${m.useClaudeBank ? "checked" : ""} style="width:18px;height:18px"></td>
     <td><div class="tt-acts" style="flex-wrap:wrap">
       <button data-a="edit">Sửa</button>
       <button data-a="toggle">${m.status === "active" ? "Khoá" : "Mở"}</button>
@@ -934,7 +1047,7 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
   const detail = document.createElement("tr");
   detail.className = "tt-detailrow";
   detail.style.display = "none";
-  detail.innerHTML = `<td colspan="9">
+  detail.innerHTML = `<td colspan="10">
     <div data-block="exp"><b>Hạn dùng của ${esc(m.username || "")}:</b>
       <div class="tt-acts" style="margin-top:6px">
         <button data-e="forever">Vĩnh viễn</button>
@@ -957,6 +1070,7 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
   tr.querySelector('[data-f="school"]').addEventListener("change", (e) => upd({ schoolId: e.target.value }));
   tr.querySelector('[data-f="ai"]').addEventListener("change", (e) => upd({ aiEnabled: e.target.checked }));
   tr.querySelector('[data-f="shared"]').addEventListener("change", (e) => upd({ useSharedKeys: e.target.checked }));
+  tr.querySelector('[data-f="claude"]').addEventListener("change", (e) => upd({ useClaudeBank: e.target.checked }));
   tr.querySelector('[data-a="toggle"]').addEventListener("click", () => upd({ status: m.status === "active" ? "stopped" : "active" }));
   tr.querySelector('[data-a="edit"]').addEventListener("click", async () => {
     const name = prompt("Họ và tên:", m.name || ""); if (name === null) return;
@@ -1668,6 +1782,64 @@ function aiBufferTake(level, seen) {
   return picked;
 }
 
+/* ============================================================
+   KHO BẢN TIN CLAUDE (collection museBank trên Firestore) —
+   nguồn bản tin dự phòng CHỈ dành cho tài khoản được quản trị
+   tích "Kho Muse" (hoặc chính quản trị). Dữ liệu kho KHÔNG
+   nằm trong dữ liệu bản tin thông thường của ứng dụng và Rules
+   cũng chỉ cho các tài khoản đó đọc. Khi AI không hoạt động,
+   ứng dụng tự lấy một bản tin trong kho này (theo đúng mức độ
+   đã cài, vẫn kiểm sạch / đúng dải / chưa từng dùng / không
+   phải biến thể) thay cho bản tin thường. */
+function claudeBankEntitled() { return myIsAdmin || (myProfile && myProfile.useClaudeBank === true); }
+let _museMeta = null;
+let _museChunks = {}; /* mức -> { idx, items, used } khúc đang dùng trên máy này */
+async function museMeta() {
+  if (_museMeta) return _museMeta;
+  const s = await getDoc(doc(db, "museBank", "meta"));
+  _museMeta = s.exists() ? (s.data() || {}) : null;
+  return _museMeta;
+}
+async function museBankTake(level) {
+  if (!claudeBankEntitled()) return null;
+  try {
+    const meta = await museMeta();
+    const total = meta && meta.counts ? (meta.counts[level] || 0) : 0;
+    if (!total) return null;
+    const CH = 500;
+    const nChunks = Math.max(1, Math.ceil(total / CH));
+    const seen = allSeenSet();
+    const band = LEVEL_BANDS[level];
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let st = _museChunks[level];
+      if (!st || st.items.every((_, i) => st.used[i])) {
+        const s = await getDoc(doc(db, "museBank", level + "_" + Math.floor(Math.random() * nChunks)));
+        if (!s.exists()) return null;
+        const items = (s.data() || {}).items || [];
+        if (!items.length) return null;
+        st = _museChunks[level] = { items, used: {} };
+      }
+      const freeIdx = st.items.map((_, i) => i).filter((i) => !st.used[i]);
+      for (let k = 0; k < Math.min(40, freeIdx.length); k++) {
+        const j = Math.floor(Math.random() * freeIdx.length);
+        const i = freeIdx.splice(j, 1)[0];
+        st.used[i] = true; /* đánh dấu đã xét để không xét lại câu hỏng/trùng */
+        const it = st.items[i];
+        const t = typeof it === "string" ? it : (it && it.t);
+        if (!t || !isCleanVn(t, level)) continue;
+        const len = convertedLength(t);
+        if (len < band.min || len > band.max) continue;
+        const conv = convertText(t);
+        if (seen.has(conv) || variantOfSeen(t, seen)) continue;
+        rememberSeen(conv); rememberRaw(t.toUpperCase());
+        return { t, th: (it && it.th) || "" };
+      }
+      st.items.forEach((_, i) => { st.used[i] = true; }); /* khúc này không còn câu dùng được: đổi khúc khác */
+    }
+    return null;
+  } catch (e) { return null; }
+}
+
 async function generateMessageSmart(firstTheme, level) {
   const band = LEVEL_BANDS[level];
   const seen = allSeenSet();
@@ -1737,7 +1909,7 @@ function fillCustomText(text) {
   }
 }
 
-function aiAllowed() { return myIsAdmin || (myProfile && myProfile.aiEnabled === true); }
+function aiAllowed() { return myIsAdmin || (myProfile && (myProfile.aiEnabled === true || myProfile.useClaudeBank === true)); }
 
 /* Nút "Tạo bản tin AI" đặt ngay dưới nút "Tạo bản tin mới" trong mục
    Hệ thống tự tạo — chỉ hiện với quản trị hoặc tài khoản được tích AI.
@@ -1799,6 +1971,28 @@ function mountAiButton() {
       note.textContent = "Kiểu “Ngẫu nhiên” — đã dùng bộ tạo hệ thống, đúng mức độ đã cài.";
       return;
     }
+    /* KHO CLAUDE (chỉ tài khoản được tích): khi AI không hoạt
+       động hoặc không soạn được câu mới, lấy một bản tin trong
+       kho Muse thay cho bản tin thường. Trả về true nếu đã
+       lấy được và trình bày xong. */
+    const bankFallback = async (why) => {
+      if (!claudeBankEntitled()) return false;
+      const ds2 = $("diffSel");
+      const lv = ds2 && ds2.value === "easy" ? "de" : ds2 && ds2.value === "hard" ? "kho" : ds2 && ds2.value === "adv" ? "nc" : "tb";
+      const item = await museBankTake(lv);
+      if (!item) return false;
+      let outText = item.t.toUpperCase();
+      if (typeVal === "mixed" && lv === "nc" && !/\d/.test(outText)) {
+        const band = LEVEL_BANDS[lv];
+        const extra = " " + String(100 + Math.floor(Math.random() * 900));
+        if (convertedLength(outText + extra) <= band.max) outText += extra;
+      }
+      fillCustomText(outText);
+      if (window.ttShowDone) window.ttShowDone();
+      note.textContent = why + " — đã lấy bản tin từ KHO CLAUDE · Chủ đề: " + (item.th || "—") + " · " + convertedLength(outText) + " ký tự, đưa vào ô “Tự nhập bản tin”.";
+      refreshAiButtons();
+      return true;
+    };
     /* Báo rõ đang tạo trên CẢ hai nút (nút trong ngăn Cài đặt và
        nút nổi) để người dùng biết đã bấm thành công. */
     btn.disabled = true;
@@ -1812,6 +2006,7 @@ function mountAiButton() {
       const level = ds && ds.value === "easy" ? "de" : ds && ds.value === "hard" ? "kho" : ds && ds.value === "adv" ? "nc" : "tb";
       const r = await generateMessageSmart(theme, level);
       if (r.error) {
+        if (await bankFallback("AI chưa soạn được câu mới không trùng")) return;
         note.textContent = "AI chưa soạn được câu mới không trùng với các bản tin trước. Thầy bấm thử lại — mỗi lần bấm AI sẽ soạn theo chủ đề và bối cảnh khác.";
         refreshAiButtons();
         return;
@@ -1839,6 +2034,9 @@ function mountAiButton() {
          thử AI như thường. Dòng thông báo nói đúng nguyên nhân
          để thầy biết cách xử lý nếu muốn dùng lại AI ngay. */
       const det = e ? [e.code, e.message].filter(Boolean).join(" · ").slice(0, 160) : "";
+      /* Tài khoản được tích Kho Muse: lấy bản tin trong kho
+         thay cho bản tin thường ngay khi AI không hoạt động. */
+      if (await bankFallback("AI đang không hoạt động" + (det ? " (" + det + ")" : ""))) return;
       runSystemGen();
       refreshAiButtons();
       if (/gemini-http-401|API key not valid/i.test(det)) {
