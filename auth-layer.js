@@ -18,7 +18,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
-  collection, getDocs, addDoc, query, where, serverTimestamp, getCountFromServer, arrayUnion
+  collection, getDocs, addDoc, query, where, serverTimestamp, getCountFromServer
 } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
 import { convertText, convertedLength, LEVEL_BANDS, THEMES } from "./converter.js";
 
@@ -891,7 +891,6 @@ function renderAdminList(body, members, schools, adminsSet) {
     <div data-pane="api">
       <p class="tt-note" style="margin:6px 0">Khóa do người dùng nhập ở nút 🔑 xanh tự động vào kho này. Hệ thống tự xoay vòng sang khóa khác khi một khóa hết hạn mức; khóa hỏng hẳn tự bị xoá khỏi kho. Chỉ thành viên được tích cột <b>“Key chung”</b> trong tab Thành viên mới dùng được kho này. Bấm vào tiêu đề cột để sắp xếp.</p>
       <div id="pool-box"><p>Đang tải kho…</p></div>
-      <div id="aibank-box" style="margin-top:14px"><p>Đang đọc kho AI…</p></div>
     </div>
     <div data-pane="members">
       <div class="tt-field"><input id="adm-search" placeholder="Tìm theo tên đăng nhập, họ tên, biệt danh, lớp…"></div>
@@ -932,10 +931,6 @@ function renderAdminList(body, members, schools, adminsSet) {
       <div style="margin-bottom:16px"><b>🔒 Khóa đăng ký</b>
         <p class="tt-note" style="margin:6px 0">Khi khóa: người ngoài <b>không thấy giao diện đăng ký</b> ở cổng và cũng không đăng ký được (máy chủ chặn cả khi cố tình gọi thẳng). Tài khoản đã có vẫn đăng nhập bình thường; thầy vẫn thêm thành viên thủ công ở tab Thành viên.</p>
         <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="adm-reglock" style="width:19px;height:19px"> <span>Khóa đăng ký tài khoản mới</span> <span id="adm-reglock-state" style="color:#888;font-size:13px">đang đọc trạng thái…</span></label>
-      </div>
-      <div style="margin-bottom:16px"><b>⏱ Thời gian chờ AI tạo bản tin</b>
-        <p class="tt-note" style="margin:6px 0">Khi học sinh bấm “Tạo bản tin AI”, AI vẫn <b>chạy ngầm</b> soạn bản tin và lưu vào kho AI như thường — nhưng người bấm chỉ chờ tối đa số giây này: hết giờ mà AI chưa xong thì hệ thống <b>cấp ngay 1 bản tin từ kho AI</b> (chưa từng cấp cho tài khoản đó); kho AI cũng không có thì dùng kho Muse (nếu tài khoản được tích) hoặc bản tin thường ngay, không để học sinh chờ lâu. AI chạy ngầm xong vẫn lưu kho bình thường cho những lần sau. Áp dụng cho MỌI tài khoản; ứng dụng tự đọc lại cài đặt này mỗi phút.</p>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="ai-wait" type="number" min="2" max="60" step="1" style="width:90px;padding:8px;border:1.5px solid #ccd;border-radius:8px"> <span>giây (2–60, mặc định 8)</span><button class="tt-btn" id="ai-wait-save" style="width:auto;padding:8px 14px">💾 Lưu</button><span id="ai-wait-msg" style="font-size:13px"></span></div>
       </div>
       <div style="margin-bottom:14px"><b>✉️ Cấu hình gửi email (Apps Script — Gmail của thầy)</b>
         <p class="tt-note" style="margin:6px 0">Thư được gửi từ <b>chính Gmail của thầy</b> qua một đoạn Google Apps Script chạy dưới tài khoản Google của thầy — không qua dịch vụ bên thứ ba nào, miễn phí 100 thư/ngày. Cách cài (một lần): (1) mở <b>script.google.com</b> bằng đúng tài khoản Gmail muốn dùng để gửi, tạo dự án mới và dán toàn bộ file mã <b>script-gui-email-truyen-tin.gs</b> em gửi kèm, sửa dòng SECRET trong mã thành mã bí mật thầy tự chọn; (2) bấm <b>Triển khai &gt; Lượt triển khai mới &gt; Ứng dụng web</b>, chọn "Thực thi với tư cách: Me" và "Ai có quyền truy cập: Anyone", bấm Deploy và cấp quyền gửi Gmail; (3) sao chép <b>URL ứng dụng web</b> dán vào ô dưới đây, điền mã bí mật <b>giống hệt</b> trong mã script, rồi bấm Lưu và Gửi thư thử. Khi có người đăng ký mới, hệ thống gửi thư báo về email của thầy để duyệt; khi thầy duyệt tài khoản, hệ thống gửi thư kèm thông tin tài khoản cho người dùng đó. Chưa cấu hình thì bỏ qua việc gửi thư, mọi thứ khác vẫn chạy.</p>
@@ -1032,19 +1027,6 @@ function renderAdminList(body, members, schools, adminsSet) {
        phải số liệu cũ — vẽ lại bảng sau mỗi khóa kiểm tra xong. */
     for (const en of poolCache) { await verifyPoolKey(en); drawPool(); }
   }).catch(() => { if (poolBox) poolBox.innerHTML = "<p class='tt-note'>Không tải được kho — kiểm tra Rules đã có mục apiKeys chưa.</p>"; });
-  /* Số liệu kho bản tin AI dùng chung (tự lớn dần mỗi lần có
-     người bấm Tạo bản tin AI). */
-  (async () => {
-    const box = body.querySelector("#aibank-box");
-    if (!box) return;
-    try {
-      const s = await getDoc(doc(db, "aiBank", "meta"));
-      if (!s.exists()) { box.innerHTML = "<b>📚 Kho bản tin AI</b><p class='tt-note' style='margin:6px 0'>Kho đang trống — mỗi lần có tài khoản bấm “Tạo bản tin AI”, các câu AI soạn đạt chuẩn sẽ tự được lọc theo độ khó và lưu vào đây để cấp dần cho mọi người (mỗi tài khoản chỉ nhận mỗi câu một lần).</p>"; return; }
-      const c = (s.data() || {}).counts || {};
-      const total = ["de", "tb", "kho", "nc"].reduce((a, k) => a + (c[k] || 0), 0);
-      box.innerHTML = "<b>📚 Kho bản tin AI</b><p class='tt-note' style='margin:6px 0'>Hiện có <b>" + total.toLocaleString("vi-VN") + " bản tin</b> — Dễ: " + (c.de || 0).toLocaleString("vi-VN") + " · Trung bình: " + (c.tb || 0).toLocaleString("vi-VN") + " · Khó: " + (c.kho || 0).toLocaleString("vi-VN") + " · Nâng cao: " + (c.nc || 0).toLocaleString("vi-VN") + ". Kho tự lớn dần mỗi lần có người bấm Tạo bản tin AI; mỗi câu chỉ cấp cho mỗi tài khoản đúng một lần.</p>";
-    } catch (e) { box.innerHTML = "<b>📚 Kho bản tin AI</b><p class='tt-note' style='margin:6px 0'>Không đọc được kho (kiểm tra Rules đã có mục aiBank chưa).</p>"; }
-  })();
 
   /* ---------- Tab Thành viên ---------- */
   const tbody = body.querySelector("#adm-tbody");
@@ -1162,7 +1144,43 @@ function renderAdminList(body, members, schools, adminsSet) {
       try { const ms = await getDoc(doc(db, "museBank", "meta")); if (ms.exists()) Object.assign(cur, (ms.data() || {}).counts || {}); } catch (e) {}
       const curTotal = cur.de + cur.tb + cur.kho + cur.nc;
       if (!confirm("Nạp THÊM " + total.toLocaleString("vi-VN") + " bản tin vào kho Muse (kho hiện đang có " + curTotal.toLocaleString("vi-VN") + ")? Kho cũ được giữ nguyên.")) return;
-      const newCounts = await appendChunks("museBank", per, (d, t) => { msg.textContent = "Đang nạp thêm… " + d + "/" + t + " phần"; });
+      const CH = 500;
+      let doneDocs = 0;
+      /* Đếm trước tổng số lần ghi: mỗi mức có thể cần 1 lần
+         "chắp đầy" khúc cuối đang dở + các khúc 500 mới. */
+      let totalDocs = 0;
+      const plan = {};
+      for (const lv of ["de", "tb", "kho", "nc"]) {
+        const off = (cur[lv] || 0) % CH;
+        const fill = off > 0 && per[lv].length ? 1 : 0;
+        const rest = per[lv].length - (fill ? Math.min(per[lv].length, CH - off) : 0);
+        plan[lv] = { off, fill, rest };
+        totalDocs += fill + Math.ceil(Math.max(0, rest) / CH);
+      }
+      for (const lv of ["de", "tb", "kho", "nc"]) {
+        let items = [...per[lv]];
+        let idx = Math.floor((cur[lv] || 0) / CH);
+        const { off, fill } = plan[lv];
+        if (fill) {
+          /* Chắp thêm vào khúc cuối đang dở cho đầy 500 — giữ
+             nguyên tắc "mọi khúc trừ khúc cuối đều đủ 500 câu"
+             để phía lấy bản tin tính đúng số khúc theo tổng số. */
+          const cs = await getDoc(doc(db, "museBank", lv + "_" + idx));
+          const existing = cs.exists() ? ((cs.data() || {}).items || []) : null;
+          if (!existing || existing.length !== off) throw new Error("Không đọc được khúc cuối của mức " + lv + " — dừng nạp để tránh ghi đè dữ liệu cũ.");
+          const add = items.splice(0, CH - off);
+          await setDoc(doc(db, "museBank", lv + "_" + idx), { items: existing.concat(add) });
+          idx++; doneDocs++;
+          msg.textContent = "Đang nạp thêm… " + doneDocs + "/" + totalDocs + " phần";
+        }
+        for (let n = 0; n * CH < items.length; n++) {
+          await setDoc(doc(db, "museBank", lv + "_" + (idx + n)), { items: items.slice(n * CH, (n + 1) * CH) });
+          doneDocs++;
+          msg.textContent = "Đang nạp thêm… " + doneDocs + "/" + totalDocs + " phần";
+        }
+      }
+      const newCounts = { de: cur.de + per.de.length, tb: cur.tb + per.tb.length, kho: cur.kho + per.kho.length, nc: cur.nc + per.nc.length };
+      await setDoc(doc(db, "museBank", "meta"), { counts: newCounts, updatedAt: serverTimestamp() });
       _museMeta = null; _museChunks = {};
       msg.textContent = "✔ Đã nạp thêm " + total.toLocaleString("vi-VN") + " bản tin — kho hiện có " + (newCounts.de + newCounts.tb + newCounts.kho + newCounts.nc).toLocaleString("vi-VN") + " bản tin.";
       paintMuseStatus();
@@ -1226,27 +1244,6 @@ function renderAdminList(body, members, schools, adminsSet) {
       _regLocked = locked; _regLockPromise = Promise.resolve(locked);
       reglockState.textContent = locked ? "— đang KHÓA, cổng không hiện đăng ký" : "— đang MỞ, ai cũng đăng ký được";
     } catch (e) { reglockState.textContent = "— lưu thất bại: " + errText(e.code); reglockEl.checked = !locked; }
-  });
-  /* Thời gian chờ AI: cấu hình ở doc config/aiSettings, áp
-     dụng cho mọi tài khoản (ứng dụng đọc lại mỗi phút). */
-  const aiWaitEl = body.querySelector("#ai-wait");
-  const aiWaitMsg = body.querySelector("#ai-wait-msg");
-  (async () => {
-    try {
-      const s = await getDoc(doc(db, "config", "aiSettings"));
-      const v = s.exists() ? Number((s.data() || {}).responseSeconds) : NaN;
-      aiWaitEl.value = (v >= 2 && v <= 60) ? v : 8;
-    } catch (e) { aiWaitEl.value = 8; }
-  })();
-  body.querySelector("#ai-wait-save").addEventListener("click", async () => {
-    const v = Math.round(Number(aiWaitEl.value));
-    if (!(v >= 2 && v <= 60)) { aiWaitMsg.textContent = "Nhập số giây từ 2 đến 60."; return; }
-    aiWaitMsg.textContent = "đang lưu…";
-    try {
-      await setDoc(doc(db, "config", "aiSettings"), { responseSeconds: v }, { merge: true });
-      _aiWaitCfg = { sec: v, at: Date.now() };
-      aiWaitMsg.textContent = "Đã lưu ✔ — từ nay mỗi lần bấm AI, người dùng chờ tối đa " + v + " giây.";
-    } catch (e) { aiWaitMsg.textContent = "Lưu thất bại: " + errText(e.code); }
   });
   const emMsg = body.querySelector("#em-msg");
   (async () => {
@@ -2104,186 +2101,21 @@ async function museBankTake(level) {
   } catch (e) { return null; }
 }
 
-/* ============================================================
-   KHO BẢN TIN AI DÙNG CHUNG (collection aiBank trên Firestore)
-   — theo yêu cầu của thầy: mỗi lần bấm "Tạo bản tin AI", AI
-   soạn một loạt câu; TẤT CẢ câu đạt chuẩn được LỌC THEO ĐỘ
-   KHÓ ĐO ĐƯỢC (câu rơi vào dải của mức nào thì lưu vào mức
-   đó) và lưu vào kho chung này. Khi cần cấp bản tin, hệ
-   thống lấy 1 câu đúng mức yêu cầu TỪ KHO AI, và mỗi câu
-   chỉ cấp cho MỘT tài khoản ĐÚNG MỘT LẦN (đánh dấu đã cấp
-   trong collection aiServed + bản sao trên máy) — tài khoản
-   khác vẫn nhận được câu đó. Nhờ vậy không người dùng nào
-   gặp lại bản tin AI đã từng nhận.
-   Cấu trúc kho giống kho Muse: doc "meta" {counts} + các
-   khúc "{mức}_{i}" tối đa 500 câu {t, th}. */
-function bandOfLen(len) { for (const k of ["de", "tb", "kho", "nc"]) { const b = LEVEL_BANDS[k]; if (len >= b.min && len <= b.max) return k; } return null; }
-
-/* Ghi NỐI TIẾP vào một kho dạng meta + khúc 500 (dùng chung
-   cho kho AI và thao tác nạp kho Muse ở panel): chắp đầy
-   khúc cuối đang dở trước, giữ bất biến "mọi khúc trừ khúc
-   cuối đều đủ 500 câu". Trả về counts mới. */
-async function appendChunks(collName, per, onProgress) {
-  const CH = 500;
-  const metaRef = doc(db, collName, "meta");
-  const cur = { de: 0, tb: 0, kho: 0, nc: 0 };
-  const ms = await getDoc(metaRef);
-  if (ms.exists()) Object.assign(cur, (ms.data() || {}).counts || {});
-  let totalDocs = 0;
-  const plan = {};
-  for (const lv of ["de", "tb", "kho", "nc"]) {
-    const off = (cur[lv] || 0) % CH;
-    const fill = off > 0 && per[lv].length ? 1 : 0;
-    const rest = per[lv].length - (fill ? Math.min(per[lv].length, CH - off) : 0);
-    plan[lv] = { off, fill };
-    totalDocs += fill + Math.ceil(Math.max(0, rest) / CH);
-  }
-  let doneDocs = 0;
-  for (const lv of ["de", "tb", "kho", "nc"]) {
-    let items = [...per[lv]];
-    let idx = Math.floor((cur[lv] || 0) / CH);
-    if (plan[lv].fill) {
-      const cs = await getDoc(doc(db, collName, lv + "_" + idx));
-      const existing = cs.exists() ? ((cs.data() || {}).items || []) : null;
-      if (!existing || existing.length !== plan[lv].off) throw new Error("Không đọc được khúc cuối đang dở của kho — dừng ghi để tránh ghi đè dữ liệu cũ.");
-      const add = items.splice(0, CH - plan[lv].off);
-      await setDoc(doc(db, collName, lv + "_" + idx), { items: existing.concat(add) });
-      idx++; doneDocs++;
-      if (onProgress) onProgress(doneDocs, totalDocs);
-    }
-    for (let n = 0; n * CH < items.length; n++) {
-      await setDoc(doc(db, collName, lv + "_" + (idx + n)), { items: items.slice(n * CH, (n + 1) * CH) });
-      doneDocs++;
-      if (onProgress) onProgress(doneDocs, totalDocs);
-    }
-  }
-  const newCounts = { de: cur.de + per.de.length, tb: cur.tb + per.tb.length, kho: cur.kho + per.kho.length, nc: cur.nc + per.nc.length };
-  await setDoc(metaRef, { counts: newCounts, updatedAt: serverTimestamp() });
-  return newCounts;
-}
-
-let _aiMeta = null;
-let _aiChunks = {}; /* mức -> { items, used } khúc đang dùng trên máy này */
-async function aiBankMeta() {
-  if (_aiMeta) return _aiMeta;
-  const s = await getDoc(doc(db, "aiBank", "meta"));
-  _aiMeta = s.exists() ? (s.data() || {}) : null;
-  return _aiMeta;
-}
-async function aiBankAdd(per) {
-  const counts = await appendChunks("aiBank", per);
-  _aiMeta = { counts };
-  _aiChunks = {};
-  return counts;
-}
-
-/* Đánh dấu bản tin AI đã cấp cho TÀI KHOẢN này: doc
-   aiServed/{uid} {ids: [mã băm câu]} trên máy chủ + bản sao
-   localStorage trên máy. Câu đã đánh dấu không bao giờ được
-   cấp lại cho tài khoản này; tài khoản khác vẫn nhận được. */
-let _aiServed = null;
-async function aiServedSet() {
-  if (_aiServed) return _aiServed;
-  _aiServed = new Set();
-  try { (JSON.parse(localStorage.getItem("tt_ai_served") || "[]")).forEach((x) => _aiServed.add(x)); } catch (e) {}
-  try {
-    if (auth.currentUser) {
-      const s = await getDoc(doc(db, "aiServed", auth.currentUser.uid));
-      if (s.exists()) ((s.data() || {}).ids || []).forEach((x) => _aiServed.add(x));
-    }
-  } catch (e) {}
-  return _aiServed;
-}
-function aiMarkServed(hash) {
-  if (!hash) return;
-  if (_aiServed) _aiServed.add(hash);
-  try {
-    const arr = JSON.parse(localStorage.getItem("tt_ai_served") || "[]");
-    if (!arr.includes(hash)) { arr.push(hash); localStorage.setItem("tt_ai_served", JSON.stringify(arr.slice(-4000))); }
-  } catch (e) {}
-  (async () => {
-    try {
-      if (!auth.currentUser) return;
-      await setDoc(doc(db, "aiServed", auth.currentUser.uid), { ids: arrayUnion(hash), updatedAt: serverTimestamp() }, { merge: true });
-    } catch (e) {}
-  })();
-}
-
-/* Lấy 1 bản tin từ kho AI: đúng mức, sạch, chưa từng dùng ở
-   máy này, và QUAN TRỌNG — chưa từng được cấp cho tài khoản
-   này trước đây. Lấy xong là đánh dấu đã cấp ngay. */
-async function aiBankTake(level) {
-  try {
-    const meta = await aiBankMeta();
-    const total = meta && meta.counts ? (meta.counts[level] || 0) : 0;
-    if (!total) return null;
-    const served = await aiServedSet();
-    const seen = allSeenSet();
-    const band = LEVEL_BANDS[level];
-    const nChunks = Math.max(1, Math.ceil(total / 500));
-    for (let attempt = 0; attempt < 3; attempt++) {
-      let st = _aiChunks[level];
-      if (!st || st.items.every((_, i) => st.used[i])) {
-        const s = await getDoc(doc(db, "aiBank", level + "_" + Math.floor(Math.random() * nChunks)));
-        if (!s.exists()) return null;
-        const items = (s.data() || {}).items || [];
-        if (!items.length) return null;
-        st = _aiChunks[level] = { items, used: {} };
-      }
-      const freeIdx = st.items.map((_, i) => i).filter((i) => !st.used[i]);
-      for (let k = 0; k < Math.min(40, freeIdx.length); k++) {
-        const j = Math.floor(Math.random() * freeIdx.length);
-        const i = freeIdx.splice(j, 1)[0];
-        st.used[i] = true;
-        const it = st.items[i];
-        const t = typeof it === "string" ? it : (it && it.t);
-        if (!t || !isCleanVn(t, level)) continue;
-        const len = convertedLength(t);
-        if (len < band.min || len > band.max) continue;
-        const conv = convertText(t);
-        if (served.has(keyHash(conv))) continue; /* câu này ĐÃ cấp cho tài khoản này rồi */
-        if (seen.has(conv) || variantOfSeen(t, seen)) continue;
-        aiMarkServed(keyHash(conv));
-        rememberSeen(conv); rememberRaw(t.toUpperCase());
-        return { t, th: (it && it.th) || "" };
-      }
-      st.items.forEach((_, i) => { st.used[i] = true; });
-    }
-    return null;
-  } catch (e) { return null; }
-}
-
-/* Thời gian chờ AI tối đa (giây) do QUẢN TRỊ đặt ở panel
-   (doc config/aiSettings, mục "Cài đặt khác"). Khi bấm nút
-   AI, quá thời gian này mà AI chưa soạn xong thì người dùng
-   được cấp ngay bản tin từ kho AI / kho dự phòng — AI vẫn
-   chạy ngầm để lưu kho. Mặc định 8 giây, giới hạn 2–60;
-   ứng dụng tự đọc lại cài đặt mỗi phút. */
-let _aiWaitCfg = null;
-async function aiWaitSeconds() {
-  if (_aiWaitCfg && Date.now() - _aiWaitCfg.at < 60000) return _aiWaitCfg.sec;
-  let sec = 8;
-  try {
-    const s = await getDoc(doc(db, "config", "aiSettings"));
-    if (s.exists()) {
-      const v = Number((s.data() || {}).responseSeconds);
-      if (v >= 2 && v <= 60) sec = v;
-    }
-  } catch (e) {}
-  _aiWaitCfg = { sec, at: Date.now() };
-  return sec;
-}
-
 async function generateMessageSmart(firstTheme, level) {
   const band = LEVEL_BANDS[level];
   const seen = allSeenSet();
   const raws = recentRaws();
+  /* ƯU TIÊN KHO ĐỆM: còn câu AI đạt chuẩn đã soạn sẵn thì lấy
+     ngay — không tốn lượt gọi, ra kết quả tức thì. */
+  const buffered = aiBufferTake(level, seen);
+  if (buffered) {
+    rememberSeen(convertText(buffered.t)); rememberRaw(buffered.t.toUpperCase());
+    return { text: buffered.t.toUpperCase(), ai: true, theme: buffered.th, buffered: true };
+  }
   /* Hạn chót 20 giây cho cả quá trình (mọi vòng, mọi khóa). */
   const deadline = Date.now() + 20000;
   let lastErr = null;
   let adj = 0; // phản hồi độ lệch cho vòng sau: <0 viết ngắn lại, >0 viết dài ra
-  const fresh = []; // mọi câu sạch + chưa dùng của các vòng — sẽ LƯU KHO AI
-  let pick = null, pickTheme = null;
   for (let round = 0; round < 3; round++) {
     const theme = round === 0 ? firstTheme : THEMES[Math.floor(Math.random() * THEMES.length)];
     let cands = [];
@@ -2291,48 +2123,40 @@ async function generateMessageSmart(firstTheme, level) {
       cands = await aiCandidates(theme, level, raws.slice(-10), deadline, adj);
     } catch (e) { lastErr = e; break; }
     const cleanLens = [];
+    const good = [];
     for (const c of cands) {
+      if (!isCleanVn(c, level)) continue;
       const conv = convertText(c);
       const len = convertedLength(c);
-      /* LỌC THEO ĐỘ KHÓ ĐO ĐƯỢC: câu rơi vào dải của mức nào
-         thì tính cho mức đó (kể cả khác mức đang yêu cầu) —
-         không cắt, không sửa câu. */
-      const cBand = bandOfLen(len);
-      if (!cBand || !isCleanVn(c, cBand)) continue;
       cleanLens.push(len);
-      if (seen.has(conv) || variantOfSeen(c, seen)) continue;
-      if (fresh.some((x) => x.conv === conv)) continue;
-      fresh.push({ t: c, th: theme, band: cBand, conv });
-      if (!pick && cBand === level) { pick = c; pickTheme = theme; }
+      if (len >= band.min && len <= band.max && !seen.has(conv) && !variantOfSeen(c, seen)) good.push(c);
     }
-    if (pick) break;
-    /* Chưa có câu đúng mức yêu cầu: ghi nhận lệch về phía nào
-       để vòng sau nhắc AI chỉnh độ dài. */
+    if (good.length) {
+      /* Dùng câu đầu; các câu đạt chuẩn còn lại CẤT VÀO KHO ĐỆM
+         cho những lần bấm sau (đây là cách một lần gọi AI nuôi
+         được nhiều bản tin). */
+      const pick = good[0];
+      const rest = good.slice(1).map((c) => ({ t: c, th: theme }));
+      /* LƯU Ý: câu cất kho KHÔNG ghi vào danh sách "đã thấy /
+         câu gần đây" — danh sách đó nằm trong tập kiểm tra
+         trùng, ghi vào là câu trong kho tự bị loại oan khi lấy
+         ra. Chống trùng cho kho dựa vào: cất kho khử trùng theo
+         câu chữ, lúc lấy ra kiểm lại toàn bộ (đã dùng ở nơi
+         khác thì bỏ), câu nào được lấy ra dùng mới ghi nhận. */
+      if (rest.length) aiBufferStash(level, rest);
+      rememberSeen(convertText(pick)); rememberRaw(pick.toUpperCase());
+      return { text: pick.toUpperCase(), ai: true, theme };
+    }
+    /* Không câu nào đạt: ghi nhận lệch về phía nào để vòng sau
+       nhắc AI chỉnh độ dài — câu lệch bị bỏ, không cắt sửa. */
     if (cleanLens.length) {
-      if (cleanLens.every((L) => L > band.max)) adj -= 2;
-      else if (cleanLens.every((L) => L < band.min)) adj += 2;
+      if (cleanLens.every(L => L > band.max)) adj -= 2;
+      else if (cleanLens.every(L => L < band.min)) adj += 2;
     }
-    cands.forEach((c) => { if (!raws.includes(c)) raws.push(c); });
-  }
-  /* LƯU KHO AI DÙNG CHUNG: mọi câu đạt chuẩn của lần soạn này
-     (gồm cả câu khác mức yêu cầu) đều vào kho theo đúng mức
-     của chúng, để cấp dần cho mọi tài khoản — mỗi tài khoản
-     chỉ nhận mỗi câu đúng một lần. Lỗi lưu kho không làm
-     hỏng lần bấm này. */
-  let banked = 0;
-  if (fresh.length) {
-    const per = { de: [], tb: [], kho: [], nc: [] };
-    for (const it of fresh) per[it.band].push({ t: it.t, th: it.th });
-    banked = fresh.length;
-    try { await aiBankAdd(per); } catch (e) { banked = 0; }
-  }
-  if (pick) {
-    rememberSeen(convertText(pick)); rememberRaw(pick.toUpperCase());
-    aiMarkServed(keyHash(convertText(pick)));
-    return { text: pick.toUpperCase(), ai: true, theme: pickTheme, banked };
+    cands.forEach(c => { if (!raws.includes(c)) raws.push(c); });
   }
   if (lastErr) throw lastErr;
-  return { error: "nodup", theme: firstTheme, banked };
+  return { error: "nodup", theme: firstTheme };
 }
 
 function fillCustomText(text) {
@@ -2430,27 +2254,6 @@ function mountAiButton() {
       refreshAiButtons();
       return true;
     };
-    /* KHO AI DÙNG CHUNG: lấy 1 bản tin đúng mức từ kho AI —
-       câu được lấy chưa từng cấp cho tài khoản này trước đây
-       (hệ thống tự đánh dấu khi cấp). Trả về true nếu đã lấy
-       được và trình bày xong. */
-    const presentFromAiBank = async (why) => {
-      const ds2 = $("diffSel");
-      const lv = ds2 && ds2.value === "easy" ? "de" : ds2 && ds2.value === "hard" ? "kho" : ds2 && ds2.value === "adv" ? "nc" : "tb";
-      const item = await aiBankTake(lv);
-      if (!item) return false;
-      let outText = item.t.toUpperCase();
-      if (typeVal === "mixed" && lv === "nc" && !/\d/.test(outText)) {
-        const band = LEVEL_BANDS[lv];
-        const extra = " " + String(100 + Math.floor(Math.random() * 900));
-        if (convertedLength(outText + extra) <= band.max) outText += extra;
-      }
-      fillCustomText(outText);
-      if (window.ttShowDone) window.ttShowDone();
-      note.textContent = why + " — đã lấy 1 bản tin từ KHO AI · Chủ đề: " + (item.th || "—") + " · " + convertedLength(outText) + " ký tự (bản tin này sẽ không được cấp lại cho tài khoản này).";
-      refreshAiButtons();
-      return true;
-    };
     /* Báo rõ đang tạo trên CẢ hai nút (nút trong ngăn Cài đặt và
        nút nổi) để người dùng biết đã bấm thành công. */
     btn.disabled = true;
@@ -2462,33 +2265,8 @@ function mountAiButton() {
       const theme = THEMES[Math.floor(Math.random() * THEMES.length)];
       const ds = $("diffSel");
       const level = ds && ds.value === "easy" ? "de" : ds && ds.value === "hard" ? "kho" : ds && ds.value === "adv" ? "nc" : "tb";
-      /* AI chạy NGẦM ngay từ lúc bấm: dù người dùng được cấp
-         bản tin theo đường nào, quá trình soạn vẫn tiếp tục
-         và tự lưu mọi câu đạt chuẩn vào kho AI. Người dùng
-         chỉ chờ tối đa số giây quản trị đã đặt trong panel —
-         hết giờ là cấp ngay từ kho AI / kho dự phòng. */
-      const waitSec = await aiWaitSeconds();
-      note.textContent = "Đang soạn câu mới (chủ đề ngẫu nhiên)… tối đa " + waitSec + " giây sẽ có bản tin.";
-      let settled = false, gRes = null, gErr = null;
-      generateMessageSmart(theme, level)
-        .then((r) => { settled = true; gRes = r; })
-        .catch((e) => { settled = true; gErr = e; });
-      const t0 = Date.now();
-      while (!settled && Date.now() - t0 < waitSec * 1000) await new Promise((res) => setTimeout(res, 150));
-      if (!settled) {
-        /* Hết giờ chờ: cấp ngay từ kho dự phòng; AI vẫn chạy
-           ngầm để lưu kho cho những lần bấm sau. */
-        if (await presentFromAiBank("AI chưa soạn kịp trong " + waitSec + " giây (vẫn đang soạn ngầm để lưu kho AI)")) return;
-        if (await bankFallback("AI chưa soạn kịp trong " + waitSec + " giây")) return;
-        runSystemGen();
-        refreshAiButtons();
-        note.textContent = "AI chưa soạn kịp trong " + waitSec + " giây — đã tạo bản tin thường cho lần này. AI vẫn chạy ngầm, các câu soạn được sẽ tự lưu vào kho AI cho những lần sau.";
-        return;
-      }
-      if (gErr) throw gErr;
-      const r = gRes;
+      const r = await generateMessageSmart(theme, level);
       if (r.error) {
-        if (await presentFromAiBank("AI chưa soạn được câu mới ở mức này")) return;
         if (await bankFallback("AI chưa soạn được câu mới không trùng")) return;
         note.textContent = "AI chưa soạn được câu mới không trùng với các bản tin trước. Thầy bấm thử lại — mỗi lần bấm AI sẽ soạn theo chủ đề và bối cảnh khác.";
         refreshAiButtons();
@@ -2507,8 +2285,9 @@ function mountAiButton() {
       }
       fillCustomText(outText);
       if (window.ttShowDone) window.ttShowDone();
-      note.textContent = "AI soạn mới · Chủ đề: " + (r.theme || theme) + " · " + convertedLength(outText) + " ký tự · không trùng các bản tin trước — đã đưa vào ô “Tự nhập bản tin”, chọn mục đó rồi Phát/Luyện như thường."
-        + (r.banked ? " Vừa lưu " + r.banked + " câu AI đạt chuẩn vào kho AI dùng chung (đã lọc theo độ khó)." : "");
+      note.textContent = r.buffered
+        ? "AI · Chủ đề: " + (r.theme || theme) + " · " + convertedLength(outText) + " ký tự — câu AI đã soạn sẵn trong kho đệm, lấy ra dùng ngay, không tốn thêm lượt gọi của khóa."
+        : "AI soạn mới · Chủ đề: " + (r.theme || theme) + " · " + convertedLength(outText) + " ký tự · không trùng các bản tin trước — đã đưa vào ô “Tự nhập bản tin”, chọn mục đó rồi Phát/Luyện như thường.";
     } catch (e) {
       /* AI lỗi vì bất kỳ lý do gì: TỰ ĐỘNG tạo ngay một bản tin
          thường cho lần bấm này và KHÔNG thay đổi chức năng của
@@ -2516,11 +2295,8 @@ function mountAiButton() {
          thử AI như thường. Dòng thông báo nói đúng nguyên nhân
          để thầy biết cách xử lý nếu muốn dùng lại AI ngay. */
       const det = e ? [e.code, e.message].filter(Boolean).join(" · ").slice(0, 160) : "";
-      /* AI lỗi: thử cấp 1 bản tin từ KHO AI trước (câu trong
-         kho chưa từng cấp cho tài khoản này); kho AI cũng
-         không có thì mới tới kho Muse (nếu được tích) và
-         cuối cùng là bản tin thường. */
-      if (await presentFromAiBank("AI đang không hoạt động" + (det ? " (" + det + ")" : ""))) return;
+      /* Tài khoản được tích Kho Muse: lấy bản tin trong kho
+         thay cho bản tin thường ngay khi AI không hoạt động. */
       if (await bankFallback("AI đang không hoạt động" + (det ? " (" + det + ")" : ""))) return;
       runSystemGen();
       refreshAiButtons();
