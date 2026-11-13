@@ -752,14 +752,20 @@ function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-/* ---------------- Email thông báo (qua dịch vụ EmailJS) ----------------
-   Ứng dụng web tĩnh không có máy chủ gửi thư — dùng EmailJS
-   (dịch vụ gửi email ngay từ trình duyệt, miễn phí 200 thư/
-   tháng). Cấu hình nằm trong doc config/email do quản trị
-   điền ở tab "Cài đặt khác": { publicKey, serviceId,
-   tplRegister, tplApprove, adminEmail }. Chưa cấu hình thì
-   mọi lần gửi đều tự bỏ qua, đăng ký/duyệt vẫn chạy bình
-   thường. Hai thời điểm gửi:
+/* ---------------- Email thông báo (qua Apps Script của thầy) ----------------
+   Theo yêu cầu của thầy: KHÔNG dùng dịch vụ bên thứ ba (đã bỏ
+   EmailJS). Thư được gửi từ chính GMAIL CỦA THẦY bằng một
+   đoạn Google Apps Script chạy dưới tài khoản Google của
+   thầy (hạ tầng của Google, miễn phí 100 thư/ngày). Ứng dụng
+   gọi script qua địa chỉ Web App của nó; script kiểm tra mã
+   bí mật rồi dùng GmailApp gửi thư.
+   Cấu hình trong doc config/email: { scriptUrl, secret,
+   adminEmail } — thầy điền ở tab "Cài đặt khác" (file mã
+   script: script-gui-email-truyen-tin.gs em gửi kèm).
+   Trình duyệt không đọc được trả lời của Apps Script (gửi ở
+   chế độ no-cors) nên "đã gửi" nghĩa là yêu cầu đã được gửi
+   đi — bằng chứng thật là thư đến hộp thư.
+   Hai thời điểm gửi:
    - Có người đăng ký mới -> gửi cho THẦY (adminEmail) để duyệt.
    - Tài khoản được duyệt (chờ -> đang dùng) -> gửi cho NGƯỜI
      DÙNG vào email đã đăng ký, kèm thông tin tài khoản (tên
@@ -772,54 +778,49 @@ async function emailCfg() {
   catch (e) { _emailCfg = {}; }
   return _emailCfg;
 }
-function emailReady(cfg) { return !!(cfg && cfg.publicKey && cfg.serviceId && cfg.adminEmail); }
-let _emailjsLoading = null;
-function loadEmailJs() {
-  if (window.emailjs) return Promise.resolve(true);
-  if (_emailjsLoading) return _emailjsLoading;
-  _emailjsLoading = new Promise((res) => {
-    const sc = document.createElement("script");
-    sc.src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js";
-    sc.onload = () => res(!!window.emailjs);
-    sc.onerror = () => res(false);
-    document.head.appendChild(sc);
-  });
-  return _emailjsLoading;
-}
-async function sendViaEmailJs(templateId, params) {
+function emailReady(cfg) { return !!(cfg && cfg.scriptUrl && cfg.secret && cfg.adminEmail); }
+async function sendMailViaScript(to, subject, body) {
   try {
     const cfg = await emailCfg();
-    if (!emailReady(cfg) || !templateId) return false;
-    if (!(await loadEmailJs())) return false;
-    await window.emailjs.send(cfg.serviceId, templateId, params, { publicKey: cfg.publicKey });
+    if (!emailReady(cfg) || !emailOk(to)) return false;
+    await fetch(cfg.scriptUrl, {
+      method: "POST", mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ secret: cfg.secret, to, subject, body })
+    });
     return true;
   } catch (e) { return false; }
 }
 function notifyAdminNewRegistration(info) {
   (async () => {
     const cfg = await emailCfg();
-    if (!emailReady(cfg) || !cfg.tplRegister) return;
-    sendViaEmailJs(cfg.tplRegister, {
-      to_email: cfg.adminEmail,
-      username: info.username || "", name: info.name || "", class_name: info.className || "",
-      user_email: info.email || "",
-      message: "Có tài khoản mới đăng ký đang chờ duyệt: " + (info.username || "") + " (" + (info.name || "") + ", lớp " + (info.className || "") + ", email " + (info.email || "") + "). Thầy mở ứng dụng > Quản trị để duyệt."
-    });
+    if (!emailReady(cfg)) return;
+    sendMailViaScript(cfg.adminEmail,
+      "🔔 Truyền tin: có đăng ký mới chờ duyệt — " + (info.username || ""),
+      "Có một tài khoản mới vừa đăng ký ứng dụng Truyền tin và đang chờ thầy duyệt.\n\n" +
+      "• Tên đăng nhập: " + (info.username || "") + "\n" +
+      "• Họ và tên: " + (info.name || "") + "\n" +
+      "• Lớp: " + (info.className || "") + "\n" +
+      "• Email: " + (info.email || "") + "\n\n" +
+      "Thầy mở ứng dụng tại " + location.origin + location.pathname + ", vào Quản trị > tab Thành viên để duyệt.");
   })();
 }
 function notifyUserApproved(m) {
   (async () => {
-    if (!m || !m.email) return;
+    if (!m || !emailOk(m.email)) return;
     const cfg = await emailCfg();
-    if (!emailReady(cfg) || !cfg.tplApprove) return;
-    sendViaEmailJs(cfg.tplApprove, {
-      to_email: m.email,
-      username: m.username || "", name: m.name || "", class_name: m.className || "",
-      user_email: m.email,
-      expiry: m.expiry || "Vĩnh viễn",
-      login_url: location.origin + location.pathname,
-      message: "Tài khoản " + (m.username || "") + " đã được duyệt. Em đăng nhập tại " + location.origin + location.pathname + " bằng tên đăng nhập và mật khẩu đã đăng ký."
-    });
+    if (!emailReady(cfg)) return;
+    sendMailViaScript(m.email,
+      "✅ Tài khoản Truyền tin đã được duyệt — " + (m.username || ""),
+      "Chào " + (m.name || "em") + ",\n\n" +
+      "Tài khoản ứng dụng Truyền tin của em đã được thầy duyệt và dùng được ngay.\n\n" +
+      "• Tên đăng nhập: " + (m.username || "") + "\n" +
+      "• Họ và tên: " + (m.name || "") + "\n" +
+      "• Lớp: " + (m.className || "—") + "\n" +
+      "• Hạn dùng: " + (m.expiry || "Vĩnh viễn") + "\n" +
+      "• Địa chỉ đăng nhập: " + location.origin + location.pathname + "\n\n" +
+      "Em đăng nhập bằng tên đăng nhập và mật khẩu đã đăng ký. Nếu quên mật khẩu, em báo thầy để được cấp lại tài khoản.\n\n" +
+      "Chúc em luyện tập tốt!");
   })();
 }
 
@@ -931,13 +932,11 @@ function renderAdminList(body, members, schools, adminsSet) {
         <p class="tt-note" style="margin:6px 0">Khi khóa: người ngoài <b>không thấy giao diện đăng ký</b> ở cổng và cũng không đăng ký được (máy chủ chặn cả khi cố tình gọi thẳng). Tài khoản đã có vẫn đăng nhập bình thường; thầy vẫn thêm thành viên thủ công ở tab Thành viên.</p>
         <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="adm-reglock" style="width:19px;height:19px"> <span>Khóa đăng ký tài khoản mới</span> <span id="adm-reglock-state" style="color:#888;font-size:13px">đang đọc trạng thái…</span></label>
       </div>
-      <div style="margin-bottom:14px"><b>✉️ Cấu hình gửi email (EmailJS)</b>
-        <p class="tt-note" style="margin:6px 0">Ứng dụng web tĩnh không có máy chủ gửi thư nên dùng dịch vụ <b>EmailJS</b> (miễn phí 200 thư/tháng, gửi ngay từ trình duyệt): (1) vào <b>emailjs.com</b> đăng ký tài khoản, nối Gmail của thầy ở mục Email Services; (2) tạo 2 mẫu thư ở mục Email Templates — đặt ô <b>To Email</b> của mẫu là <b>{{to_email}}</b> và nội dung thư dùng các biến {{username}}, {{name}}, {{class_name}}, {{user_email}}, {{expiry}}, {{login_url}}, {{message}}; (3) điền các mã vào đây và bấm Lưu. Khi có người đăng ký mới, hệ thống gửi thư báo về email của thầy để thầy duyệt; khi thầy duyệt một tài khoản, hệ thống gửi thư kèm thông tin tài khoản cho người dùng đó. Chưa cấu hình thì hệ thống bỏ qua việc gửi thư, mọi thứ khác vẫn chạy bình thường.</p>
+      <div style="margin-bottom:14px"><b>✉️ Cấu hình gửi email (Apps Script — Gmail của thầy)</b>
+        <p class="tt-note" style="margin:6px 0">Thư được gửi từ <b>chính Gmail của thầy</b> qua một đoạn Google Apps Script chạy dưới tài khoản Google của thầy — không qua dịch vụ bên thứ ba nào, miễn phí 100 thư/ngày. Cách cài (một lần): (1) mở <b>script.google.com</b> bằng đúng tài khoản Gmail muốn dùng để gửi, tạo dự án mới và dán toàn bộ file mã <b>script-gui-email-truyen-tin.gs</b> em gửi kèm, sửa dòng SECRET trong mã thành mã bí mật thầy tự chọn; (2) bấm <b>Triển khai &gt; Lượt triển khai mới &gt; Ứng dụng web</b>, chọn "Thực thi với tư cách: Me" và "Ai có quyền truy cập: Anyone", bấm Deploy và cấp quyền gửi Gmail; (3) sao chép <b>URL ứng dụng web</b> dán vào ô dưới đây, điền mã bí mật <b>giống hệt</b> trong mã script, rồi bấm Lưu và Gửi thư thử. Khi có người đăng ký mới, hệ thống gửi thư báo về email của thầy để duyệt; khi thầy duyệt tài khoản, hệ thống gửi thư kèm thông tin tài khoản cho người dùng đó. Chưa cấu hình thì bỏ qua việc gửi thư, mọi thứ khác vẫn chạy.</p>
         <div class="tt-field"><label>Email của thầy (nhận thông báo đăng ký mới)</label><input id="em-admin" type="email" placeholder="vd: thaygiao@gmail.com"></div>
-        <div class="tt-field"><label>Khóa công khai EmailJS (Public Key)</label><input id="em-pub" placeholder="vd: AbCdEfGh1234567"></div>
-        <div class="tt-field"><label>Mã dịch vụ (Service ID)</label><input id="em-svc" placeholder="vd: service_xxxxxxx"></div>
-        <div class="tt-field"><label>Mã mẫu thư — báo đăng ký mới (gửi cho thầy)</label><input id="em-tplreg" placeholder="vd: template_xxxxxxx"></div>
-        <div class="tt-field"><label>Mã mẫu thư — duyệt tài khoản (gửi cho người dùng)</label><input id="em-tplappr" placeholder="vd: template_yyyyyyy"></div>
+        <div class="tt-field"><label>Địa chỉ Web App của Apps Script (URL triển khai)</label><input id="em-url" placeholder="vd: https://script.google.com/macros/s/AKfy.../exec"></div>
+        <div class="tt-field"><label>Mã bí mật (phải giống hệt dòng SECRET trong mã script)</label><input id="em-secret" placeholder="vd: truyen-tin-2026"></div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="tt-btn" id="em-save" style="width:auto;padding:8px 14px">💾 Lưu cấu hình email</button><button class="tt-btn" id="em-test" style="width:auto;padding:8px 14px;background:#5b6b7f">📨 Gửi thư thử</button><span id="em-msg" style="font-size:13px"></span></div>
       </div>
     </div>`;
@@ -1250,18 +1249,14 @@ function renderAdminList(body, members, schools, adminsSet) {
   (async () => {
     const cfg = await emailCfg();
     body.querySelector("#em-admin").value = cfg.adminEmail || "";
-    body.querySelector("#em-pub").value = cfg.publicKey || "";
-    body.querySelector("#em-svc").value = cfg.serviceId || "";
-    body.querySelector("#em-tplreg").value = cfg.tplRegister || "";
-    body.querySelector("#em-tplappr").value = cfg.tplApprove || "";
+    body.querySelector("#em-url").value = cfg.scriptUrl || "";
+    body.querySelector("#em-secret").value = cfg.secret || "";
   })();
   body.querySelector("#em-save").addEventListener("click", async () => {
     const data = {
       adminEmail: body.querySelector("#em-admin").value.trim(),
-      publicKey: body.querySelector("#em-pub").value.trim(),
-      serviceId: body.querySelector("#em-svc").value.trim(),
-      tplRegister: body.querySelector("#em-tplreg").value.trim(),
-      tplApprove: body.querySelector("#em-tplappr").value.trim()
+      scriptUrl: body.querySelector("#em-url").value.trim(),
+      secret: body.querySelector("#em-secret").value.trim()
     };
     if (data.adminEmail && !emailOk(data.adminEmail)) { emMsg.textContent = "Email nhận thông báo chưa đúng định dạng."; return; }
     emMsg.textContent = "Đang lưu…";
@@ -1272,14 +1267,13 @@ function renderAdminList(body, members, schools, adminsSet) {
     } catch (e) { emMsg.textContent = "Lưu thất bại: " + errText(e.code); }
   });
   body.querySelector("#em-test").addEventListener("click", async () => {
-    emMsg.textContent = "Đang gửi thử…";
     const cfg = await emailCfg();
-    if (!emailReady(cfg) || !cfg.tplRegister) { emMsg.textContent = "Chưa đủ cấu hình — cần Email của thầy, Khóa công khai, Mã dịch vụ và Mã mẫu thư đăng ký. Thầy điền rồi bấm Lưu trước."; return; }
-    const okSend = await sendViaEmailJs(cfg.tplRegister, {
-      to_email: cfg.adminEmail, username: "kiem-tra", name: "Thư gửi thử", class_name: "—", user_email: cfg.adminEmail,
-      message: "Đây là thư gửi thử từ panel quản trị ứng dụng Truyền tin. Nếu thầy nhận được thư này thì cấu hình gửi email đã đúng."
-    });
-    emMsg.textContent = okSend ? "Đã gửi thử ✔ — thầy kiểm tra hộp thư " + cfg.adminEmail : "Gửi thử thất bại — kiểm tra lại các mã EmailJS (khóa công khai / dịch vụ / mẫu thư).";
+    if (!emailReady(cfg)) { emMsg.textContent = "Chưa đủ cấu hình — cần Email của thầy, Địa chỉ Web App và Mã bí mật. Thầy điền rồi bấm Lưu trước."; return; }
+    emMsg.textContent = "Đang gửi thư thử…";
+    const okSend = await sendMailViaScript(cfg.adminEmail,
+      "📨 Truyền tin: thư gửi thử",
+      "Đây là thư gửi thử từ panel quản trị ứng dụng Truyền tin, gửi qua Apps Script bằng chính Gmail của thầy.\n\nNếu thầy nhận được thư này thì cấu hình gửi email đã đúng.");
+    emMsg.textContent = okSend ? "Đã gửi yêu cầu gửi thư ✔ — thầy kiểm tra hộp thư " + cfg.adminEmail + " sau ít phút (kể cả mục Spam). Không thấy thư thì kiểm tra lại URL, mã bí mật và quyền triển khai của script." : "Không gửi được yêu cầu — kiểm tra lại địa chỉ Web App.";
   });
 }
 
