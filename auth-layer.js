@@ -39,6 +39,9 @@ style.textContent = `
 .tt-tabs{display:flex;gap:8px;margin-bottom:14px}
 .tt-tabs button{flex:1;padding:9px;border-radius:9px;border:1.5px solid #0b5cad;background:#fff;color:#0b5cad;font-weight:600;cursor:pointer}
 .tt-tabs button.on{background:#0b5cad;color:#fff}
+.tt-admtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;border-bottom:2px solid #dbe4f0;padding-bottom:8px}
+.tt-admtabs button{padding:8px 13px;border-radius:9px;border:1.5px solid #0b5cad;background:#fff;color:#0b5cad;font-weight:600;cursor:pointer;font-size:14px}
+.tt-admtabs button.on{background:#0b5cad;color:#fff}
 .tt-field{margin-bottom:10px}
 .tt-field label{display:block;font-size:13px;font-weight:600;margin-bottom:4px;color:#333}
 .tt-field input{width:100%;padding:10px;border:1.5px solid #bbb;border-radius:9px;font-size:15px;box-sizing:border-box}
@@ -209,6 +212,7 @@ function emailFor(username) {
   return username.trim().toLowerCase().replace(/\s+/g, "") + EMAIL_DOMAIN;
 }
 function usernameOk(u) { return /^[a-z0-9._-]{3,30}$/.test(u.trim().toLowerCase()); }
+function emailOk(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(e || "").trim()); }
 function todayStr() {
   const d = new Date();
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -318,7 +322,7 @@ async function resolveAccess(user) {
     myProfile = { username: (user.email || "").split("@")[0], name: "Quản trị viên", className: "", role: "admin", status: "active", expiry: null };
     await setDoc(pRef, { ...myProfile, createdAt: serverTimestamp() });
   } else {
-    myProfile = { username: (user.email || "").split("@")[0], name: "", className: "", role: "member", status: "pending", expiry: null };
+    myProfile = { username: (user.email || "").split("@")[0], name: "", className: "", email: "", role: "member", status: "pending", expiry: null };
     await setDoc(pRef, { ...myProfile, createdAt: serverTimestamp() });
   }
   if (myIsAdmin) { grantAccess(); return; }
@@ -372,6 +376,7 @@ function showAuthForms() {
   <div id="tt-form-reg" style="display:none">
     <div class="tt-field"><label>Họ và tên</label><input id="rg-name" placeholder="vd: Nguyễn Văn An"></div>
     <div class="tt-field"><label>Lớp</label><input id="rg-class" placeholder="vd: 6A1"></div>
+    <div class="tt-field"><label>Email (để nhận thông báo khi tài khoản được duyệt)</label><input id="rg-email" type="email" placeholder="vd: an@gmail.com"></div>
     <div class="tt-field"><label>Tên đăng nhập (chữ thường không dấu, 3–30 ký tự)</label><input id="rg-user" autocomplete="username" placeholder="vd: an6a1"></div>
     <div class="tt-field"><label>Mật khẩu (ít nhất 6 ký tự)</label><input id="rg-pass" type="password" autocomplete="new-password"></div>
     <button class="tt-btn" id="btn-reg">Đăng ký</button>
@@ -411,17 +416,21 @@ function showAuthForms() {
   $("btn-reg").addEventListener("click", async () => {
     if (_regLocked) { showErr("Đăng ký đang tạm khóa — em liên hệ thầy để được cấp tài khoản."); return; }
     const name = $("rg-name").value.trim(), cls = $("rg-class").value.trim();
+    const email = $("rg-email").value.trim();
     const u = $("rg-user").value, p = $("rg-pass").value;
     if (!name || !cls) { showErr("Em điền đủ Họ và tên và Lớp nhé."); return; }
+    if (!emailOk(email)) { showErr("Email chưa đúng định dạng — em kiểm tra lại (vd: an@gmail.com)."); return; }
     if (!usernameOk(u)) { showErr("Tên đăng nhập không hợp lệ (chữ thường không dấu, số, dấu . _ -, 3–30 ký tự)."); return; }
     if (p.length < 6) { showErr("Mật khẩu phải có ít nhất 6 ký tự."); return; }
     const btn = $("btn-reg"); btn.disabled = true; btn.textContent = "Đang đăng ký…";
     try {
       const cred = await createUserWithEmailAndPassword(auth, emailFor(u), p);
       await setDoc(doc(db, "profiles", cred.user.uid), {
-        username: u.trim().toLowerCase(), name, className: cls, nickname: "", aiEnabled: false, useSharedKeys: false, useClaudeBank: false,
+        username: u.trim().toLowerCase(), name, className: cls, email, nickname: "", aiEnabled: false, useSharedKeys: false, useClaudeBank: false,
         role: "member", status: "pending", expiry: null, createdAt: serverTimestamp()
       });
+      /* Báo cho thầy qua email (nếu đã cấu hình gửi mail) để thầy duyệt. */
+      notifyAdminNewRegistration({ username: u.trim().toLowerCase(), name, className: cls, email });
     } catch (e) { showErr(errText(e.code)); btn.disabled = false; btn.textContent = "Đăng ký"; }
   });
 }
@@ -448,6 +457,7 @@ function grantAccess() {
   }
   buildChip();
   mountAiButton();
+  maybePromptEmail();
   syncHistory();
   setInterval(syncHistory, 20000);
   startHistWatch();
@@ -742,12 +752,111 @@ function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+/* ---------------- Email thông báo (qua dịch vụ EmailJS) ----------------
+   Ứng dụng web tĩnh không có máy chủ gửi thư — dùng EmailJS
+   (dịch vụ gửi email ngay từ trình duyệt, miễn phí 200 thư/
+   tháng). Cấu hình nằm trong doc config/email do quản trị
+   điền ở tab "Cài đặt khác": { publicKey, serviceId,
+   tplRegister, tplApprove, adminEmail }. Chưa cấu hình thì
+   mọi lần gửi đều tự bỏ qua, đăng ký/duyệt vẫn chạy bình
+   thường. Hai thời điểm gửi:
+   - Có người đăng ký mới -> gửi cho THẦY (adminEmail) để duyệt.
+   - Tài khoản được duyệt (chờ -> đang dùng) -> gửi cho NGƯỜI
+     DÙNG vào email đã đăng ký, kèm thông tin tài khoản (tên
+     đăng nhập, họ tên, lớp, hạn dùng, địa chỉ đăng nhập —
+     mật khẩu không ai xem được nên không gửi kèm). */
+let _emailCfg = null;
+async function emailCfg() {
+  if (_emailCfg !== null) return _emailCfg;
+  try { const s = await getDoc(doc(db, "config", "email")); _emailCfg = s.exists() ? (s.data() || {}) : {}; }
+  catch (e) { _emailCfg = {}; }
+  return _emailCfg;
+}
+function emailReady(cfg) { return !!(cfg && cfg.publicKey && cfg.serviceId && cfg.adminEmail); }
+let _emailjsLoading = null;
+function loadEmailJs() {
+  if (window.emailjs) return Promise.resolve(true);
+  if (_emailjsLoading) return _emailjsLoading;
+  _emailjsLoading = new Promise((res) => {
+    const sc = document.createElement("script");
+    sc.src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js";
+    sc.onload = () => res(!!window.emailjs);
+    sc.onerror = () => res(false);
+    document.head.appendChild(sc);
+  });
+  return _emailjsLoading;
+}
+async function sendViaEmailJs(templateId, params) {
+  try {
+    const cfg = await emailCfg();
+    if (!emailReady(cfg) || !templateId) return false;
+    if (!(await loadEmailJs())) return false;
+    await window.emailjs.send(cfg.serviceId, templateId, params, { publicKey: cfg.publicKey });
+    return true;
+  } catch (e) { return false; }
+}
+function notifyAdminNewRegistration(info) {
+  (async () => {
+    const cfg = await emailCfg();
+    if (!emailReady(cfg) || !cfg.tplRegister) return;
+    sendViaEmailJs(cfg.tplRegister, {
+      to_email: cfg.adminEmail,
+      username: info.username || "", name: info.name || "", class_name: info.className || "",
+      user_email: info.email || "",
+      message: "Có tài khoản mới đăng ký đang chờ duyệt: " + (info.username || "") + " (" + (info.name || "") + ", lớp " + (info.className || "") + ", email " + (info.email || "") + "). Thầy mở ứng dụng > Quản trị để duyệt."
+    });
+  })();
+}
+function notifyUserApproved(m) {
+  (async () => {
+    if (!m || !m.email) return;
+    const cfg = await emailCfg();
+    if (!emailReady(cfg) || !cfg.tplApprove) return;
+    sendViaEmailJs(cfg.tplApprove, {
+      to_email: m.email,
+      username: m.username || "", name: m.name || "", class_name: m.className || "",
+      user_email: m.email,
+      expiry: m.expiry || "Vĩnh viễn",
+      login_url: location.origin + location.pathname,
+      message: "Tài khoản " + (m.username || "") + " đã được duyệt. Em đăng nhập tại " + location.origin + location.pathname + " bằng tên đăng nhập và mật khẩu đã đăng ký."
+    });
+  })();
+}
+
+/* Tài khoản tạo trước khi có trường email: ở lần đăng nhập
+   tiếp theo hiện bảng nhắc bổ sung email (đóng được, lần sau
+   vẫn nhắc lại cho đến khi đã nhập). */
+let _emailPromptShown = false;
+function maybePromptEmail() {
+  if (_emailPromptShown || myIsAdmin || !myProfile || myProfile.email) return;
+  _emailPromptShown = true;
+  const body = openPanel("✉️ Bổ sung email", false);
+  body.innerHTML = `
+    <p class="tt-note" style="margin-top:0">Tài khoản của em được tạo từ trước khi ứng dụng yêu cầu email nên chưa có email. Em nhập email để nhận thông báo khi tài khoản được duyệt và các thông báo quan trọng từ thầy.</p>
+    <div class="tt-field"><label>Email của em</label><input id="eml-in" type="email" placeholder="vd: an@gmail.com"></div>
+    <div style="display:flex;gap:8px"><button class="tt-btn" id="eml-save" style="flex:1">💾 Lưu email</button><button class="tt-btn alt" id="eml-later" style="flex:1">Để sau</button></div>
+    <div id="eml-msg" style="font-size:13px;margin-top:8px"></div>`;
+  const close = () => { const c = document.querySelector("#tt-panel #tt-pclose"); if (c) c.click(); };
+  body.querySelector("#eml-later").addEventListener("click", close);
+  body.querySelector("#eml-save").addEventListener("click", async () => {
+    const v = body.querySelector("#eml-in").value.trim();
+    const msg = body.querySelector("#eml-msg");
+    if (!emailOk(v)) { msg.textContent = "Email chưa đúng định dạng — em kiểm tra lại."; return; }
+    try {
+      await updateDoc(doc(db, "profiles", auth.currentUser.uid), { email: v });
+      myProfile.email = v;
+      msg.innerHTML = "<span style='color:#1d9d55;font-weight:700'>Đã lưu email ✔</span>";
+      setTimeout(close, 700);
+    } catch (e) { msg.textContent = "Lưu thất bại: " + errText(e.code); }
+  });
+}
+
 /* ---------------- Quản trị ---------------- */
 let admState = { q: "", k: "name", dir: 1 };
 function roleOf(m, adminsSet) { return adminsSet.has(m.uid) ? "QT" : (m.role === "GV" ? "GV" : "HS"); }
 
 async function openAdminPanel() {
-  const body = openPanel("🛠 Quản trị thành viên", true);
+  const body = openPanel("🛠 Quản trị", true);
   body.innerHTML = `<p>Đang tải danh sách…</p>`;
   try {
     const snap = await getDocs(collection(db, "profiles"));
@@ -765,119 +874,83 @@ async function openAdminPanel() {
   }
 }
 
+let admTab = "members";
+let poolSort = { k: "at", dir: 1 };
+let schoolSort = { k: "name", dir: 1 };
 function renderAdminList(body, members, schools, adminsSet) {
   const schoolName = (id) => { const s = schools.find((x) => x.id === id); return s ? s.name : ""; };
   body.innerHTML = `
-    <div style="margin-bottom:14px"><b>🔒 Khóa đăng ký</b>
-      <p class="tt-note" style="margin:6px 0">Khi khóa: người ngoài <b>không thấy giao diện đăng ký</b> ở cổng và cũng không đăng ký được (máy chủ chặn cả khi cố tình gọi thẳng). Tài khoản đã có vẫn đăng nhập bình thường; thầy vẫn thêm thành viên thủ công ở mục dưới.</p>
-      <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="adm-reglock" style="width:19px;height:19px"> <span>Khóa đăng ký tài khoản mới</span> <span id="adm-reglock-state" style="color:#888;font-size:13px">đang đọc trạng thái…</span></label>
+    <div class="tt-admtabs">
+      <button data-tab="api">🔑 API</button>
+      <button data-tab="members">👥 Thành viên</button>
+      <button data-tab="bank">📚 Kho bản tin</button>
+      <button data-tab="schools">🏫 Trường</button>
+      <button data-tab="settings">⚙️ Cài đặt khác</button>
     </div>
-    <div style="margin-bottom:14px"><b>📚 Kho bản tin Muse</b>
-      <p class="tt-note" style="margin:6px 0" id="muse-status">Đang đọc số liệu kho…</p>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input type="file" id="muse-file" accept=".json,application/json"><button class="tt-btn" id="muse-import" style="width:auto;padding:8px 14px">📥 Nạp kho từ file</button><span id="muse-import-msg" style="font-size:13px"></span></div>
-      <p class="tt-note" style="margin:6px 0">Kho này KHÔNG nằm trong dữ liệu bản tin thông thường — chỉ tài khoản được tích cột <b>“Kho Muse”</b> trong bảng dưới mới gọi ra được: khi AI không hoạt động, ứng dụng tự lấy bản tin từ kho này cho các tài khoản đó.</p>
-    </div>
-    <div style="margin-bottom:14px"><b>🔑 Kho API Key dùng chung</b>
-      <p class="tt-note" style="margin:6px 0">Khóa do người dùng nhập ở nút 🔑 xanh tự động vào kho này. Hệ thống tự xoay vòng sang khóa khác khi một khóa hết hạn mức; khóa hỏng hẳn tự bị xoá khỏi kho. Chỉ thành viên được tích cột <b>“Key chung”</b> trong bảng dưới mới dùng được kho này.</p>
+    <div data-pane="api">
+      <p class="tt-note" style="margin:6px 0">Khóa do người dùng nhập ở nút 🔑 xanh tự động vào kho này. Hệ thống tự xoay vòng sang khóa khác khi một khóa hết hạn mức; khóa hỏng hẳn tự bị xoá khỏi kho. Chỉ thành viên được tích cột <b>“Key chung”</b> trong tab Thành viên mới dùng được kho này. Bấm vào tiêu đề cột để sắp xếp.</p>
       <div id="pool-box"><p>Đang tải kho…</p></div>
     </div>
-    <div style="margin-bottom:12px"><b>🏫 Trường học</b>
-      <div style="margin:6px 0">${schools.length ? schools.map((s) => `<span class="tt-badge tt-b-active" style="margin-right:6px">${esc(s.name)} (${members.filter((m) => m.schoolId === s.id).length}) <a href="#" data-del-school="${s.id}" style="color:#842029;text-decoration:none;font-weight:700">✕</a></span>`).join("") : "<span style='color:#666'>Chưa có trường nào — thêm trường ở ô dưới rồi gán cho từng thành viên trong bảng.</span>"}</div>
-      <div style="display:flex;gap:6px"><input id="adm-school-name" placeholder="Tên trường mới, vd: TH & THCS Bảo Thuận" style="flex:1;padding:8px;border:1.5px solid #ccd;border-radius:8px"><button class="tt-btn" id="adm-school-add" style="width:auto;padding:8px 14px">Thêm trường</button></div>
-    </div>
-    <div class="tt-field"><input id="adm-search" placeholder="Tìm theo tên đăng nhập, họ tên, biệt danh, lớp…"></div>
-    <div id="adm-add" style="margin-bottom:10px">
-      <button class="tt-btn" id="adm-addbtn" style="width:auto;padding:8px 14px">➕ Thêm thành viên</button>
-      <div id="adm-addform" style="display:none;margin-top:8px">
-        <div class="tt-field"><input id="ad-name" placeholder="Họ và tên"></div>
-        <div class="tt-field"><input id="ad-class" placeholder="Lớp (HS cần có; GV để trống)"></div>
-        <div class="tt-field"><input id="ad-user" placeholder="Tên đăng nhập (không dấu)"></div>
-        <div class="tt-field"><input id="ad-pass" placeholder="Mật khẩu cấp (≥ 6 ký tự)"></div>
-        <div class="tt-field"><select class="tt-sel" id="ad-role"><option value="HS">Học sinh (HS)</option><option value="GV">Giáo viên (GV)</option></select></div>
-        <div class="tt-field"><select class="tt-sel" id="ad-school"><option value="">— Chưa gán trường —</option>${schools.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select></div>
-        <button class="tt-btn" id="ad-create" style="width:auto;padding:8px 14px">Tạo và kích hoạt ngay</button>
-        <span id="ad-msg" style="margin-left:8px;font-size:13px"></span>
+    <div data-pane="members">
+      <div class="tt-field"><input id="adm-search" placeholder="Tìm theo tên đăng nhập, họ tên, biệt danh, lớp…"></div>
+      <div id="adm-add" style="margin-bottom:10px">
+        <button class="tt-btn" id="adm-addbtn" style="width:auto;padding:8px 14px">➕ Thêm thành viên</button>
+        <div id="adm-addform" style="display:none;margin-top:8px">
+          <div class="tt-field"><input id="ad-name" placeholder="Họ và tên"></div>
+          <div class="tt-field"><input id="ad-class" placeholder="Lớp (HS cần có; GV để trống)"></div>
+          <div class="tt-field"><input id="ad-email" type="email" placeholder="Email (không bắt buộc — để gửi thông báo tài khoản)"></div>
+          <div class="tt-field"><input id="ad-user" placeholder="Tên đăng nhập (không dấu)"></div>
+          <div class="tt-field"><input id="ad-pass" placeholder="Mật khẩu cấp (≥ 6 ký tự)"></div>
+          <div class="tt-field"><select class="tt-sel" id="ad-role"><option value="HS">Học sinh (HS)</option><option value="GV">Giáo viên (GV)</option></select></div>
+          <div class="tt-field"><select class="tt-sel" id="ad-school"><option value="">— Chưa gán trường —</option>${schools.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select></div>
+          <button class="tt-btn" id="ad-create" style="width:auto;padding:8px 14px">Tạo và kích hoạt ngay</button>
+          <span id="ad-msg" style="margin-left:8px;font-size:13px"></span>
+        </div>
       </div>
+      <div style="overflow-x:auto"><table class="tt-table" id="adm-table">
+        <thead><tr>
+          <th data-k="name">Họ tên</th><th data-k="nickname">Biệt danh</th><th data-k="className">Lớp</th>
+          <th data-k="expiry">Hạn dùng</th><th data-k="role">Vai trò</th><th data-k="schoolId">Trường</th>
+          <th data-k="aiEnabled">AI</th><th data-k="useSharedKeys">Key chung</th><th data-k="useClaudeBank">Kho Muse</th><th data-k="status">Thao tác</th>
+        </tr></thead><tbody id="adm-tbody"></tbody>
+      </table></div>
+      <p class="tt-note">Bấm vào tiêu đề cột để sắp xếp (cột Thao tác sắp xếp theo trạng thái tài khoản). GV không hiển thị lớp và xem được lịch sử học sinh cùng trường.</p>
     </div>
-    <div style="overflow-x:auto"><table class="tt-table" id="adm-table">
-      <thead><tr>
-        <th data-k="name">Họ tên</th><th data-k="nickname">Biệt danh</th><th data-k="className">Lớp</th>
-        <th data-k="expiry">Hạn dùng</th><th data-k="role">Vai trò</th><th data-k="schoolId">Trường</th>
-        <th data-k="aiEnabled">AI</th><th data-k="useSharedKeys">Key chung</th><th data-k="useClaudeBank">Kho Muse</th><th data-k="status">Thao tác</th>
-      </tr></thead><tbody id="adm-tbody"></tbody>
-    </table></div>
-    <p class="tt-note">Bấm vào tiêu đề cột để sắp xếp (cột Thao tác sắp xếp theo trạng thái tài khoản). GV không hiển thị lớp và xem được lịch sử học sinh cùng trường.</p>`;
-  /* --- Khóa đăng ký: đọc/ghi doc config/app --- */
-  const reglockEl = body.querySelector("#adm-reglock");
-  const reglockState = body.querySelector("#adm-reglock-state");
-  (async () => {
-    try {
-      const s = await getDoc(doc(db, "config", "app"));
-      const locked = !!(s.exists() && s.data().registrationLocked === true);
-      reglockEl.checked = locked;
-      reglockState.textContent = locked ? "— đang KHÓA, cổng không hiện đăng ký" : "— đang MỞ, ai cũng đăng ký được";
-    } catch (e) { reglockState.textContent = "— không đọc được (kiểm tra Rules có mục config/app chưa)"; }
-  })();
-  reglockEl.addEventListener("change", async () => {
-    const locked = reglockEl.checked;
-    reglockState.textContent = "đang lưu…";
-    try {
-      await setDoc(doc(db, "config", "app"), { registrationLocked: locked }, { merge: true });
-      _regLocked = locked; _regLockPromise = Promise.resolve(locked);
-      reglockState.textContent = locked ? "— đang KHÓA, cổng không hiện đăng ký" : "— đang MỞ, ai cũng đăng ký được";
-    } catch (e) { reglockState.textContent = "— lưu thất bại: " + errText(e.code); reglockEl.checked = !locked; }
-  });
-  /* --- Kho bản tin Muse: số liệu + nạp kho từ file JSON --- */
-  const museStatus = body.querySelector("#muse-status");
-  const paintMuseStatus = async () => {
-    try {
-      const s = await getDoc(doc(db, "museBank", "meta"));
-      if (!s.exists()) { museStatus.textContent = "Kho đang TRỐNG — thầy nạp file kho ở ô dưới để bắt đầu dùng."; return; }
-      const c = (s.data() || {}).counts || {};
-      const total = ["de", "tb", "kho", "nc"].reduce((a, k) => a + (c[k] || 0), 0);
-      museStatus.innerHTML = "Kho hiện có <b>" + total.toLocaleString("vi-VN") + " bản tin</b> — Dễ: " + (c.de || 0).toLocaleString("vi-VN") + " · Trung bình: " + (c.tb || 0).toLocaleString("vi-VN") + " · Khó: " + (c.kho || 0).toLocaleString("vi-VN") + " · Nâng cao: " + (c.nc || 0).toLocaleString("vi-VN") + ".";
-    } catch (e) { museStatus.textContent = "Không đọc được kho (kiểm tra Rules đã có mục museBank chưa)."; }
+    <div data-pane="bank">
+      <p class="tt-note" style="margin:6px 0" id="muse-status">Đang đọc số liệu kho…</p>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input type="file" id="muse-file" accept=".json,application/json"><button class="tt-btn" id="muse-import" style="width:auto;padding:8px 14px">📥 Nạp thêm vào kho</button><span id="muse-import-msg" style="font-size:13px"></span></div>
+      <p class="tt-note" style="margin:6px 0">Mỗi lần nạp là <b>nạp THÊM</b> vào kho hiện có, không thay thế. Chỉ nạp mỗi file một lần (nạp lại cùng một file sẽ tạo bản sao). Kho này KHÔNG nằm trong dữ liệu bản tin thông thường — chỉ tài khoản được tích cột <b>“Kho Muse”</b> trong tab Thành viên mới gọi ra được: khi AI không hoạt động, ứng dụng tự lấy bản tin từ kho này cho các tài khoản đó.</p>
+    </div>
+    <div data-pane="schools">
+      <div id="school-box"><p>Đang tải…</p></div>
+      <div style="display:flex;gap:6px;margin-top:10px"><input id="adm-school-name" placeholder="Tên trường mới, vd: TH & THCS Bảo Thuận" style="flex:1;padding:8px;border:1.5px solid #ccd;border-radius:8px"><button class="tt-btn" id="adm-school-add" style="width:auto;padding:8px 14px">Thêm trường</button></div>
+      <p class="tt-note">Gán trường cho từng thành viên trong tab Thành viên. GV xem được lịch sử học sinh cùng trường.</p>
+    </div>
+    <div data-pane="settings">
+      <div style="margin-bottom:16px"><b>🔒 Khóa đăng ký</b>
+        <p class="tt-note" style="margin:6px 0">Khi khóa: người ngoài <b>không thấy giao diện đăng ký</b> ở cổng và cũng không đăng ký được (máy chủ chặn cả khi cố tình gọi thẳng). Tài khoản đã có vẫn đăng nhập bình thường; thầy vẫn thêm thành viên thủ công ở tab Thành viên.</p>
+        <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="adm-reglock" style="width:19px;height:19px"> <span>Khóa đăng ký tài khoản mới</span> <span id="adm-reglock-state" style="color:#888;font-size:13px">đang đọc trạng thái…</span></label>
+      </div>
+      <div style="margin-bottom:14px"><b>✉️ Cấu hình gửi email (EmailJS)</b>
+        <p class="tt-note" style="margin:6px 0">Ứng dụng web tĩnh không có máy chủ gửi thư nên dùng dịch vụ <b>EmailJS</b> (miễn phí 200 thư/tháng, gửi ngay từ trình duyệt): (1) vào <b>emailjs.com</b> đăng ký tài khoản, nối Gmail của thầy ở mục Email Services; (2) tạo 2 mẫu thư ở mục Email Templates — đặt ô <b>To Email</b> của mẫu là <b>{{to_email}}</b> và nội dung thư dùng các biến {{username}}, {{name}}, {{class_name}}, {{user_email}}, {{expiry}}, {{login_url}}, {{message}}; (3) điền các mã vào đây và bấm Lưu. Khi có người đăng ký mới, hệ thống gửi thư báo về email của thầy để thầy duyệt; khi thầy duyệt một tài khoản, hệ thống gửi thư kèm thông tin tài khoản cho người dùng đó. Chưa cấu hình thì hệ thống bỏ qua việc gửi thư, mọi thứ khác vẫn chạy bình thường.</p>
+        <div class="tt-field"><label>Email của thầy (nhận thông báo đăng ký mới)</label><input id="em-admin" type="email" placeholder="vd: thaygiao@gmail.com"></div>
+        <div class="tt-field"><label>Khóa công khai EmailJS (Public Key)</label><input id="em-pub" placeholder="vd: AbCdEfGh1234567"></div>
+        <div class="tt-field"><label>Mã dịch vụ (Service ID)</label><input id="em-svc" placeholder="vd: service_xxxxxxx"></div>
+        <div class="tt-field"><label>Mã mẫu thư — báo đăng ký mới (gửi cho thầy)</label><input id="em-tplreg" placeholder="vd: template_xxxxxxx"></div>
+        <div class="tt-field"><label>Mã mẫu thư — duyệt tài khoản (gửi cho người dùng)</label><input id="em-tplappr" placeholder="vd: template_yyyyyyy"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="tt-btn" id="em-save" style="width:auto;padding:8px 14px">💾 Lưu cấu hình email</button><button class="tt-btn" id="em-test" style="width:auto;padding:8px 14px;background:#5b6b7f">📨 Gửi thư thử</button><span id="em-msg" style="font-size:13px"></span></div>
+      </div>
+    </div>`;
+  /* ---------- Chuyển tab ---------- */
+  const showTab = (t) => {
+    admTab = t;
+    body.querySelectorAll("[data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
+    body.querySelectorAll("[data-pane]").forEach((p) => { p.style.display = p.dataset.pane === t ? "" : "none"; });
   };
-  paintMuseStatus();
-  body.querySelector("#muse-import").addEventListener("click", async () => {
-    const msg = body.querySelector("#muse-import-msg");
-    const file = body.querySelector("#muse-file").files[0];
-    if (!file) { msg.textContent = "Thầy chọn file kho (.json) trước đã ạ."; return; }
-    try {
-      msg.textContent = "Đang đọc file…";
-      const json = JSON.parse(await file.text());
-      const src = json.kept ? json.kept : json;
-      const keyMap = { de: "de", tb: "tb", kho: "kho", nc: "nc", easy: "de", mid: "tb", hard: "kho", adv: "nc" };
-      const per = { de: [], tb: [], kho: [], nc: [] };
-      for (const k of Object.keys(src || {})) {
-        const lv = keyMap[k]; if (!lv || !Array.isArray(src[k])) continue;
-        for (const it of src[k]) {
-          const t = typeof it === "string" ? it : (it && it.t);
-          const th = typeof it === "object" && it ? (it.th || "") : "";
-          if (t && String(t).trim().length > 2) per[lv].push({ t: String(t).trim(), th });
-        }
-      }
-      const total = per.de.length + per.tb.length + per.kho.length + per.nc.length;
-      if (!total) { msg.textContent = "File không có bản tin hợp lệ nào (cần dạng {de:[...], tb:[...], kho:[...], nc:[...]})."; return; }
-      if (!confirm("Nạp " + total.toLocaleString("vi-VN") + " bản tin vào kho Muse? Dữ liệu kho cũ sẽ bị THAY THẾ.")) return;
-      const CH = 500;
-      let doneDocs = 0;
-      const totalDocs = ["de", "tb", "kho", "nc"].reduce((a, lv) => a + Math.ceil(per[lv].length / CH), 0);
-      for (const lv of ["de", "tb", "kho", "nc"]) {
-        for (let i = 0; i * CH < per[lv].length; i++) {
-          await setDoc(doc(db, "museBank", lv + "_" + i), { items: per[lv].slice(i * CH, (i + 1) * CH) });
-          doneDocs++;
-          msg.textContent = "Đang nạp… " + doneDocs + "/" + totalDocs + " phần";
-        }
-      }
-      await setDoc(doc(db, "museBank", "meta"), { counts: { de: per.de.length, tb: per.tb.length, kho: per.kho.length, nc: per.nc.length }, updatedAt: serverTimestamp() });
-      _museMeta = null; _museChunks = {};
-      msg.textContent = "✔ Đã nạp xong " + total.toLocaleString("vi-VN") + " bản tin vào kho Muse.";
-      paintMuseStatus();
-    } catch (e) { msg.textContent = "Nạp thất bại: " + (e && e.message ? e.message.slice(0, 120) : errText(e && e.code)); }
-  });
-  // Kho API Key dùng chung: bảng Key | Thời gian nhập | Người
-  // nhập | Tình trạng | Xoá (theo đúng yêu cầu của thầy).
+  body.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+  showTab(admTab);
+
+  /* ---------- Tab API: kho khóa Gemini dùng chung (có sắp xếp) ---------- */
   const poolBox = body.querySelector("#pool-box");
   const poolStatusLabel = (en) => {
     /* Màu tình trạng: Tốt = xanh lá, Hết quota = vàng, Lỗi = đỏ. */
@@ -888,11 +961,26 @@ function renderAdminList(body, members, schools, adminsSet) {
     if (en.checkedAt) main += `<br><span style="color:#888;font-size:11px">kiểm tra ${esc(new Date(en.checkedAt).toLocaleTimeString("vi-VN"))}</span>`;
     return main;
   };
-  const drawPool = (pool) => {
+  let poolCache = [];
+  const poolVal = (en, k) => {
+    switch (k) {
+      case "key": return (en.key || "").toLowerCase();
+      case "addedByName": return (en.addedByName || "").toLowerCase();
+      case "status": return en.status === "error" ? 0 : en.status === "quota" ? 1 : 2;
+      default: return en.at || 0;
+    }
+  };
+  const drawPool = () => {
     if (!poolBox) return;
-    if (!pool.length) { poolBox.innerHTML = "<p class='tt-note'>Kho đang trống — người dùng được dùng AI nhập khóa ở nút 🔑 xanh là khóa tự vào kho.</p>"; return; }
-    poolBox.innerHTML = `<div style="overflow-x:auto"><table class="tt-table"><thead><tr><th>Key</th><th>Thời gian nhập</th><th>Người nhập</th><th>Tình trạng</th><th>Xoá</th></tr></thead><tbody>${
-      pool.map((en) => `<tr>
+    if (!poolCache.length) { poolBox.innerHTML = "<p class='tt-note'>Kho đang trống — người dùng được dùng AI nhập khóa ở nút 🔑 xanh là khóa tự vào kho.</p>"; return; }
+    const list = [...poolCache];
+    list.sort((a, b) => {
+      const va = poolVal(a, poolSort.k), vb = poolVal(b, poolSort.k);
+      const c = (typeof va === "number" && typeof vb === "number") ? va - vb : String(va).localeCompare(String(vb), "vi");
+      return c * poolSort.dir;
+    });
+    poolBox.innerHTML = `<div style="overflow-x:auto"><table class="tt-table"><thead><tr><th data-pk="key">Key</th><th data-pk="at">Thời gian nhập</th><th data-pk="addedByName">Người nhập</th><th data-pk="status">Tình trạng</th><th>Xoá</th></tr></thead><tbody>${
+      list.map((en) => `<tr>
         <td style="font-family:monospace;white-space:nowrap">${esc(maskKey(en.key))} <button class="tt-btn" data-copy-pool="${en.id}" title="Sao chép khóa đầy đủ" style="width:auto;padding:2px 8px;background:#5b6b7f;font-size:12px">📋 Copy</button></td>
         <td>${en.at ? esc(new Date(en.at).toLocaleString("vi-VN")) : "—"}</td>
         <td>${esc(en.addedByName || "—")}</td>
@@ -900,8 +988,18 @@ function renderAdminList(body, members, schools, adminsSet) {
         <td><button class="tt-btn" data-del-pool="${en.id}" style="width:auto;padding:4px 10px;background:#842029">Xoá</button></td>
       </tr>`).join("")
     }</tbody></table></div>`;
+    poolBox.querySelectorAll("th[data-pk]").forEach((th) => {
+      const base = th.textContent.replace(/ [▲▼]$/, "");
+      th.textContent = base + (th.dataset.pk === poolSort.k ? (poolSort.dir === 1 ? " ▲" : " ▼") : "");
+      th.style.cursor = "pointer";
+      th.addEventListener("click", () => {
+        const k = th.dataset.pk;
+        if (poolSort.k === k) poolSort.dir = -poolSort.dir; else { poolSort.k = k; poolSort.dir = 1; }
+        drawPool();
+      });
+    });
     poolBox.querySelectorAll("[data-copy-pool]").forEach((b) => b.addEventListener("click", async () => {
-      const en = pool.find((x) => x.id === b.dataset.copyPool);
+      const en = poolCache.find((x) => x.id === b.dataset.copyPool);
       if (!en) return;
       try { await navigator.clipboard.writeText(en.key); }
       catch (e) {
@@ -914,20 +1012,24 @@ function renderAdminList(body, members, schools, adminsSet) {
       setTimeout(() => { b.textContent = old; }, 1500);
     }));
     poolBox.querySelectorAll("[data-del-pool]").forEach((b) => b.addEventListener("click", async () => {
-      const en = pool.find((x) => x.id === b.dataset.delPool);
+      const en = poolCache.find((x) => x.id === b.dataset.delPool);
       if (!en) return;
       if (!confirm("Xoá khóa " + maskKey(en.key) + " khỏi kho dùng chung?")) return;
       await deletePoolKey(en);
-      drawPool(await loadKeyPool(true));
+      poolCache = await loadKeyPool(true);
+      drawPool();
     }));
   };
   loadKeyPool(true).then(async (pool) => {
-    drawPool(pool);
+    poolCache = pool;
+    drawPool();
     /* Tự kiểm tra THẬT từng khóa ngay khi mở panel (gọi thử
        Gemini) để tình trạng hiển thị là đúng lúc này, không
        phải số liệu cũ — vẽ lại bảng sau mỗi khóa kiểm tra xong. */
-    for (const en of pool) { await verifyPoolKey(en); drawPool(pool); }
+    for (const en of poolCache) { await verifyPoolKey(en); drawPool(); }
   }).catch(() => { if (poolBox) poolBox.innerHTML = "<p class='tt-note'>Không tải được kho — kiểm tra Rules đã có mục apiKeys chưa.</p>"; });
+
+  /* ---------- Tab Thành viên ---------- */
   const tbody = body.querySelector("#adm-tbody");
   const sortVal = (m, k) => {
     switch (k) {
@@ -968,18 +1070,6 @@ function renderAdminList(body, members, schools, adminsSet) {
   const searchEl = body.querySelector("#adm-search");
   searchEl.value = admState.q;
   searchEl.addEventListener("input", (e) => { admState.q = e.target.value; draw(); });
-  body.querySelector("#adm-school-add").addEventListener("click", async () => {
-    const name = body.querySelector("#adm-school-name").value.trim();
-    if (!name) { alert("Thầy nhập tên trường trước đã ạ."); return; }
-    try { await addDoc(collection(db, "schools"), { name, createdAt: serverTimestamp() }); openAdminPanel(); }
-    catch (e) { alert(errText(e.code)); }
-  });
-  body.querySelectorAll("[data-del-school]").forEach((a) => a.addEventListener("click", async (ev) => {
-    ev.preventDefault();
-    const s = schools.find((x) => x.id === a.dataset.delSchool);
-    if (!confirm("Xoá trường “" + (s ? s.name : "") + "”? Thành viên đã gán trường này sẽ thành chưa gán trường (tài khoản không bị xoá).")) return;
-    try { await deleteDoc(doc(db, "schools", a.dataset.delSchool)); openAdminPanel(); } catch (e) { alert(errText(e.code)); }
-  }));
   body.querySelector("#adm-addbtn").addEventListener("click", () => {
     const f = body.querySelector("#adm-addform");
     f.style.display = f.style.display === "none" ? "" : "none";
@@ -988,11 +1078,13 @@ function renderAdminList(body, members, schools, adminsSet) {
     const msg = body.querySelector("#ad-msg");
     const name = body.querySelector("#ad-name").value.trim();
     const cls = body.querySelector("#ad-class").value.trim();
+    const email = body.querySelector("#ad-email").value.trim();
     const u = body.querySelector("#ad-user").value;
     const p = body.querySelector("#ad-pass").value;
     const role = body.querySelector("#ad-role").value;
     const schoolId = body.querySelector("#ad-school").value;
     if (!name || !usernameOk(u) || p.length < 6 || (role !== "GV" && !cls)) { msg.textContent = "Kiểm tra lại: cần họ tên, tên đăng nhập hợp lệ, mật khẩu ≥ 6 ký tự; HS cần có lớp."; return; }
+    if (email && !emailOk(email)) { msg.textContent = "Email chưa đúng định dạng — kiểm tra lại hoặc để trống."; return; }
     msg.textContent = "Đang tạo…";
     let secondary = null;
     try {
@@ -1000,19 +1092,194 @@ function renderAdminList(body, members, schools, adminsSet) {
       const sAuth = getAuth(secondary);
       const cred = await createUserWithEmailAndPassword(sAuth, emailFor(u), p);
       await setDoc(doc(db, "profiles", cred.user.uid), {
-        username: u.trim().toLowerCase(), name, className: cls, nickname: "", aiEnabled: false, useSharedKeys: false, useClaudeBank: false,
+        username: u.trim().toLowerCase(), name, className: cls, email, nickname: "", aiEnabled: false, useSharedKeys: false, useClaudeBank: false,
         role: role === "GV" ? "GV" : "HS", schoolId,
         status: "pending", expiry: null, createdAt: serverTimestamp()
       });
       await updateDoc(doc(db, "profiles", cred.user.uid), { status: "active" });
       await signOut(sAuth);
       msg.textContent = "Đã tạo và kích hoạt: " + u.trim().toLowerCase();
+      if (email) notifyUserApproved({ username: u.trim().toLowerCase(), name, className: cls, email, expiry: null });
       openAdminPanel();
-    } catch (e) {
-      msg.textContent = errText(e.code);
-    } finally {
-      if (secondary) { try { await deleteApp(secondary); } catch (e) {} }
-    }
+    } catch (e) { msg.textContent = errText(e.code); }
+    finally { if (secondary) { try { await deleteApp(secondary); } catch (e) {} } }
+  });
+
+  /* ---------- Tab Kho bản tin Muse: số liệu + NẠP THÊM ---------- */
+  const museStatus = body.querySelector("#muse-status");
+  const paintMuseStatus = async () => {
+    try {
+      const s = await getDoc(doc(db, "museBank", "meta"));
+      if (!s.exists()) { museStatus.textContent = "Kho đang TRỐNG — thầy nạp file kho ở ô dưới để bắt đầu dùng."; return; }
+      const c = (s.data() || {}).counts || {};
+      const total = ["de", "tb", "kho", "nc"].reduce((a, k) => a + (c[k] || 0), 0);
+      museStatus.innerHTML = "Kho hiện có <b>" + total.toLocaleString("vi-VN") + " bản tin</b> — Dễ: " + (c.de || 0).toLocaleString("vi-VN") + " · Trung bình: " + (c.tb || 0).toLocaleString("vi-VN") + " · Khó: " + (c.kho || 0).toLocaleString("vi-VN") + " · Nâng cao: " + (c.nc || 0).toLocaleString("vi-VN") + ".";
+    } catch (e) { museStatus.textContent = "Không đọc được kho (kiểm tra Rules đã có mục museBank chưa)."; }
+  };
+  paintMuseStatus();
+  body.querySelector("#muse-import").addEventListener("click", async () => {
+    const msg = body.querySelector("#muse-import-msg");
+    const file = body.querySelector("#muse-file").files[0];
+    if (!file) { msg.textContent = "Thầy chọn file kho (.json) trước đã ạ."; return; }
+    try {
+      msg.textContent = "Đang đọc file…";
+      const json = JSON.parse(await file.text());
+      const src = json.kept ? json.kept : json;
+      const keyMap = { de: "de", tb: "tb", kho: "kho", nc: "nc", easy: "de", mid: "tb", hard: "kho", adv: "nc" };
+      const per = { de: [], tb: [], kho: [], nc: [] };
+      for (const k of Object.keys(src || {})) {
+        const lv = keyMap[k]; if (!lv || !Array.isArray(src[k])) continue;
+        const inFile = new Set();
+        for (const it of src[k]) {
+          const t = typeof it === "string" ? it : (it && it.t);
+          const th = typeof it === "object" && it ? (it.th || "") : "";
+          const tt = t ? String(t).trim() : "";
+          if (tt.length > 2 && !inFile.has(tt)) { inFile.add(tt); per[lv].push({ t: tt, th }); }
+        }
+      }
+      const total = per.de.length + per.tb.length + per.kho.length + per.nc.length;
+      if (!total) { msg.textContent = "File không có bản tin hợp lệ nào (cần dạng {de:[...], tb:[...], kho:[...], nc:[...]})."; return; }
+      /* NẠP THÊM: đọc số câu hiện có, ghi nối tiếp từ khúc trống
+         đầu tiên của mỗi mức; kho cũ giữ nguyên. */
+      const cur = { de: 0, tb: 0, kho: 0, nc: 0 };
+      try { const ms = await getDoc(doc(db, "museBank", "meta")); if (ms.exists()) Object.assign(cur, (ms.data() || {}).counts || {}); } catch (e) {}
+      const curTotal = cur.de + cur.tb + cur.kho + cur.nc;
+      if (!confirm("Nạp THÊM " + total.toLocaleString("vi-VN") + " bản tin vào kho Muse (kho hiện đang có " + curTotal.toLocaleString("vi-VN") + ")? Kho cũ được giữ nguyên.")) return;
+      const CH = 500;
+      let doneDocs = 0;
+      /* Đếm trước tổng số lần ghi: mỗi mức có thể cần 1 lần
+         "chắp đầy" khúc cuối đang dở + các khúc 500 mới. */
+      let totalDocs = 0;
+      const plan = {};
+      for (const lv of ["de", "tb", "kho", "nc"]) {
+        const off = (cur[lv] || 0) % CH;
+        const fill = off > 0 && per[lv].length ? 1 : 0;
+        const rest = per[lv].length - (fill ? Math.min(per[lv].length, CH - off) : 0);
+        plan[lv] = { off, fill, rest };
+        totalDocs += fill + Math.ceil(Math.max(0, rest) / CH);
+      }
+      for (const lv of ["de", "tb", "kho", "nc"]) {
+        let items = [...per[lv]];
+        let idx = Math.floor((cur[lv] || 0) / CH);
+        const { off, fill } = plan[lv];
+        if (fill) {
+          /* Chắp thêm vào khúc cuối đang dở cho đầy 500 — giữ
+             nguyên tắc "mọi khúc trừ khúc cuối đều đủ 500 câu"
+             để phía lấy bản tin tính đúng số khúc theo tổng số. */
+          const cs = await getDoc(doc(db, "museBank", lv + "_" + idx));
+          const existing = cs.exists() ? ((cs.data() || {}).items || []) : null;
+          if (!existing || existing.length !== off) throw new Error("Không đọc được khúc cuối của mức " + lv + " — dừng nạp để tránh ghi đè dữ liệu cũ.");
+          const add = items.splice(0, CH - off);
+          await setDoc(doc(db, "museBank", lv + "_" + idx), { items: existing.concat(add) });
+          idx++; doneDocs++;
+          msg.textContent = "Đang nạp thêm… " + doneDocs + "/" + totalDocs + " phần";
+        }
+        for (let n = 0; n * CH < items.length; n++) {
+          await setDoc(doc(db, "museBank", lv + "_" + (idx + n)), { items: items.slice(n * CH, (n + 1) * CH) });
+          doneDocs++;
+          msg.textContent = "Đang nạp thêm… " + doneDocs + "/" + totalDocs + " phần";
+        }
+      }
+      const newCounts = { de: cur.de + per.de.length, tb: cur.tb + per.tb.length, kho: cur.kho + per.kho.length, nc: cur.nc + per.nc.length };
+      await setDoc(doc(db, "museBank", "meta"), { counts: newCounts, updatedAt: serverTimestamp() });
+      _museMeta = null; _museChunks = {};
+      msg.textContent = "✔ Đã nạp thêm " + total.toLocaleString("vi-VN") + " bản tin — kho hiện có " + (newCounts.de + newCounts.tb + newCounts.kho + newCounts.nc).toLocaleString("vi-VN") + " bản tin.";
+      paintMuseStatus();
+    } catch (e) { msg.textContent = "Nạp thất bại: " + (e && e.message ? e.message.slice(0, 120) : errText(e && e.code)); }
+  });
+
+  /* ---------- Tab Trường: bảng trường học (có sắp xếp) ---------- */
+  const schoolBox = body.querySelector("#school-box");
+  const drawSchools = () => {
+    if (!schools.length) { schoolBox.innerHTML = "<p class='tt-note'>Chưa có trường nào — thêm trường ở ô dưới rồi gán cho từng thành viên trong tab Thành viên.</p>"; return; }
+    const val = (s, k) => k === "count" ? members.filter((m) => m.schoolId === s.id).length : (s.name || "").toLowerCase();
+    const list = [...schools];
+    list.sort((a, b) => {
+      const va = val(a, schoolSort.k), vb = val(b, schoolSort.k);
+      const c = (typeof va === "number" && typeof vb === "number") ? va - vb : String(va).localeCompare(String(vb), "vi");
+      return c * schoolSort.dir;
+    });
+    schoolBox.innerHTML = `<div style="overflow-x:auto"><table class="tt-table"><thead><tr><th data-sk="name">Tên trường</th><th data-sk="count">Số thành viên</th><th>Xoá</th></tr></thead><tbody>${
+      list.map((s) => `<tr><td>${esc(s.name)}</td><td>${members.filter((m) => m.schoolId === s.id).length}</td><td><button class="tt-btn" data-del-school="${s.id}" style="width:auto;padding:4px 10px;background:#842029">Xoá</button></td></tr>`).join("")
+    }</tbody></table></div>`;
+    schoolBox.querySelectorAll("th[data-sk]").forEach((th) => {
+      const base = th.textContent.replace(/ [▲▼]$/, "");
+      th.textContent = base + (th.dataset.sk === schoolSort.k ? (schoolSort.dir === 1 ? " ▲" : " ▼") : "");
+      th.style.cursor = "pointer";
+      th.addEventListener("click", () => {
+        const k = th.dataset.sk;
+        if (schoolSort.k === k) schoolSort.dir = -schoolSort.dir; else { schoolSort.k = k; schoolSort.dir = 1; }
+        drawSchools();
+      });
+    });
+    schoolBox.querySelectorAll("[data-del-school]").forEach((b) => b.addEventListener("click", async () => {
+      const s = schools.find((x) => x.id === b.dataset.delSchool);
+      if (!confirm("Xoá trường “" + (s ? s.name : "") + "”? Thành viên đã gán trường này sẽ thành chưa gán trường (tài khoản không bị xoá).")) return;
+      try { await deleteDoc(doc(db, "schools", b.dataset.delSchool)); openAdminPanel(); } catch (e) { alert(errText(e.code)); }
+    }));
+  };
+  drawSchools();
+  body.querySelector("#adm-school-add").addEventListener("click", async () => {
+    const name = body.querySelector("#adm-school-name").value.trim();
+    if (!name) { alert("Thầy nhập tên trường trước đã ạ."); return; }
+    try { await addDoc(collection(db, "schools"), { name, createdAt: serverTimestamp() }); openAdminPanel(); }
+    catch (e) { alert(errText(e.code)); }
+  });
+
+  /* ---------- Tab Cài đặt khác: khóa đăng ký + cấu hình email ---------- */
+  const reglockEl = body.querySelector("#adm-reglock");
+  const reglockState = body.querySelector("#adm-reglock-state");
+  (async () => {
+    try {
+      const s = await getDoc(doc(db, "config", "app"));
+      const locked = !!(s.exists() && s.data().registrationLocked === true);
+      reglockEl.checked = locked;
+      reglockState.textContent = locked ? "— đang KHÓA, cổng không hiện đăng ký" : "— đang MỞ, ai cũng đăng ký được";
+    } catch (e) { reglockState.textContent = "— không đọc được (kiểm tra Rules có mục config/app chưa)"; }
+  })();
+  reglockEl.addEventListener("change", async () => {
+    const locked = reglockEl.checked;
+    reglockState.textContent = "đang lưu…";
+    try {
+      await setDoc(doc(db, "config", "app"), { registrationLocked: locked }, { merge: true });
+      _regLocked = locked; _regLockPromise = Promise.resolve(locked);
+      reglockState.textContent = locked ? "— đang KHÓA, cổng không hiện đăng ký" : "— đang MỞ, ai cũng đăng ký được";
+    } catch (e) { reglockState.textContent = "— lưu thất bại: " + errText(e.code); reglockEl.checked = !locked; }
+  });
+  const emMsg = body.querySelector("#em-msg");
+  (async () => {
+    const cfg = await emailCfg();
+    body.querySelector("#em-admin").value = cfg.adminEmail || "";
+    body.querySelector("#em-pub").value = cfg.publicKey || "";
+    body.querySelector("#em-svc").value = cfg.serviceId || "";
+    body.querySelector("#em-tplreg").value = cfg.tplRegister || "";
+    body.querySelector("#em-tplappr").value = cfg.tplApprove || "";
+  })();
+  body.querySelector("#em-save").addEventListener("click", async () => {
+    const data = {
+      adminEmail: body.querySelector("#em-admin").value.trim(),
+      publicKey: body.querySelector("#em-pub").value.trim(),
+      serviceId: body.querySelector("#em-svc").value.trim(),
+      tplRegister: body.querySelector("#em-tplreg").value.trim(),
+      tplApprove: body.querySelector("#em-tplappr").value.trim()
+    };
+    if (data.adminEmail && !emailOk(data.adminEmail)) { emMsg.textContent = "Email nhận thông báo chưa đúng định dạng."; return; }
+    emMsg.textContent = "Đang lưu…";
+    try {
+      await setDoc(doc(db, "config", "email"), data, { merge: true });
+      _emailCfg = data;
+      emMsg.textContent = "Đã lưu cấu hình email ✔";
+    } catch (e) { emMsg.textContent = "Lưu thất bại: " + errText(e.code); }
+  });
+  body.querySelector("#em-test").addEventListener("click", async () => {
+    emMsg.textContent = "Đang gửi thử…";
+    const cfg = await emailCfg();
+    if (!emailReady(cfg) || !cfg.tplRegister) { emMsg.textContent = "Chưa đủ cấu hình — cần Email của thầy, Khóa công khai, Mã dịch vụ và Mã mẫu thư đăng ký. Thầy điền rồi bấm Lưu trước."; return; }
+    const okSend = await sendViaEmailJs(cfg.tplRegister, {
+      to_email: cfg.adminEmail, username: "kiem-tra", name: "Thư gửi thử", class_name: "—", user_email: cfg.adminEmail,
+      message: "Đây là thư gửi thử từ panel quản trị ứng dụng Truyền tin. Nếu thầy nhận được thư này thì cấu hình gửi email đã đúng."
+    });
+    emMsg.textContent = okSend ? "Đã gửi thử ✔ — thầy kiểm tra hộp thư " + cfg.adminEmail : "Gửi thử thất bại — kiểm tra lại các mã EmailJS (khóa công khai / dịch vụ / mẫu thư).";
   });
 }
 
@@ -1023,7 +1290,7 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
   const badgeCls = m.status === "pending" ? "tt-b-pending" : (m.status === "stopped" || expired) ? "tt-b-stopped" : "tt-b-active";
   const ref = doc(db, "profiles", m.uid);
   const reload = () => openAdminPanel();
-  const upd = async (data) => { try { await updateDoc(ref, data); Object.assign(m, data); reload(); } catch (e) { alert(errText(e.code)); } };
+  const upd = async (data) => { const prevStatus = m.status; try { await updateDoc(ref, data); Object.assign(m, data); if (data.status === "active" && prevStatus === "pending") notifyUserApproved(m); reload(); } catch (e) { alert(errText(e.code)); } };
   const tr = document.createElement("tr");
   tr.innerHTML = `
     <td><b>${m.aiEnabled ? `<span class="tt-rainbow">${esc(displayName(m))}</span>` : esc(displayName(m))}</b><br><span style="color:#888">@${esc(m.username || "")}</span><br><span class="tt-badge ${badgeCls}">${statusLabel}</span></td>
