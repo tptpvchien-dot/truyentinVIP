@@ -2361,7 +2361,25 @@ const SO_SENTENCE_CLUES = [
   { L: "M", v: 5, text: "“Năm mét”", derive: "“mét” chỉ mặt chữ M; “năm” cho con số 5 → cặp neo M = 5, đếm vòng tròn từ M." },
   { L: "O", v: 16, text: "“Trăng tròn”", derive: "“Trăng tròn” vừa gợi hình chữ O vừa là ngày trăng tròn nhất (16) → cặp neo O = 16, đếm vòng tròn từ O." },
   { L: "D", v: 17, text: "“Chú dê con thật thấp”", derive: "“dê” chỉ mặt chữ D; “thật thấp” đọc lái thành “thập thất” = 17 → cặp neo D = 17, đếm vòng tròn từ D." },
-  { L: "M", v: 6, text: "“Em thật sâu sắc”", derive: "“Em” chỉ mặt chữ M; “sâu” đọc lái “sáu” = 6 → cặp neo M = 6, đếm vòng tròn từ M." }
+  { L: "M", v: 6, text: "“Em thật sâu sắc”", derive: "“Em” chỉ mặt chữ M; “sâu” đọc lái “sáu” = 6 → cặp neo M = 6, đếm vòng tròn từ M." },
+  { L: "A", v: 1, text: "“Anh cả là nhất”", derive: "“Anh cả” chỉ mặt chữ A; “nhất” là một → cặp neo A = 1, đếm vòng tròn từ A." },
+  { L: "Q", v: 2, text: "“Đôi rùa bơi thi”", derive: "“rùa” chỉ mặt chữ Q; “đôi” là hai → cặp neo Q = 2, đếm vòng tròn từ Q." },
+  { L: "M", v: 3, text: "“Em vẽ tam giác”", derive: "“Em” chỉ mặt chữ M; “tam” là ba → cặp neo M = 3, đếm vòng tròn từ M." },
+  { L: "N", v: 4, text: "“Anh vẽ tứ giác”", derive: "“Anh” chỉ mặt chữ N; “tứ” là bốn → cặp neo N = 4, đếm vòng tròn từ N." },
+  { L: "H", v: 5, text: "“Cái thang năm nấc”", derive: "“thang” chỉ mặt chữ H; “năm” cho con số 5 → cặp neo H = 5, đếm vòng tròn từ H." },
+  { L: "M", v: 1, text: "“Em đi chơi ngày Quốc tế Lao động”", derive: "“Em” chỉ mặt chữ M; ngày Quốc tế Lao động là 1/5, lấy số ngày → cặp neo M = 1, đếm vòng tròn từ M." },
+  { L: "O", v: 8, text: "“Trăng tròn đúng ngày Quốc tế Phụ nữ”", derive: "“Trăng tròn” chỉ mặt chữ O; ngày Quốc tế Phụ nữ là 8/3, lấy số ngày → cặp neo O = 8, đếm vòng tròn từ O." },
+  { L: "A", v: 19, text: "“Anh cả nhớ ngày sinh Bác Hồ”", derive: "“Anh cả” chỉ mặt chữ A; ngày sinh Bác Hồ là 19/5, lấy số ngày → cặp neo A = 19, đếm vòng tròn từ A." },
+  { L: "M", v: 20, text: "“Em tặng hoa ngày Nhà giáo”", derive: "“Em” chỉ mặt chữ M; ngày Nhà giáo Việt Nam là 20/11, lấy số ngày → cặp neo M = 20, đếm vòng tròn từ M." },
+  { L: "A", v: 22, text: "“Vua duyệt đội quân”", derive: "“Vua” chỉ mặt chữ A; ngày thành lập Quân đội nhân dân Việt Nam là 22/12, lấy số ngày → cặp neo A = 22, đếm vòng tròn từ A." },
+  { L: "H", v: 4, text: "“Thang gõ bốn ngắn một dài”", derive: "“thang” chỉ mặt chữ H; “bốn ngắn một dài” là hình Morse của số 4 → cặp neo H = 4, đếm vòng tròn từ H." },
+  { L: "S", v: 9, text: "“Ếch gõ bốn dài một ngắn”", derive: "“Ếch” chỉ mặt chữ S; “bốn dài một ngắn” là hình Morse của số 9 → cặp neo S = 9, đếm vòng tròn từ S." },
+  { L: "O", v: 6, text: "“Trăng tròn gõ một dài bốn ngắn”", derive: "“Trăng tròn” chỉ mặt chữ O; “một dài bốn ngắn” là hình Morse của số 6 → cặp neo O = 6, đếm vòng tròn từ O." },
+  { L: "U", v: 17, text: "“Mẹ bảo tuổi bẻ gãy sừng trâu”", derive: "“Mẹ” chỉ mặt chữ U; “bẻ gãy sừng trâu” là cách nói chỉ tuổi 17 → cặp neo U = 17, đếm vòng tròn từ U." },
+  { L: "P", v: 9, text: "“Chín bát phở trên bàn”", derive: "“phở” chỉ mặt chữ P; “chín” cho con số 9 → cặp neo P = 9, đếm vòng tròn từ P." },
+  { L: "X", v: 10, text: "“Mười La Mã”", derive: "“Mười La Mã” chính là chữ X trong số La Mã, giá trị của nó là 10 → cặp neo X = 10, đếm vòng tròn từ X." },
+  { L: "V", v: 5, text: "“Năm La Mã”", derive: "“Năm La Mã” chính là chữ V trong số La Mã, giá trị của nó là 5 → cặp neo V = 5, đếm vòng tròn từ V." },
+  { L: "I", v: 1, text: "“Một La Mã”", derive: "“Một La Mã” chính là chữ I trong số La Mã, giá trị của nó là 1 → cặp neo I = 1, đếm vòng tròn từ I." }
 ];
 const SO_RIDDLE_CLUES = [
   { L: "S", v: 1, text: "“Nước Việt Nam là một”", derive: "Theo bảng thuật ngữ gợi ý, “Việt Nam” chỉ mặt chữ S; câu nói “là một” cho con số 1 → cặp neo S = 1, đếm vòng tròn từ S." },
@@ -2397,7 +2415,29 @@ const CAESAR_CLUES = [
   { text: "Rùa về thăm mẹ", w1: "Rùa", w2: "mẹ", cl: "Q", pl: "U" },
   { text: "Bò ăn bát phở", w1: "Bò", w2: "phở", cl: "B", pl: "P" },
   { text: "Vua cầm kéo", w1: "Vua", w2: "kéo", cl: "A", pl: "X" },
-  { text: "Dê leo lên thang", w1: "Dê", w2: "thang", cl: "D", pl: "H" }
+  { text: "Dê leo lên thang", w1: "Dê", w2: "thang", cl: "D", pl: "H" },
+  { text: "Anh cả treo lá cờ", w1: "Anh cả", w2: "cờ", cl: "A", pl: "C" },
+  { text: "Bò con ngắm trăng tròn", w1: "Bò con", w2: "trăng tròn", cl: "B", pl: "O" },
+  { text: "Bà Ba dắt chú dê", w1: "Bà Ba", w2: "dê", cl: "C", pl: "D" },
+  { text: "Dì Bảy ngắm trăng tròn", w1: "Dì Bảy", w2: "trăng tròn", cl: "G", pl: "O" },
+  { text: "Bà Tám ngắm trăng khuyết", w1: "Bà Tám", w2: "trăng khuyết", cl: "H", pl: "C" },
+  { text: "Chú Chín dắt con rùa", w1: "Chú Chín", w2: "rùa", cl: "I", pl: "Q" },
+  { text: "Chú Mười cầm cái kéo", w1: "Chú Mười", w2: "kéo", cl: "J", pl: "X" },
+  { text: "Bà Sáu ngắm trăng tròn", w1: "Bà Sáu", w2: "trăng tròn", cl: "F", pl: "O" },
+  { text: "Bà Năm bán bát phở", w1: "Bà Năm", w2: "phở", cl: "E", pl: "P" },
+  { text: "Cô gái Huế biết hát", w1: "Cô gái Huế", w2: "hát", cl: "O", pl: "H" },
+  { text: "Ếch ngồi bờ ao", w1: "Ếch", w2: "bờ", cl: "S", pl: "B" },
+  { text: "Mẹ bắc thang lên gác", w1: "Mẹ", w2: "thang", cl: "U", pl: "H" },
+  { text: "Vua cùng tôi ra sân", w1: "Vua", w2: "tôi", cl: "A", pl: "I" },
+  { text: "Gà gáy gọi anh cả", w1: "Gà", w2: "anh cả", cl: "G", pl: "A" },
+  { text: "Em cầm kéo, bạn cầm cờ", w1: "kéo", w2: "cờ", cl: "X", pl: "C" },
+  { text: "Bò con đi tìm mẹ", w1: "Bò con", w2: "mẹ", cl: "B", pl: "U" },
+  { text: "Dê con theo mẹ về chuồng", w1: "Dê", w2: "mẹ", cl: "D", pl: "U" },
+  { text: "Cái cuốc dựng bên thang", w1: "cái cuốc", w2: "thang", cl: "L", pl: "H" },
+  { text: "Kéo treo cạnh cái cuốc", w1: "Kéo", w2: "cái cuốc", cl: "X", pl: "L" },
+  { text: "Huyền cầm bát phở", w1: "Huyền", w2: "phở", cl: "F", pl: "P" },
+  { text: "Việt Nam là quê hương em", w1: "Việt Nam", w2: "em", cl: "S", pl: "M" },
+  { text: "Anh lính giương cao lá cờ", w1: "Anh", w2: "cờ", cl: "N", pl: "C" }
 ];
 function caesarClueMade() {
   const c = CAESAR_CLUES[Math.floor(Math.random() * CAESAR_CLUES.length)];
@@ -2882,7 +2922,7 @@ function openCipherModule() {
 /* ---------------- Tài liệu MẬT THƯ ---------------- */
 function openCipherDoc() {
   const body = openPanel("🔐 Tài liệu mật thư", true);
-  const gloss = [["A", "Vua, anh cả, đội trưởng, át xì"], ["B", "Bò, Bi, chú Hai, một dài ba ngắn"], ["C", "cờ, trăng khuyết, bà Ba, dài ngắn dài ngắn"], ["D", "Dê, đê, người con thứ tư, dài ngắn ngắn"], ["E", "e thẹn, bà Năm, tích (một ngắn)"], ["F", "ép, huyền, bà Sáu, ngắn ngắn dài ngắn"], ["G", "gà, Gờ, dì Bảy, dài dài ngắn"], ["H", "thang, hát, bà Tám, bốn ngắn"], ["I", "cây gậy, chú Chín, tôi, hai ngắn"], ["J", "Dù, nặng, chú Mười, một ngắn ba dài"], ["K", "Già, ca, sẵn sàng, dài ngắn dài"], ["L", "cái cuốc, góc vuông, lờ, ngắn dài ngắn ngắn"], ["M", "Em, mờ, hai dài"], ["N", "Anh, nờ, dài ngắn"], ["O", "trăng tròn, trứng gà, oxy, ba dài"], ["P", "Phở, phê, ngắn dài dài ngắn"], ["Q", "rùa, Cu (đồng), bà đầm, dài dài ngắn dài"], ["R", "Hỏi, ngắn dài ngắn"], ["S", "Ếch, Việt Nam, sắc, ba ngắn"], ["T", "Tê, te, im lặng, một dài"], ["U", "Mẹ, you, ngắn ngắn dài"], ["V", "Vê, năm La Mã, ba ngắn một dài"], ["W", "kép, anh em song sinh, ngắn dài dài"], ["X", "Kéo, ngã tư, mười La Mã, dài ngắn ngắn dài"], ["Y", "ngã ba, người con kế út, dài ngắn dài dài"], ["Z", "anh nằm, em út, sau cùng, dài dài ngắn ngắn"]];
+  const gloss = [["A", "Vua, anh cả, đội trưởng, đầu tiên"], ["B", "Bò, Bi, chú Hai, một dài ba ngắn"], ["C", "cờ, kỳ, trăng khuyết, bà Ba, dài ngắn dài ngắn"], ["D", "Dê, đê, Mùi, người con thứ tư, dài ngắn ngắn"], ["E", "e thẹn, ngại ngùng, bà Năm, tích (một ngắn)"], ["F", "ép, huyền, bà Sáu, lược 2 răng, ngắn ngắn dài ngắn"], ["G", "gà, Gờ, dì Bảy, dài dài ngắn"], ["H", "thang, hát, bà Tám, bốn ngắn"], ["I", "cây gậy, chú Chín, tôi, hai ngắn"], ["J", "Dù, bồi, nặng, chú Mười, một ngắn ba dài"], ["K", "Già, ca, sẵn sàng, khẩu hiệu Đội, dài ngắn dài"], ["L", "cái cuốc, góc vuông, lờ, ngắn dài ngắn ngắn"], ["M", "Em, mờ, hai dài"], ["N", "Anh, huynh, nờ, dài ngắn"], ["O", "trăng tròn, chị Hằng, trứng gà, oxy, ba dài"], ["P", "Phở, phê, ngắn dài dài ngắn"], ["Q", "rùa, Cu (đồng), bà đầm, dài dài ngắn dài"], ["R", "Hỏi, ngắn dài ngắn"], ["S", "Ếch, Việt Nam, sắc, ba ngắn"], ["T", "Tê, te, gạch, im lặng, một dài"], ["U", "Mẹ, hợp, you, ngắn ngắn dài"], ["V", "Vê, năm La Mã, ba ngắn một dài"], ["W", "kép, hai Vê nắm tay nhau, ngắn dài dài"], ["X", "Kéo, ngã tư, đường cấm, mười La Mã, dài ngắn ngắn dài"], ["Y", "ngã ba, nương tựa, người con kế út, dài ngắn dài dài"], ["Z", "anh nằm, em út, vâng, sau cùng, dài dài ngắn ngắn"]];
   let glossRows = "";
   for (let i = 0; i < 13; i++) glossRows += `<tr><td style="font-weight:700;text-align:center">${gloss[i][0]}</td><td>${gloss[i][1]}</td><td style="font-weight:700;text-align:center">${gloss[i + 13][0]}</td><td>${gloss[i + 13][1]}</td></tr>`;
   body.innerHTML = `
