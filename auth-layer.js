@@ -66,6 +66,21 @@ style.textContent = `
 #tt-chip #tt-menu button:hover{background:#eef4fb}
 #tt-menu hr{border:none;border-top:1px solid #e3eaf2;margin:5px 4px}
 .tt-icogroup{display:inline-flex;gap:4px;background:rgba(255,255,255,.08);padding:3px;border-radius:10px;align-items:center}
+.tt-modbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tt-modbar button{flex:1;padding:9px;border-radius:9px;border:1.5px solid #0b5cad;background:#fff;color:#0b5cad;font-weight:600;cursor:pointer;min-width:110px}
+.tt-modbar button.on{background:#0b5cad;color:#fff}
+.tt-opt{display:block;width:100%;text-align:left;padding:11px 13px;margin:7px 0;border:1.5px solid #c3d2e4;border-radius:10px;background:#f8fbff;font-size:15px;cursor:pointer}
+.tt-opt:hover{border-color:#0b5cad}
+.tt-opt.ok{background:#e2f4e5;border-color:#1d9d55}
+.tt-opt.bad{background:#fdecea;border-color:#c0392b}
+.tt-opt:disabled{cursor:default;opacity:.92}
+.tt-qbox{background:#fbfcfe;border:1.5px solid #dbe4f0;border-radius:12px;padding:14px;margin-bottom:12px}
+.tt-cipher{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:19px;font-weight:700;letter-spacing:1px;text-align:center;word-break:break-word;line-height:1.5;color:#083d73}
+.tt-docgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.tt-signcard{border:1.5px solid #dbe4f0;border-radius:12px;padding:9px;background:#fff;text-align:center}
+.tt-signcard b{display:block;margin-top:6px;font-size:14px}
+.tt-signcard span{display:block;font-size:12.5px;color:#555;margin-top:3px;line-height:1.4}
+.tt-modinput{width:100%;padding:11px;border:1.5px solid #bbb;border-radius:9px;font-size:16px;box-sizing:border-box;text-transform:uppercase}
 #tt-chip .tt-icobtn{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.25);cursor:pointer;font-size:15px;line-height:1}
 #tt-chip .tt-icobtn.tt-keybtn{background:#1d9d55;border-color:#37c978}
 #tt-chip .tt-icobtn svg{width:18px;height:18px;display:block}
@@ -427,6 +442,7 @@ function showAuthForms() {
       const cred = await createUserWithEmailAndPassword(auth, emailFor(u), p);
       await setDoc(doc(db, "profiles", cred.user.uid), {
         username: u.trim().toLowerCase(), name, className: cls, email, nickname: "", aiEnabled: false, useSharedKeys: false, useClaudeBank: false,
+        featMorse: true, featSemaphore: true, featTrail: false, featCipher: false,
         role: "member", status: "pending", expiry: null, createdAt: serverTimestamp()
       });
       /* Báo cho thầy qua email (nếu đã cấu hình gửi mail) để thầy duyệt. */
@@ -458,6 +474,16 @@ function grantAccess() {
   }
   buildChip();
   mountAiButton();
+  /* Phân quyền chức năng ở phía ứng dụng chính: ẩn nút chọn
+     môn bị khóa trong ngăn Cài đặt; nếu môn đang chọn bị khóa
+     thì tự chuyển sang môn được phép còn lại. */
+  {
+    const km = $("kindMorse"), ks = $("kindSem");
+    if (km && !featOn("featMorse")) km.style.display = "none";
+    if (ks && !featOn("featSemaphore")) ks.style.display = "none";
+    if (!featOn("featMorse") && featOn("featSemaphore") && ks && ks.getAttribute("aria-pressed") !== "true") ks.click();
+    else if (!featOn("featSemaphore") && featOn("featMorse") && km && km.getAttribute("aria-pressed") !== "true") km.click();
+  }
   maybePromptEmail();
   syncHistory();
   setInterval(syncHistory, 20000);
@@ -484,6 +510,29 @@ function fitTopBar() {
   const c = $("tt-chip");
   if (c && c.style.display !== "none") document.body.style.paddingTop = (c.offsetHeight + 4) + "px";
 }
+
+/* ---------------- Phân quyền CHỨC NĂNG ----------------
+   Mỗi tài khoản được quản trị phân quyền từng chức năng
+   (Morse / Semaphore / Dấu đi đường / Mật thư). Được quyền
+   nào thì THẤY menu của chức năng đó: nút ở thanh ghim và
+   mục tài liệu trong menu người dùng; không được quyền thì
+   không thấy. Tài khoản cũ chưa có các trường này: Morse và
+   Semaphore coi như ĐÃ được cấp (giữ nguyên thói quen dùng
+   từ trước), hai chức năng mới coi như chưa cấp. Quản trị
+   luôn có mọi quyền. Khi phát triển chức năng mới, thêm một
+   trường feat* tương ứng + một mục ở đây và trong form Sửa. */
+function featOn(key) {
+  if (myIsAdmin) return true;
+  const p = myProfile || {};
+  if (key === "featTrail" || key === "featCipher") return p[key] === true;
+  return p[key] !== false;
+}
+const FEAT_LIST = [
+  { key: "featMorse", label: "Morse" },
+  { key: "featSemaphore", label: "Semaphore" },
+  { key: "featTrail", label: "Dấu đi đường" },
+  { key: "featCipher", label: "Mật thư" }
+];
 
 const ICO_WHISTLE = '<svg viewBox="0 0 26 26" fill="currentColor" aria-hidden="true"><path d="M25 7.6c0-.9-.7-1.6-1.6-1.6h-8.1c-.6-1-1.8-1.7-3-1.5C8.8 5 5.8 8.3 5.8 12.3c0 4.5 3.6 8.1 8.1 8.1 4 0 7.3-2.9 8-6.7h1.5c.9 0 1.6-.7 1.6-1.6V7.6z"/><circle cx="12.4" cy="12.2" r="2.2" fill="#082d50" opacity=".9"/></svg>';
 const ICO_FLAGS = '<svg viewBox="0 0 26 26" aria-hidden="true"><g stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><line x1="6.5" y1="24" x2="15.5" y2="4.5"/><line x1="19.5" y1="24" x2="10.5" y2="4.5"/></g><path d="M15.5 4.5l7.5 2.3-7 2.9z" fill="#e63946"/><path d="M10.5 4.5L3 6.8l7 2.9z" fill="#f4b41a"/></svg>';
@@ -556,14 +605,32 @@ function buildChip() {
   };
   const gKind = document.createElement("span");
   gKind.className = "tt-icogroup";
-  gKind.appendChild(mkIco("ttIcoMorse", ICO_WHISTLE, "Morse (tiếng + đèn)", "kindMorse"));
-  gKind.appendChild(mkIco("ttIcoSem", ICO_FLAGS, "Semaphore (cờ tay)", "kindSem"));
+  /* Chỉ hiện nút của chức năng tài khoản ĐƯỢC phân quyền. */
+  if (featOn("featMorse")) gKind.appendChild(mkIco("ttIcoMorse", ICO_WHISTLE, "Morse (tiếng + đèn)", "kindMorse"));
+  if (featOn("featSemaphore")) gKind.appendChild(mkIco("ttIcoSem", ICO_FLAGS, "Semaphore (cờ tay)", "kindSem"));
   chip.appendChild(gKind);
   const gMode = document.createElement("span");
   gMode.className = "tt-icogroup";
   gMode.appendChild(mkIco("ttIcoLuyen", "🖊️", "Chế độ Luyện tập", "modeLuyen"));
   gMode.appendChild(mkIco("ttIcoKiem", "📋", "Chế độ Kiểm tra", "modeKiem"));
   chip.appendChild(gMode);
+  /* Nhóm chức năng MỚI (Dấu đi đường / Mật thư): nút mở thẳng
+     module Luyện tập & Kiểm tra của chức năng — chỉ hiện khi
+     tài khoản được phân quyền chức năng đó. */
+  const gFeat = document.createElement("span");
+  gFeat.className = "tt-icogroup";
+  const featBtn = (emoji, title, fn) => {
+    const b = document.createElement("button");
+    b.className = "tt-icobtn";
+    b.textContent = emoji;
+    b.title = title;
+    b.setAttribute("aria-label", title);
+    b.addEventListener("click", fn);
+    return b;
+  };
+  if (featOn("featTrail")) gFeat.appendChild(featBtn("👣", "Dấu đi đường — Luyện tập & Kiểm tra", () => openTrailModule()));
+  if (featOn("featCipher")) gFeat.appendChild(featBtn("🔐", "Mật thư — Luyện tập & Kiểm tra", () => openCipherModule()));
+  if (gFeat.childNodes.length) chip.appendChild(gFeat);
   /* Nút Cài đặt ngay trên thanh ghim, chỉ hiện hình bánh răng */
   const bSetIco = document.createElement("button");
   bSetIco.className = "tt-icobtn";
@@ -606,8 +673,10 @@ function buildChip() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
   nav("🏠 Luyện tập & Kiểm tra", "tabbtn-main");
-  nav("📟 Bảng Morse", "tabbtn-morse");
-  nav("🚩 Bảng Semaphore", "tabbtn-sem");
+  if (featOn("featMorse")) nav("📟 Bảng Morse", "tabbtn-morse");
+  if (featOn("featSemaphore")) nav("🚩 Bảng Semaphore", "tabbtn-sem");
+  if (featOn("featTrail")) item("👣 Tài liệu dấu đi đường", () => openTrailDoc());
+  if (featOn("featCipher")) item("🔐 Tài liệu mật thư", () => openCipherDoc());
   nav("📜 Quy ước & Giáo viên", "tabbtn-rules");
   menu.appendChild(document.createElement("hr"));
   item("🕘 Lịch sử", openMyHistory);
@@ -665,7 +734,7 @@ async function syncHistory() {
 }
 
 /* ---------------- Lịch sử: nhãn dạng/tốc độ + đồng bộ ngay khi nộp bài ---------------- */
-const KIND_NAMES = { "nhan-morse": "Nhận Morse", "nhan-sem": "Nhận Semaphore", "phat-morse": "Phát Morse", "phat-sem": "Phát Semaphore" };
+const KIND_NAMES = { "nhan-morse": "Nhận Morse", "nhan-sem": "Nhận Semaphore", "phat-morse": "Phát Morse", "phat-sem": "Phát Semaphore", "kt-dau-duong": "Kiểm tra dấu đi đường", "kt-mat-thu": "Kiểm tra mật thư" };
 function metaFor(entry) {
   const k = (entry && entry.kind) || "";
   let speedLabel = "";
@@ -1145,6 +1214,7 @@ function renderAdminList(body, members, schools, adminsSet) {
       const cred = await createUserWithEmailAndPassword(sAuth, emailFor(u), p);
       await setDoc(doc(db, "profiles", cred.user.uid), {
         username: u.trim().toLowerCase(), name, className: cls, email, nickname: "", aiEnabled: false, useSharedKeys: false, useClaudeBank: false,
+        featMorse: true, featSemaphore: true, featTrail: false, featCipher: false,
         role: role === "GV" ? "GV" : "HS", schoolId,
         status: "pending", expiry: null, createdAt: serverTimestamp()
       });
@@ -1372,6 +1442,12 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
           <label style="cursor:pointer"><input type="checkbox" data-ed="claude" ${m.useClaudeBank ? "checked" : ""}> Kho Muse</label>
           <label style="cursor:pointer"><input type="checkbox" data-ed="expforever" ${!m.expiry ? "checked" : ""}> Hạn vĩnh viễn</label>
         </div></div>
+        <div class="tt-field" style="margin:0"><label>Phân quyền chức năng (được quyền nào thì thấy menu của chức năng đó)</label><div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:7px">
+          <label style="cursor:pointer"><input type="checkbox" data-ed="fmorse" ${m.featMorse !== false ? "checked" : ""}> Morse</label>
+          <label style="cursor:pointer"><input type="checkbox" data-ed="fsem" ${m.featSemaphore !== false ? "checked" : ""}> Semaphore</label>
+          <label style="cursor:pointer"><input type="checkbox" data-ed="ftrail" ${m.featTrail === true ? "checked" : ""}> Dấu đi đường</label>
+          <label style="cursor:pointer"><input type="checkbox" data-ed="fcipher" ${m.featCipher === true ? "checked" : ""}> Mật thư</label>
+        </div></div>
       </div>
       <p class="tt-note" style="margin:8px 0 0">Bảng này hiện TẤT CẢ các trường cùng lúc — sửa xong bấm Lưu một lần. Trạng thái tài khoản dùng nút <b>Mở/Khoá</b> ở hàng (bấm Mở là thư duyệt gửi ngay cho người dùng). <b>Mật khẩu</b> không sửa trực tiếp tại đây được — Google không cho trang web đổi mật khẩu của tài khoản khác; thầy dùng nút <b>Đặt lại mật khẩu…</b> bên dưới (hướng dẫn 3 bước).</p>
       <div class="tt-acts" style="margin-top:8px">
@@ -1411,6 +1487,10 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
       aiEnabled: q('[data-ed="ai"]').checked,
       useSharedKeys: q('[data-ed="shared"]').checked,
       useClaudeBank: q('[data-ed="claude"]').checked,
+      featMorse: q('[data-ed="fmorse"]').checked,
+      featSemaphore: q('[data-ed="fsem"]').checked,
+      featTrail: q('[data-ed="ftrail"]').checked,
+      featCipher: q('[data-ed="fcipher"]').checked,
       schoolId: q('[data-ed="school"]').value
     };
     const clsEl = q('[data-ed="cls"]');
@@ -1510,6 +1590,487 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
     });
   });
   return { tr, detail };
+}
+
+/* ============================================================
+   MODULE DẤU ĐI ĐƯỜNG & MẬT THƯ — hai chức năng MỚI, được
+   phân quyền riêng (featTrail / featCipher): nút mở module
+   ở thanh ghim + mục tài liệu trong menu người dùng chỉ
+   hiện khi tài khoản được cấp quyền (xem featOn).
+   Nội dung theo tài liệu nghiên cứu chuyên đề của thầy:
+   dấu đi đường dùng BỘ 20 DẤU CƠ BẢN CỦA ĐỘI (hai nguồn
+   giảng dạy độc lập khớp nhau); mật thư dùng 5 dạng đã được
+   kiểm chứng hai chiều (số thay chữ, chữ thay chữ, tọa độ
+   chữ, chuồng bồ câu, đọc ngược) trên bạch văn đã chuyển
+   theo QUY ƯỚC CỦA LỚP (cùng bộ chuyển đổi với Morse và
+   Semaphore trong ứng dụng này).
+   Bài Kiểm tra của hai module lưu vào cùng lịch sử
+   ltmt_history nên tự đồng bộ lên máy chủ như các môn khác.
+   ============================================================ */
+function modSaveHistory(kind, correct, total, msg, durSec) {
+  try {
+    const arr = loadLocalHist();
+    arr.push({
+      name: (myProfile && myProfile.name) || "", cls: (myProfile && myProfile.className) || "",
+      date: new Date().toLocaleString("vi-VN"), kind,
+      score: Math.round((correct / total) * 100) / 10, correct, total, plays: 1, msg, dur: durSec
+    });
+    localStorage.setItem("ltmt_history", JSON.stringify(arr.slice(-300)));
+  } catch (e) { /* lưu lịch sử hỏng không được làm gián đoạn bài làm */ }
+}
+function modShuffle(a) {
+  const r = a.slice();
+  for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; }
+  return r;
+}
+
+/* ---------------- DẤU ĐI ĐƯỜNG: hình vẽ ----------------
+   Quy ước vẽ: hướng di chuyển từ TRÁI sang PHẢI; que/cành
+   cây màu nâu, nét sóng nước màu xanh, số tham số (n) nằm
+   trong vòng tròn nhỏ ở góc dưới phải của dấu. */
+const TR_STICK = "#8a5a2b", TR_BLUE = "#1565c0";
+function trSVG(inner) {
+  return `<svg viewBox="0 0 120 90" style="width:100%;max-width:230px;height:auto;display:block;margin:0 auto" role="img" aria-label="Hình dấu đi đường"><rect x="2" y="2" width="116" height="86" rx="10" fill="#f4ecd9"/>${inner}</svg>`;
+}
+function trLine(x1, y1, x2, y2, w, c) {
+  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c || TR_STICK}" stroke-width="${w || 5}" stroke-linecap="round"/>`;
+}
+function trHeadAt(x, y, ux, uy) {
+  const L = 12, bx = x - ux * L, by = y - uy * L, px = -uy * 6.5, py = ux * 6.5;
+  return trLine(x, y, bx + px, by + py, 4.5) + trLine(x, y, bx - px, by - py, 4.5);
+}
+function trArrow(x1, y, x2, heads) {
+  let s = trLine(x1, y, x2, y);
+  const n = heads || 1;
+  for (let i = 0; i < n; i++) s += trHeadAt(x2 - i * 13, y, 1, 0);
+  return s;
+}
+function trBadge(n) {
+  if (n === null || n === undefined) return "";
+  return `<circle cx="103" cy="73" r="12" fill="#fff" stroke="${TR_STICK}" stroke-width="2.5"/><text x="103" y="78.5" text-anchor="middle" font-size="14" font-weight="700" fill="#5d3a17" font-family="system-ui,sans-serif">${esc(String(n))}</text>`;
+}
+function trWave(x, y, humps) {
+  let d = `M${x} ${y} q6 -7 12 0`;
+  for (let i = 1; i < (humps || 2); i++) d += " t12 0";
+  return `<path d="${d}" fill="none" stroke="${TR_BLUE}" stroke-width="4" stroke-linecap="round"/>`;
+}
+function trTri(cx, top, base, half) {
+  return `<path d="M${cx} ${top} L${cx - half} ${base} H${cx + half} Z" fill="none" stroke="${TR_STICK}" stroke-width="5" stroke-linejoin="round"/>`;
+}
+
+/* 20 dấu cơ bản của Đội. mean(n): câu nghĩa đầy đủ; make:
+   cách tạo dấu bằng vật liệu tại chỗ (tóm tắt từ tài liệu). */
+const TRAIL_SIGNS = [
+  { id: "start", name: "Bắt đầu đi", mean: () => "Điểm bắt đầu — đoàn bắt đầu di chuyển từ đây, theo hướng mũi tên", make: "Đá nhỏ xếp thành vòng tròn, một hòn ở tâm, một que dài làm mũi tên chỉ hướng đi", draw: () => trSVG(`<circle cx="34" cy="45" r="15" fill="none" stroke="${TR_STICK}" stroke-width="5"/><circle cx="34" cy="45" r="4" fill="${TR_STICK}"/>` + trArrow(58, 45, 106, 1)) },
+  { id: "proceed", name: "Đi theo hướng này", mean: () => "Đi tiếp theo hướng mũi tên chỉ", make: "Một que dài làm thân mũi tên, hai que ngắn chéo ở đầu làm ngạnh", draw: () => trSVG(trArrow(14, 45, 106, 1)) },
+  { id: "faster", name: "Đi nhanh hơn", mean: () => "Tăng tốc độ di chuyển theo hướng mũi tên", make: "Mũi tên có hai đầu nhọn nối tiếp nhau trên cùng một trục", draw: () => trSVG(trArrow(14, 45, 106, 2)) },
+  { id: "run", name: "Chạy theo hướng này", mean: () => "Chạy (không đi bộ) theo hướng mũi tên — khẩn hơn đi nhanh", make: "Mũi tên có ba đầu nhọn nối tiếp nhau trên cùng một trục", draw: () => trSVG(trArrow(14, 45, 106, 3)) },
+  { id: "slower", name: "Đi chậm lại", mean: () => "Giảm tốc độ, đi chậm lại", make: "Mũi tên có một que đặt ngang, chắn ngang thân mũi tên", draw: () => trSVG(trArrow(14, 45, 106, 1) + trLine(52, 27, 52, 63)) },
+  { id: "obstacle", name: "Chướng ngại vật phải vượt qua", mean: () => "Phía trước có chướng ngại — đoàn phải vượt qua, không vòng tránh", make: "Mũi tên có hai que song song đặt ngang, chắn ngang thân mũi tên", draw: () => trSVG(trArrow(14, 45, 106, 1) + trLine(45, 27, 45, 63) + trLine(60, 27, 60, 63)) },
+  { id: "left", name: "Rẽ trái", mean: () => "Tới điểm này rẽ sang trái", make: "Que thân đi tới rồi gập 90 độ sang trái, đầu mũi tên chỉ về phía trái", draw: () => trSVG(trLine(14, 64, 64, 64) + trLine(64, 64, 64, 28) + trHeadAt(64, 24, 0, -1)) },
+  { id: "right", name: "Rẽ phải", mean: () => "Tới điểm này rẽ sang phải", make: "Que thân đi tới rồi gập 90 độ sang phải, đầu mũi tên chỉ về phía phải", draw: () => trSVG(trLine(14, 26, 64, 26) + trLine(64, 26, 64, 62) + trHeadAt(64, 66, 0, 1)) },
+  { id: "merge", name: "Hai đoàn nhập 1", mean: () => "Hai đoàn đang đi hai lối hợp lại thành một đoàn và đi tiếp chung", make: "Hai que chéo từ hai phía chụm lại thành một thân, có mũi tên về phía trước", draw: () => trSVG(trLine(18, 18, 56, 45) + trLine(18, 72, 56, 45) + trArrow(56, 45, 106, 1)) },
+  { id: "split", name: "Chia 2 đoàn — mỗi đoàn đi n người", param: "người", mean: (n) => `Đoàn chia thành hai nhóm đi hai ngã, mỗi đoàn đi ${n} người`, make: "Một que thân tách thành hai nhánh có đầu mũi tên, kèm thẻ ghi số người mỗi đoàn", draw: (n) => trSVG(trLine(12, 45, 50, 45) + trLine(50, 45, 88, 26) + trHeadAt(93, 24, 0.9, -0.43) + trLine(50, 45, 88, 60) + trHeadAt(93, 62, 0.9, 0.43) + trBadge(n)) },
+  { id: "forbidden", name: "Đường cấm", mean: () => "Không đi lối này — đường bị cấm, phải chọn lối khác", make: "Hai que dài bắt chéo nhau thành chữ X, đặt ngay đầu lối cấm", draw: () => trSVG(trLine(36, 20, 84, 68, 6) + trLine(84, 20, 36, 68, 6)) },
+  { id: "danger", name: "Chú ý, nguy hiểm", mean: () => "Phía trước có nguy hiểm — chú ý, thận trọng", make: "Ba que xếp thành tam giác, một hòn đá đặt ở giữa", draw: () => trSVG(trTri(60, 16, 70, 34) + `<circle cx="60" cy="50" r="4.5" fill="${TR_STICK}"/>`) },
+  { id: "safe", name: "An toàn, bình an", mean: () => "Hướng này an toàn, cứ yên tâm đi tiếp", make: "Ba đầu mũi tên nhỏ (ngạnh chữ V) cùng chiều, xếp nối tiếp theo hướng đi", draw: () => trSVG([22, 50, 78].map((x) => trLine(x, 31, x + 13, 45, 4.5) + trLine(x + 13, 45, x, 59, 4.5)).join("")) },
+  { id: "back", name: "Quay lại", mean: () => "Quay đầu, đi ngược trở lại đường vừa đi", make: "Hai mũi tên song song, hướng ngược chiều nhau", draw: () => trSVG(trLine(100, 31, 24, 31) + trHeadAt(20, 31, -1, 0) + trLine(20, 59, 96, 59) + trHeadAt(100, 59, 1, 0)) },
+  { id: "waterbad", name: "Nước không uống được", mean: () => "Nguồn nước ở đây không uống được (bẩn, độc)", make: "Ba que xếp thành tam giác, bên trong có nét sóng nước; đặt ngay tại nguồn nước", draw: () => trSVG(trTri(60, 14, 72, 38) + trWave(42, 54, 2)) },
+  { id: "watergood", name: "Nước sạch uống được", mean: () => "Nguồn nước ở đây sạch, uống được", make: "Đá xếp thành vòng tròn, bên trong có nét sóng nước; đặt ngay tại nguồn nước", draw: () => trSVG(`<circle cx="60" cy="45" r="27" fill="none" stroke="${TR_STICK}" stroke-width="5"/>` + trWave(42, 48, 2)) },
+  { id: "wait", name: "Chờ ở đây n phút", param: "phút", mean: (n) => `Dừng lại và chờ tại điểm này ${n} phút`, make: "Bốn que xếp thành khung chữ nhật, kèm thẻ ghi số phút phải chờ", draw: (n) => trSVG(`<rect x="28" y="24" width="50" height="42" fill="none" stroke="${TR_STICK}" stroke-width="5"/>` + trBadge(n)) },
+  { id: "letter", name: "Có mật thư hướng này cách n mét", param: "mét", mean: (n) => `Theo hướng mũi tên, cách đây ${n} mét có giấu một mật thư`, make: "Khung chữ nhật có hai đường chéo như mặt phong bì thư, kèm mũi tên chỉ hướng và thẻ ghi số mét", draw: (n) => trSVG(`<rect x="12" y="27" width="46" height="34" fill="none" stroke="${TR_STICK}" stroke-width="4.5"/>` + trLine(12, 27, 58, 61, 3.5) + trLine(58, 27, 12, 61, 3.5) + trArrow(66, 44, 104, 1) + trBadge(n)) },
+  { id: "camp", name: "Trại ở hướng này", mean: () => "Điểm trại nằm theo hướng mũi tên chỉ", make: "Hai que xiên chụm đỉnh thành hình lều, một que làm đáy, kèm mũi tên chỉ hướng trại", draw: () => trSVG(trLine(24, 68, 50, 28) + trLine(50, 28, 76, 68) + trLine(18, 68, 82, 68) + trArrow(86, 45, 112, 1)) },
+  { id: "finish", name: "Đích", mean: () => "Đã tới đích — kết thúc hành trình, hết dấu", make: "Đá nhỏ xếp thành vòng tròn, một hòn ở tâm (giống dấu Bắt đầu nhưng không có mũi tên)", draw: () => trSVG(`<circle cx="60" cy="45" r="17" fill="none" stroke="${TR_STICK}" stroke-width="5"/><circle cx="60" cy="45" r="4" fill="${TR_STICK}"/>`) }
+];
+function trailParam(s) {
+  if (!s.param) return null;
+  if (s.param === "người") return 2 + Math.floor(Math.random() * 8);
+  if (s.param === "phút") return 5 * (1 + Math.floor(Math.random() * 6));
+  return 5 * (2 + Math.floor(Math.random() * 9));
+}
+function trailQuestion() {
+  const s = TRAIL_SIGNS[Math.floor(Math.random() * TRAIL_SIGNS.length)];
+  const n = trailParam(s);
+  const others = modShuffle(TRAIL_SIGNS.filter((x) => x.id !== s.id)).slice(0, 3);
+  const bySign = Math.random() < 0.65;
+  if (bySign) {
+    const opts = modShuffle([{ t: s.mean(n), ok: true }].concat(others.map((o) => ({ t: o.mean(trailParam(o)), ok: false }))));
+    return { sign: s, n, bySign, opts, explain: `<b>${esc(s.name)}</b> — ${esc(s.mean(n))}.<br>Cách tạo: ${esc(s.make)}.` };
+  }
+  const opts = modShuffle([{ s, n, ok: true }].concat(others.map((o) => ({ s: o, n: trailParam(o), ok: false }))));
+  return { sign: s, n, bySign, opts, explain: `<b>${esc(s.name)}</b> — ${esc(s.mean(n))}.<br>Cách tạo: ${esc(s.make)}.` };
+}
+
+/* ---------------- Module DẤU ĐI ĐƯỜNG ---------------- */
+function openTrailModule() {
+  const body = openPanel("👣 Dấu đi đường — Luyện tập & Kiểm tra", true);
+  let mode = "luyen";
+  let cur = null, answered = false;
+  let test = null; // { list, idx, correct, startedAt }
+  body.innerHTML = `
+    <div class="tt-modbar">
+      <button type="button" data-m="luyen" class="on">🖊️ Luyện tập</button>
+      <button type="button" data-m="kiem" class="">📋 Kiểm tra (10 câu)</button>
+    </div>
+    <div data-role="stage"></div>`;
+  const stage = body.querySelector('[data-role="stage"]');
+  body.querySelectorAll("[data-m]").forEach((b) => b.addEventListener("click", () => {
+    mode = b.dataset.m;
+    body.querySelectorAll("[data-m]").forEach((x) => x.classList.toggle("on", x === b));
+    test = null;
+    mode === "luyen" ? nextPractice() : startTest();
+  }));
+  function optBtn(html, fn) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "tt-opt"; b.innerHTML = html;
+    b.addEventListener("click", fn);
+    return b;
+  }
+  function showQuestion(q, onPick) {
+    stage.innerHTML = "";
+    const box = document.createElement("div");
+    box.className = "tt-qbox";
+    if (q.bySign) {
+      box.innerHTML = `<p style="text-align:center;margin:0 0 4px"><b>Dấu này có nghĩa là gì?</b></p>${q.sign.draw(q.n)}`;
+      stage.appendChild(box);
+      q.opts.forEach((o) => stage.appendChild(optBtn(esc(o.t), (ev) => onPick(o.ok, ev.currentTarget))));
+    } else {
+      box.innerHTML = `<p style="text-align:center;margin:0"><b>${esc(q.sign.mean(q.n))}</b><br><span style="color:#555">Dấu nào đúng với nghĩa trên?</span></p>`;
+      stage.appendChild(box);
+      const grid = document.createElement("div");
+      grid.className = "tt-docgrid";
+      q.opts.forEach((o) => {
+        const b = optBtn(o.s.draw(o.n), (ev) => onPick(o.ok, ev.currentTarget));
+        b.style.textAlign = "center";
+        grid.appendChild(b);
+      });
+      stage.appendChild(grid);
+    }
+  }
+  function lockOpts(picked, wasOk) {
+    stage.querySelectorAll(".tt-opt").forEach((b) => {
+      b.disabled = true;
+      if (b === picked) b.classList.add(wasOk ? "ok" : "bad");
+    });
+  }
+  function nextPractice() {
+    answered = false;
+    cur = trailQuestion();
+    showQuestion(cur, (ok, btn) => {
+      if (answered) return;
+      answered = true;
+      lockOpts(btn, ok);
+      const note = document.createElement("div");
+      note.className = ok ? "tt-msg" : "tt-err";
+      note.style.display = "block";
+      note.innerHTML = (ok ? "✅ Đúng rồi! " : "❌ Chưa đúng. ") + cur.explain;
+      stage.appendChild(note);
+      const nb = document.createElement("button");
+      nb.type = "button"; nb.className = "tt-btn"; nb.textContent = "Câu tiếp theo →";
+      nb.addEventListener("click", nextPractice);
+      stage.appendChild(nb);
+    });
+  }
+  function startTest() {
+    test = { list: Array.from({ length: 10 }, () => trailQuestion()), idx: 0, correct: 0, startedAt: Date.now() };
+    showTestQ();
+  }
+  function showTestQ() {
+    const q = test.list[test.idx];
+    showQuestion(q, (ok) => {
+      if (ok) test.correct++;
+      test.idx++;
+      if (test.idx < test.list.length) { showTestQ(); return; }
+      const dur = Math.round((Date.now() - test.startedAt) / 1000);
+      modSaveHistory("kt-dau-duong", test.correct, test.list.length, "Kiểm tra dấu đi đường — 10 câu", dur);
+      const score = (Math.round((test.correct / test.list.length) * 100) / 10).toFixed(1).replace(".", ",");
+      stage.innerHTML = `<div class="tt-qbox" style="text-align:center">
+        <p style="font-size:19px;margin:4px 0"><b>Hoàn thành bài kiểm tra!</b></p>
+        <p>Đúng <b>${test.correct}/${test.list.length}</b> câu — Điểm: <b>${score}/10</b></p>
+        <p class="tt-note">Kết quả đã lưu vào Lịch sử của em và sẽ đồng bộ cho thầy khi có mạng.</p></div>`;
+      const nb = document.createElement("button");
+      nb.type = "button"; nb.className = "tt-btn"; nb.textContent = "Làm bài kiểm tra mới";
+      nb.addEventListener("click", startTest);
+      stage.appendChild(nb);
+    });
+    const head = document.createElement("p");
+    head.style.cssText = "text-align:center;color:#555;margin:0 0 8px";
+    head.textContent = `Câu ${test.idx + 1}/${test.list.length} — chọn một đáp án, bài sẽ chuyển câu ngay`;
+    stage.insertBefore(head, stage.firstChild);
+  }
+  nextPractice();
+}
+
+/* ---------------- Tài liệu DẤU ĐI ĐƯỜNG ---------------- */
+function openTrailDoc() {
+  const body = openPanel("👣 Tài liệu dấu đi đường", true);
+  const cards = TRAIL_SIGNS.map((s) => `<div class="tt-signcard">${s.draw(s.param ? "n" : null)}<b>${esc(s.name)}</b><span>${esc(s.mean(s.param ? "n" : null))}</span></div>`).join("");
+  body.innerHTML = `
+    <p>Bộ <b>20 dấu cơ bản của Đội</b> dưới đây là bộ được hai tài liệu giảng dạy độc lập liệt kê trùng khớp, và khớp với 20/32 dấu của bảng dấu đường mở rộng đang lưu hành. Khi làm dấu thật, que/cành cây đóng vai các nét thẳng và thân mũi tên, đá nhỏ xếp thành nét cong và vòng tròn.</p>
+    <div class="tt-docgrid">${cards}</div>
+    <p><b>Quy ước khi rải dấu</b> (theo tài liệu tập huấn của Đội): đặt dấu ở <b>bên phải đường đi</b>, ngang tầm mắt, dễ thấy; các dấu cách nhau <b>không quá 50 m</b>; ghi đúng ký hiệu; riêng dấu mật thư phải chỉ đúng hướng và tương đối chính xác khoảng cách ghi trong dấu.</p>
+    <p><b>Lưu ý khi học:</b> dấu <i>Bắt đầu đi</i> và dấu <i>Đích</i> cùng là vòng tròn có chấm ở tâm — dấu Bắt đầu có thêm mũi tên chỉ hướng đi và nằm ở đầu hành trình, dấu Đích nằm ở cuối hành trình. Dấu <i>Quay lại</i> theo bản Đội gồm <b>hai</b> mũi tên ngược chiều nhau (một số bảng rút gọn còn một mũi tên). Tên gọi "tập hợp" không phải là một dấu chuẩn — dấu gần nhất là <i>Hai đoàn nhập 1</i>.</p>
+    <p class="tt-note">Phần mở rộng (bảng 32 dấu): ngoài 20 dấu trên còn có Qua cầu, Theo lối tắt, Theo lối sông, Vượt suối, Theo lối suối, Cắm trại được, Không cắm trại được, Làm cáng, Về trại lúc 10 giờ, Đi theo dấu chân, Có kẻ nghịch — có địch, Có thú dữ. Nhóm này mới kiểm chứng được ở một nguồn hướng đạo, chưa đối chiếu được với bảng 32 phía Đội, nên ứng dụng chưa đưa vào phần luyện tập và kiểm tra.</p>`;
+}
+
+/* ---------------- MẬT THƯ: các hệ mã hoá ----------------
+   Mọi hệ đều làm việc trên bạch văn đã chuyển theo quy ước
+   của lớp (convertText): chỉ còn 26 chữ La-tinh không dấu,
+   riêng chữ Z không bao giờ xuất hiện trong tiếng Việt đã
+   chuyển đổi — đúng điều kiện của bảng tọa độ 5×5 (bỏ Z). */
+const CIPHER_MSGS = ["ĐI HỌC", "HỌC TỐT", "ĐOÀN KẾT", "CHĂM NGOAN", "GIÚP BẠN", "YÊU NƯỚC", "GIỮ SẠCH", "ĐI SỚM", "VỀ TRẠI", "ĐỌC SÁCH", "NGỦ SỚM", "UỐNG NƯỚC", "RỬA TAY", "XẾP HÀNG", "ĐI ĐỀU", "HÁT VANG"];
+function caesarShift(conv, k) {
+  return conv.split("").map((ch) => ch === " " ? " " : String.fromCharCode(65 + ((ch.charCodeAt(0) - 65 + k) % 26))).join("");
+}
+function coordOf(ch) {
+  const i = "ABCDEFGHIJKLMNOPQRSTUVWXY".indexOf(ch);
+  return i < 0 ? ch : "ABCDE"[Math.floor(i / 5)] + (i % 5 + 1);
+}
+/* Chuồng bồ câu: lưới vuông 3×3 mỗi ô 2 chữ (AB|CD|EF / GH|IJ|KL /
+   MN|OP|QR) + lưới nhọn 4 ô (trên ST, trái UV, phải WX, dưới YZ).
+   Ký hiệu = khung của ô chứa chữ; chữ thứ hai trong ô thêm dấu chấm. */
+const PIGPEN_MAP = (() => {
+  const m = {};
+  [["A", "B"], ["C", "D"], ["E", "F"], ["G", "H"], ["I", "J"], ["K", "L"], ["M", "N"], ["O", "P"], ["Q", "R"]]
+    .forEach((pair, i) => {
+      const r = Math.floor(i / 3), c = i % 3;
+      m[pair[0]] = { g: "sq", r, c, dot: 0 };
+      m[pair[1]] = { g: "sq", r, c, dot: 1 };
+    });
+  [["top", "S", "T"], ["left", "U", "V"], ["right", "W", "X"], ["bottom", "Y", "Z"]]
+    .forEach(([w, a, b]) => { m[a] = { g: "x", w, dot: 0 }; m[b] = { g: "x", w, dot: 1 }; });
+  return m;
+})();
+function pigpenGlyph(ch, x, y, s) {
+  const p = PIGPEN_MAP[ch];
+  if (!p) return "";
+  const u = s / 30, X = (d) => (x + d * u).toFixed(1), Y = (d) => (y + d * u).toFixed(1);
+  const L = 3, R = 27, T = 3, B = 27;
+  let lines = [];
+  if (p.g === "sq") {
+    const seg = { top: [L, T, R, T], right: [R, T, R, B], bottom: [L, B, R, B], left: [L, T, L, B] };
+    const need = { top: p.r > 0, bottom: p.r < 2, left: p.c > 0, right: p.c < 2 };
+    for (const k in seg) if (need[k]) { const [a, b, c2, d] = seg[k]; lines.push(`<line x1="${X(a)}" y1="${Y(b)}" x2="${X(c2)}" y2="${Y(d)}"/>`); }
+  } else if (p.w === "top") lines = [`<line x1="${X(4)}" y1="${Y(4)}" x2="${X(15)}" y2="${Y(19)}"/>`, `<line x1="${X(26)}" y1="${Y(4)}" x2="${X(15)}" y2="${Y(19)}"/>`];
+  else if (p.w === "bottom") lines = [`<line x1="${X(4)}" y1="${Y(26)}" x2="${X(15)}" y2="${Y(11)}"/>`, `<line x1="${X(26)}" y1="${Y(26)}" x2="${X(15)}" y2="${Y(11)}"/>`];
+  else if (p.w === "left") lines = [`<line x1="${X(4)}" y1="${Y(4)}" x2="${X(19)}" y2="${Y(15)}"/>`, `<line x1="${X(4)}" y1="${Y(26)}" x2="${X(19)}" y2="${Y(15)}"/>`];
+  else lines = [`<line x1="${X(26)}" y1="${Y(4)}" x2="${X(11)}" y2="${Y(15)}"/>`, `<line x1="${X(26)}" y1="${Y(26)}" x2="${X(11)}" y2="${Y(15)}"/>`];
+  return `<g stroke="#37474f" stroke-width="${(2.6 * u).toFixed(1)}" stroke-linecap="round">${lines.join("")}${p.dot ? `<circle cx="${X(p.g === "x" && p.w === "left" ? 9.5 : p.g === "x" && p.w === "right" ? 20.5 : 15)}" cy="${Y(p.g === "x" && p.w === "top" ? 9.5 : p.g === "x" && p.w === "bottom" ? 20.5 : 15)}" r="${(3 * u).toFixed(1)}" fill="#37474f" stroke="none"/>` : ""}</g>`;
+}
+function pigpenSVG(conv) {
+  const S = 30, GAP = 4, SPACE = 18, MAXW = 322;
+  const items = [];
+  let x = 4, y = 4, maxX = 0;
+  for (const ch of conv) {
+    if (ch === " ") { x += SPACE; continue; }
+    if (x + S > MAXW) { x = 4; y += S + 10; }
+    items.push([ch, x, y]);
+    x += S + GAP;
+    maxX = Math.max(maxX, x);
+  }
+  const H = y + S + 6;
+  return `<svg viewBox="0 0 ${Math.min(MAXW, maxX + 2)} ${H}" style="max-width:100%;height:auto;display:block;margin:6px auto" role="img" aria-label="Bản mật thư chuồng"><rect x="0" y="0" width="${Math.min(MAXW, maxX + 2)}" height="${H}" rx="8" fill="#fffdf5"/>${items.map(([ch, ix, iy]) => pigpenGlyph(ch, ix, iy, S)).join("")}</svg>`;
+}
+function pigpenRefSVG() {
+  /* Bảng tra chuồng: hai lưới có ghi chữ, để học sinh đối chiếu.
+     Chữ thứ hai trong mỗi ô khi viết mật thư phải thêm dấu chấm. */
+  let cells = "";
+  const pairs = [["A", "B"], ["C", "D"], ["E", "F"], ["G", "H"], ["I", "J"], ["K", "L"], ["M", "N"], ["O", "P"], ["Q", "R"]];
+  pairs.forEach((pr, i) => {
+    const cx = (i % 3) * 50, cy = Math.floor(i / 3) * 50;
+    cells += `<text x="${cx + 25}" y="${cy + 30}" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f" font-family="system-ui,sans-serif">${pr[0]}·${pr[1]}</text>`;
+  });
+  const grid = [50, 100].map((v) => `<line x1="${v}" y1="0" x2="${v}" y2="150"/><line x1="0" y1="${v}" x2="150" y2="${v}"/>`).join("");
+  const xlabels = `<text x="225" y="64" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f" font-family="system-ui,sans-serif">S·T</text>
+    <text x="170" y="110" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f" font-family="system-ui,sans-serif">U·V</text>
+    <text x="280" y="110" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f" font-family="system-ui,sans-serif">W·X</text>
+    <text x="225" y="168" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f" font-family="system-ui,sans-serif">Y·Z</text>`;
+  return `<svg viewBox="0 0 300 210" style="max-width:340px;width:100%;height:auto;display:block;margin:6px auto" role="img" aria-label="Bảng tra mật thư chuồng">
+    <rect x="0" y="0" width="300" height="210" rx="8" fill="#fffdf5"/>
+    <g stroke="#37474f" stroke-width="2.5"><rect x="1" y="1" width="148" height="148" fill="none"/>${grid}
+    <line x1="150" y1="30" x2="300" y2="180"/><line x1="300" y1="30" x2="150" y2="180"/></g>${cells}${xlabels}</svg>`;
+}
+function coordTableHTML() {
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXY";
+  let rows = "";
+  for (let r = 0; r < 5; r++) {
+    let tds = "";
+    for (let c = 0; c < 5; c++) tds += `<td style="text-align:center;font-weight:700">${letters[r * 5 + c]}</td>`;
+    rows += `<tr><td style="font-weight:700;color:#0b5cad">${"ABCDE"[r]}</td>${tds}</tr>`;
+  }
+  return `<table class="tt-table" style="max-width:320px;margin:6px auto"><thead><tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function caesarStripHTML(k) {
+  const a = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const b = caesarShift(a, k);
+  return `<div style="overflow-x:auto"><table class="tt-table" style="margin:6px auto"><tbody>
+    <tr><td style="color:#666">Chữ thật</td>${[...a].map((c) => `<td style="text-align:center">${c}</td>`).join("")}</tr>
+    <tr><td style="color:#666">Chữ mật</td>${[...b].map((c) => `<td style="text-align:center;font-weight:700">${c}</td>`).join("")}</tr></tbody></table></div>`;
+}
+const CIPHER_SYSTEMS = [
+  { id: "so", name: "Số thay chữ", keyInfo: () => "🔑 Khóa: <b>A = 1</b> — mỗi chữ thay bằng số thứ tự của nó trong bảng chữ cái (A=1, B=2, …, Z=26)",
+    enc: (conv) => conv.split(" ").map((w) => [...w].map((ch) => ch.charCodeAt(0) - 64).join("-")).join(" – "),
+    help: () => `<p>Mỗi chữ trong bản tin (đã chuyển theo quy ước lớp) được thay bằng số thứ tự của nó: A=1, B=2, C=3, …, Z=26. Các số trong một tiếng nối bằng dấu -, các tiếng cách nhau bằng dấu –.</p>` },
+  { id: "caesar", name: "Chữ thay chữ (dịch chuyển)", keyInfo: (k) => `🔑 Khóa: <b>A = ${String.fromCharCode(65 + k)}</b> — bạch văn A viết thành ${String.fromCharCode(65 + k)}, mọi chữ đều dịch ${k} vị trí trong bảng chữ cái`,
+    enc: (conv, k) => caesarShift(conv, k),
+    help: (k) => `<p>Toàn bộ bảng chữ cái dịch vòng tròn ${k} vị trí: chữ thật A viết thành ${String.fromCharCode(65 + k)}. Khi giải, tra hàng chữ mật rồi đọc xuống hàng chữ thật:</p>${caesarStripHTML(k)}` },
+  { id: "toado", name: "Tọa độ chữ", keyInfo: () => "🔑 Bảng tọa độ 5×5 (bỏ chữ Z): mỗi chữ ghi bằng (chữ hàng)(số cột), ví dụ D = A4",
+    enc: (conv) => conv.split(" ").map((w) => [...w].map(coordOf).join("-")).join(" / "),
+    help: () => `<p>25 chữ cái (bỏ Z) xếp vào bảng 5×5. Hàng đánh bằng chữ A–E, cột bằng số 1–5; mỗi chữ ghi bằng chữ hàng rồi số cột:</p>${coordTableHTML()}` },
+  { id: "chuong", name: "Mật thư chuồng (chuồng bồ câu)", keyInfo: () => "🔑 Bảng chuồng cố định — mở mục Bảng tra bên dưới để đối chiếu từng ký hiệu",
+    enc: (conv) => conv,
+    help: () => `<p>Mỗi chữ được vẽ bằng <b>khung của ô chứa nó</b> trong hai lưới dưới đây; hai chữ chung một ô thì chữ thứ hai có thêm <b>dấu chấm</b> trong ký hiệu:</p>${pigpenRefSVG()}` },
+  { id: "docnguoc", name: "Đọc ngược", keyInfo: () => "🔑 Không cần khóa số — mỗi tiếng trong bản tin bị viết ngược thứ tự các chữ",
+    enc: (conv) => conv.split(" ").map((w) => [...w].reverse().join("")).join(" "),
+    help: () => `<p>Mỗi tiếng bị đảo ngược thứ tự chữ cái (ví dụ DDI viết thành IDD). Khi giải, đảo ngược lại từng tiếng. Đây là dạng đơn giản nhất của hệ dời chỗ.</p>` }
+];
+function cipherItem(sysId) {
+  const sys = sysId ? CIPHER_SYSTEMS.find((s) => s.id === sysId) : CIPHER_SYSTEMS[Math.floor(Math.random() * CIPHER_SYSTEMS.length)];
+  const phrase = CIPHER_MSGS[Math.floor(Math.random() * CIPHER_MSGS.length)];
+  const conv = convertText(phrase).toUpperCase();
+  const key = sys.id === "caesar" ? 2 + Math.floor(Math.random() * 23) : null;
+  return { sys, phrase, conv, key, cipher: sys.enc(conv, key) };
+}
+function cipherAnswerOk(input, item) {
+  const norm = (s) => String(s || "").toUpperCase().replace(/\s+/g, " ").trim();
+  return norm(input) === item.conv || norm(input) === norm(item.phrase);
+}
+
+/* ---------------- Module MẬT THƯ ---------------- */
+function openCipherModule() {
+  const body = openPanel("🔐 Mật thư — Luyện tập & Kiểm tra", true);
+  let mode = "luyen";
+  let test = null;
+  body.innerHTML = `
+    <div class="tt-modbar">
+      <button type="button" data-m="luyen" class="on">🖊️ Luyện tập</button>
+      <button type="button" data-m="kiem">📋 Kiểm tra (10 câu)</button>
+    </div>
+    <div data-role="stage"></div>`;
+  const stage = body.querySelector('[data-role="stage"]');
+  body.querySelectorAll("[data-m]").forEach((b) => b.addEventListener("click", () => {
+    mode = b.dataset.m;
+    body.querySelectorAll("[data-m]").forEach((x) => x.classList.toggle("on", x === b));
+    test = null;
+    mode === "luyen" ? practice() : startTest();
+  }));
+  function itemHTML(item, withHelp) {
+    const disp = item.sys.id === "chuong" ? pigpenSVG(item.conv) : `<div class="tt-cipher">${esc(item.cipher)}</div>`;
+    return `<div class="tt-qbox">
+      <p style="margin:0 0 2px"><b>Hệ mật thư: ${esc(item.sys.name)}</b></p>
+      <p style="margin:0 0 8px">${item.sys.keyInfo(item.key)}</p>
+      ${disp}
+      ${withHelp ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600;color:#0b5cad">📖 Bảng tra của hệ này</summary>${item.sys.help(item.key)}</details>` : ""}
+    </div>
+    <div class="tt-field"><label>Giải mật thư — viết bản tin giải được (theo quy ước lớp như khi nhận Morse, hoặc viết tiếng Việt có dấu):</label>
+    <input type="text" class="tt-modinput" data-role="ans" autocomplete="off" placeholder="Ví dụ: DDI HOJC"></div>`;
+  }
+  function practice() {
+    const bar = document.createElement("div");
+    bar.className = "tt-modbar";
+    bar.innerHTML = `<select data-role="sys" style="flex:1;padding:9px;border-radius:9px;border:1.5px solid #bbb;font-size:14.5px;min-width:170px">
+      <option value="">🎲 Ngẫu nhiên hệ mật thư</option>
+      ${CIPHER_SYSTEMS.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join("")}
+    </select><button type="button" data-role="newq" style="flex:0 1 auto">Câu mới</button>`;
+    stage.innerHTML = "";
+    stage.appendChild(bar);
+    const host = document.createElement("div");
+    stage.appendChild(host);
+    let item = null, done = false;
+    function draw() {
+      done = false;
+      item = cipherItem(bar.querySelector('[data-role="sys"]').value || null);
+      host.innerHTML = itemHTML(item, true);
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "tt-btn"; btn.textContent = "Kiểm tra đáp án";
+      btn.addEventListener("click", () => {
+        if (done) return;
+        done = true;
+        const inp = host.querySelector('[data-role="ans"]');
+        const ok = cipherAnswerOk(inp.value, item);
+        const note = document.createElement("div");
+        note.className = ok ? "tt-msg" : "tt-err";
+        note.style.display = "block";
+        note.style.marginTop = "10px";
+        note.innerHTML = ok
+          ? `✅ Đúng rồi! Bản tin là <b>${esc(item.conv)}</b> (${esc(item.phrase)}).`
+          : `❌ Chưa đúng. Đáp án đúng: <b>${esc(item.conv)}</b> (${esc(item.phrase)}). Em xem lại bảng tra rồi thử câu mới nhé.`;
+        host.appendChild(note);
+        btn.disabled = true;
+      });
+      host.appendChild(btn);
+    }
+    bar.querySelector('[data-role="newq"]').addEventListener("click", draw);
+    bar.querySelector('[data-role="sys"]').addEventListener("change", draw);
+    draw();
+  }
+  function startTest() {
+    const pool = CIPHER_MSGS.filter((m) => convertText(m).replace(/ /g, "").length <= 11);
+    const mk = () => {
+      const it = cipherItem(null);
+      if (convertText(it.phrase).replace(/ /g, "").length > 11) it.phrase = pool[Math.floor(Math.random() * pool.length)], it.conv = convertText(it.phrase).toUpperCase(), it.cipher = it.sys.enc(it.conv, it.key);
+      return it;
+    };
+    test = { list: Array.from({ length: 10 }, mk), idx: 0, correct: 0, startedAt: Date.now() };
+    showTestQ();
+  }
+  function showTestQ() {
+    const item = test.list[test.idx];
+    stage.innerHTML = `<p style="text-align:center;color:#555;margin:0 0 8px">Câu ${test.idx + 1}/${test.list.length} — giải mật thư rồi bấm Nộp câu</p>` + itemHTML(item, false);
+    const inp = stage.querySelector('[data-role="ans"]');
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "tt-btn"; btn.textContent = test.idx === test.list.length - 1 ? "Nộp câu cuối và xem điểm" : "Nộp câu →";
+    btn.addEventListener("click", () => {
+      if (cipherAnswerOk(inp.value, item)) test.correct++;
+      test.idx++;
+      if (test.idx < test.list.length) { showTestQ(); return; }
+      const dur = Math.round((Date.now() - test.startedAt) / 1000);
+      modSaveHistory("kt-mat-thu", test.correct, test.list.length, "Kiểm tra mật thư — 10 câu", dur);
+      const score = (Math.round((test.correct / test.list.length) * 100) / 10).toFixed(1).replace(".", ",");
+      stage.innerHTML = `<div class="tt-qbox" style="text-align:center">
+        <p style="font-size:19px;margin:4px 0"><b>Hoàn thành bài kiểm tra!</b></p>
+        <p>Đúng <b>${test.correct}/${test.list.length}</b> câu — Điểm: <b>${score}/10</b></p>
+        <p class="tt-note">Kết quả đã lưu vào Lịch sử của em và sẽ đồng bộ cho thầy khi có mạng.</p></div>`;
+      const nb = document.createElement("button");
+      nb.type = "button"; nb.className = "tt-btn"; nb.textContent = "Làm bài kiểm tra mới";
+      nb.addEventListener("click", startTest);
+      stage.appendChild(nb);
+    });
+    stage.appendChild(btn);
+    if (inp) inp.focus();
+  }
+  practice();
+}
+
+/* ---------------- Tài liệu MẬT THƯ ---------------- */
+function openCipherDoc() {
+  const body = openPanel("🔐 Tài liệu mật thư", true);
+  body.innerHTML = `
+    <p><b>Mật thư</b> là kỹ năng truyền tin chính thức của Đội. Theo tài liệu huấn luyện, mật thư gồm <b>3 hệ thống</b>: <b>thay thế</b> (mỗi chữ đổi thành ký hiệu khác), <b>dời chỗ</b> (giữ nguyên chữ, đổi vị trí) và <b>ẩn giấu</b> (giấu bản tin trong văn bản bình thường). Trước khi mã hoá, bạch văn tiếng Việt được chuyển sang thể thức điện tín không dấu — trong ứng dụng này dùng đúng <b>quy ước của lớp</b> như ở phần Morse và Semaphore (lưu ý: một số tài liệu in viết dấu thanh ở cuối tiếng, khác quy ước lớp ở những tiếng có phụ âm cuối).</p>
+    <p>Thể thức trình bày bản mật thư: mở đầu <b>NW/</b>, kết thúc <b>/AR</b>, chìa khóa ghi sau ký hiệu <b>OTT:</b>. Đáp án khi giải ra giữ nguyên dạng điện tín, không tự Việt hoá.</p>
+    <h3 style="margin:14px 0 4px">1. Số thay chữ — hệ thay thế</h3>
+    <p>Mỗi chữ thay bằng số thứ tự trong bảng chữ cái: A=1, B=2, …, Z=26. Khóa ghi: A = 1.<br>
+    Ví dụ: ĐI HỌC → (chuyển: DDI HOJC) → <span class="tt-cipher" style="font-size:16px">4-4-9 – 8-15-10-3</span></p>
+    <h3 style="margin:14px 0 4px">2. Chữ thay chữ (dịch chuyển vòng tròn) — hệ thay thế</h3>
+    <p>Toàn bộ bảng chữ cái dịch vòng tròn một số vị trí cố định. Khóa cho bằng một cặp chữ, ví dụ <b>A = D</b> nghĩa là bạch văn A viết thành D (dịch 3 vị trí), mọi chữ dịch như nhau. Khi giải thử cả hai chiều nếu chưa rõ chiều khóa.</p>
+    ${caesarStripHTML(3)}
+    <p>Ví dụ với khóa A = D: ĐI HỌC → <span class="tt-cipher" style="font-size:16px">GGL KRMF</span></p>
+    <h3 style="margin:14px 0 4px">3. Tọa độ chữ — hệ thay thế</h3>
+    <p>25 chữ cái (bỏ chữ Z — chữ này không xuất hiện trong tiếng Việt đã chuyển đổi) xếp vào bảng 5×5; mỗi chữ ghi bằng (chữ hàng)(số cột):</p>
+    ${coordTableHTML()}
+    <p>Ví dụ: ĐI THEO DẤU → <span class="tt-cipher" style="font-size:16px">A4-A4-B4 / D5-B3-A5-C5 / A4-A1-A1-D4-E1</span></p>
+    <h3 style="margin:14px 0 4px">4. Mật thư chuồng (chuồng bồ câu) — hệ thay thế bằng hình</h3>
+    <p>26 chữ xếp vào lưới vuông 3×3 (mỗi ô 2 chữ) và lưới nhọn 4 ô. Mỗi chữ vẽ bằng khung của ô chứa nó; chữ thứ hai trong ô thêm một dấu chấm:</p>
+    ${pigpenRefSVG()}
+    <p>Ví dụ — bản mật thư của câu VỀ TRẠI (chuyển: VEEF TRAJI):</p>
+    ${pigpenSVG("VEEF TRAJI")}
+    <h3 style="margin:14px 0 4px">5. Đọc ngược — hệ dời chỗ</h3>
+    <p>Mỗi tiếng bị viết ngược thứ tự các chữ (cũng có dạng đảo ngược toàn bộ bản tin, hoặc đảo ngược thứ tự các tiếng). Ví dụ: HỌC TỐT → (chuyển: HOJC TOOST) → <span class="tt-cipher" style="font-size:16px">CJOH TSOOT</span></p>
+    <h3 style="margin:14px 0 4px">Các dạng nâng cao (đọc thêm)</h3>
+    <p><b>CAM RANH</b> (dời chỗ): viết bản tin thành các hàng dưới một từ khóa, đánh số các chữ của khóa theo thứ tự bảng chữ cái, rồi đọc từng cột theo thứ tự số — tên gọi lấy từ từ khóa mẫu kinh điển CAM RANH.<br>
+    <b>Tọa độ số có từ khóa</b> (thay thế): điền từ khóa vào bảng 5×5 trước (bỏ chữ trùng), điền tiếp các chữ còn lại, rồi ghi mỗi chữ bằng cặp số (hàng, cột) viết liền nhau.<br>
+    <b>Ẩn giấu</b>: giấu bản tin bằng quy tắc đọc — đọc cách dòng, nhảy cóc theo bước, bỏ chữ giả, ghép chữ đầu các tiếng… người giải phải nhận được quy tắc kèm theo khóa.</p>
+    <p class="tt-note">Năm dạng đầu là phần luyện tập và kiểm tra trong ứng dụng. Nội dung đầy đủ, gồm nguồn tài liệu và các điểm các tài liệu chưa thống nhất, có trong file tài liệu nghiên cứu chuyên đề mật thư và dấu đi đường của thầy.</p>`;
 }
 
 /* ---------------- Dung lượng Firebase (chỉ quản trị) ----------------
