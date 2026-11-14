@@ -736,7 +736,7 @@ async function syncHistory() {
 }
 
 /* ---------------- Lịch sử: nhãn dạng/tốc độ + đồng bộ ngay khi nộp bài ---------------- */
-const KIND_NAMES = { "nhan-morse": "Nhận Morse", "nhan-sem": "Nhận Semaphore", "phat-morse": "Phát Morse", "phat-sem": "Phát Semaphore", "kt-dau-duong": "Kiểm tra dấu đi đường", "kt-mat-thu": "Kiểm tra mật thư" };
+const KIND_NAMES = { "nhan-morse": "Nhận Morse", "nhan-sem": "Nhận Semaphore", "phat-morse": "Phát Morse", "phat-sem": "Phát Semaphore", "kt-dau-duong": "Kiểm tra dấu đi đường", "kt-kien-thuc-dau-duong": "Kiểm tra kiến thức dấu đường", "kt-mat-thu": "Kiểm tra mật thư" };
 function metaFor(entry) {
   const k = (entry && entry.kind) || "";
   let speedLabel = "";
@@ -1679,19 +1679,19 @@ const TRAIL_SIGNS = [
   { no: 2, grp: "A", id: "proceed", name: "Theo hướng này", mean: () => "Đi tiếp theo hướng mũi tên chỉ", make: "Một que dài làm thân mũi tên, hai que ngắn chéo ở đầu làm ngạnh", draw: () => trSVG(trArrow(14, 45, 106, 1)) },
   { no: 3, grp: "A", id: "faster", name: "Đi nhanh lên", mean: () => "Tăng tốc độ di chuyển theo hướng mũi tên", make: "Mũi tên có hai đầu nhọn nối tiếp nhau trên cùng một trục", draw: () => trSVG(trArrow(14, 45, 106, 2)) },
   { no: 4, grp: "A", id: "run", name: "Chạy", mean: () => "Chạy (không đi bộ) theo hướng mũi tên", make: "Mũi tên có ba đầu nhọn nối tiếp nhau trên cùng một trục", draw: () => trSVG(trArrow(14, 45, 106, 3)) },
-  { no: 5, grp: "A", id: "slower", name: "Đi chậm lại", mean: () => "Giảm tốc độ, đi chậm lại", make: "Mũi tên có một que đặt ngang, chắn ngang thân mũi tên", draw: () => trSVG(trArrow(14, 45, 106, 1) + trLine(52, 27, 52, 63)) },
+  { no: 5, grp: "A", id: "slower", name: "Đi chậm lại", mean: () => "Giảm tốc độ, đi chậm lại", make: "Mũi tên có một que đặt chéo, chắn ngang thân mũi tên", draw: () => trSVG(trArrow(14, 45, 106, 1) + trLine(57, 29, 47, 61)) },
   { no: 6, grp: "A", id: "back", name: "Quay trở lại", mean: () => "Quay đầu, đi ngược trở lại đường vừa đi", make: "Hai mũi tên song song xếp chồng, hướng ngược chiều nhau", draw: () => trSVG(trLine(20, 31, 96, 31) + trHeadAt(100, 31, 1, 0) + trLine(100, 59, 24, 59) + trHeadAt(20, 59, -1, 0)) },
-  { no: 7, grp: "A", id: "obstacle", name: "Chướng ngại vật phải vượt qua", mean: () => "Phía trước có chướng ngại — đoàn phải vượt qua, không vòng tránh", make: "Mũi tên có hai que song song đặt ngang, chắn ngang thân mũi tên", draw: () => trSVG(trArrow(14, 45, 106, 1) + trLine(45, 27, 45, 63) + trLine(60, 27, 60, 63)) },
+  { no: 7, grp: "A", id: "obstacle", name: "Chướng ngại vật phải vượt qua", mean: () => "Phía trước có chướng ngại — đoàn phải vượt qua, không vòng tránh", make: "Mũi tên có hai que song song đặt chéo, chắn ngang thân mũi tên", draw: () => trSVG(trArrow(14, 45, 106, 1) + trLine(53, 29, 43, 61) + trLine(67, 29, 57, 61)) },
   { no: 8, grp: "A", id: "split", name: "Chia làm 2 nhóm", mean: () => "Đoàn chia thành hai nhóm đi hai ngã (số người mỗi nhóm viết thêm bên cạnh nếu cần)", make: "Một que thân tách thành hai nhánh có đầu mũi tên đi hai hướng", draw: () => trSVG(trLine(12, 45, 50, 45) + trLine(50, 45, 88, 26) + trHeadAt(93, 24, 0.9, -0.43) + trLine(50, 45, 88, 60) + trHeadAt(93, 62, 0.9, 0.43)) },
   { no: 9, grp: "A", id: "merge", name: "Hai nhóm nhập lại", mean: () => "Hai nhóm đang đi hai lối hợp lại thành một đoàn và đi tiếp chung", make: "Hai que chéo từ hai phía chụm lại thành một thân, có mũi tên về phía trước", draw: () => trSVG(trLine(18, 18, 56, 45) + trLine(18, 72, 56, 45) + trArrow(56, 45, 106, 1)) },
   { no: 10, grp: "A", id: "left", name: "Rẽ trái", mean: () => "Tới điểm này rẽ sang trái", make: "Que thân đi tới rồi gập 90 độ sang trái, đầu mũi tên chỉ lên phía trái", draw: () => trSVG(trLine(14, 64, 64, 64) + trLine(64, 64, 64, 28) + trHeadAt(64, 24, 0, -1)) },
   { no: 11, grp: "A", id: "right", name: "Rẽ phải", mean: () => "Tới điểm này rẽ sang phải", make: "Que thân đi tới rồi gập 90 độ sang phải, đầu mũi tên chỉ xuống phía phải", draw: () => trSVG(trLine(14, 26, 64, 26) + trLine(64, 26, 64, 62) + trHeadAt(64, 66, 0, 1)) },
-  { no: 12, grp: "A", id: "bridge", name: "Qua cầu", mean: () => "Đi qua cầu theo hướng mũi tên", make: "Hai nét lượn sóng song song tượng trưng nhịp cầu, đầu mũi tên ở đầu nét trên chỉ hướng qua cầu", draw: () => trSVG(`<path d="M14 36 q7.5 -8 15 0 t15 0 t15 0 t15 0 t15 0" fill="none" stroke="${TR_STICK}" stroke-width="4.5" stroke-linecap="round"/><path d="M14 56 q7.5 -8 15 0 t15 0 t15 0 t15 0 t15 0" fill="none" stroke="${TR_STICK}" stroke-width="4.5" stroke-linecap="round"/>` + trHeadAt(102, 36, 1, 0)) },
-  { no: 13, grp: "A", id: "letter", name: "Mật thư hướng này", mean: () => "Theo hướng mũi tên có giấu một mật thư (khoảng cách viết thêm bên cạnh nếu cần)", make: "Khung chữ nhật có hai đường chéo như mặt phong bì thư, kèm mũi tên chỉ hướng", draw: () => trSVG(`<rect x="12" y="27" width="46" height="34" fill="none" stroke="${TR_STICK}" stroke-width="4.5"/>` + trLine(12, 27, 58, 61, 3.5) + trLine(58, 27, 12, 61, 3.5) + trArrow(66, 44, 104, 1)) },
-  { no: 14, grp: "A", id: "shortcut", name: "Theo lối tắt", mean: () => "Rẽ theo lối tắt (đường ngắn hơn) thay vì đi tiếp đường chính", make: "Một mũi tên thẳng là đường chính, một nét chéo ngắn có đầu mũi tên rẽ lên phía trên ở gần đầu", draw: () => trSVG(trArrow(12, 58, 104, 1) + trLine(70, 50, 92, 30, 4.5) + trHeadAt(96, 27, 0.83, -0.55)) },
-  { no: 15, grp: "A", id: "riverway", name: "Theo lối sông", mean: () => "Đi dọc theo con sông theo hướng mũi tên", make: "Khung chữ nhật dài, bên trong có nét sóng (con sông), mũi tên ở đầu khung chỉ hướng đi", draw: () => trSVG(`<rect x="12" y="29" width="74" height="30" fill="none" stroke="${TR_STICK}" stroke-width="4.5"/>` + trWave(20, 44, 4) + trLine(86, 44, 104, 44) + trHeadAt(108, 44, 1, 0)) },
+  { no: 12, grp: "A", id: "bridge", name: "Qua cầu", mean: () => "Đi qua cầu theo hướng mũi tên", make: "Hai nét lượn sóng song song (hai bờ cầu) chụm vào đầu mũi tên ở giữa, chỉ hướng qua cầu", draw: () => trSVG(`<path d=\"M14 35 q7.5 -8 15 0 t15 0 t15 0 t15 0 L88 41\" fill=\"none\" stroke=\"${TR_STICK}\" stroke-width=\"4.5\" stroke-linecap=\"round\"/><path d=\"M14 55 q7.5 8 15 0 t15 0 t15 0 t15 0 L88 49\" fill=\"none\" stroke=\"${TR_STICK}\" stroke-width=\"4.5\" stroke-linecap=\"round\"/>` + trLine(88, 39, 105, 45, 5) + trLine(105, 45, 88, 51, 5)) },
+  { no: 13, grp: "A", id: "letter", name: "Mật thư hướng này", mean: () => "Theo hướng mũi tên có giấu một mật thư (khoảng cách viết thêm bên cạnh nếu cần)", make: "Khung chữ nhật có hai đường chéo như mặt phong bì thư, đầu mũi tên gắn ngay bên phải phong bì chỉ hướng", draw: () => trSVG(`<rect x=\"12\" y=\"26\" width=\"52\" height=\"38\" fill=\"none\" stroke=\"${TR_STICK}\" stroke-width=\"4.5\"/>` + trLine(12, 26, 64, 64, 3.5) + trLine(64, 26, 12, 64, 3.5) + trLine(69, 29, 93, 45, 5) + trLine(93, 45, 69, 61, 5)) },
+  { no: 14, grp: "A", id: "shortcut", name: "Theo lối tắt", mean: () => "Rẽ theo lối tắt (đường ngắn hơn) thay vì đi tiếp đường chính", make: "Một mũi tên thẳng là đường chính, một nét chéo ngắn có đầu mũi tên rẽ lên phía trên ngay sau đầu mũi tên chính", draw: () => trSVG(trArrow(12, 58, 104, 1) + trLine(72, 51, 90, 34, 4.5) + trHeadAt(94, 31, 0.83, -0.55)) },
+  { no: 15, grp: "A", id: "riverway", name: "Theo lối sông", mean: () => "Đi dọc theo con sông theo hướng mũi tên", make: "Khung chữ nhật dài, bên trong có nét sóng (con sông), đầu mũi tên gắn ngay đầu khung chỉ hướng đi", draw: () => trSVG(`<rect x=\"12\" y=\"29\" width=\"70\" height=\"30\" fill=\"none\" stroke=\"${TR_STICK}\" stroke-width=\"4.5\"/>` + trWave(20, 39, 4) + trWave(20, 50, 4) + trLine(86, 34, 105, 44, 5) + trLine(105, 44, 86, 54, 5)) },
   { no: 16, grp: "A", id: "crossstream", name: "Vượt suối", mean: () => "Băng ngang qua suối theo hướng mũi tên chéo", make: "Các nét sóng dọc mô phỏng dòng suối, mũi tên chéo hướng lên băng qua dòng suối", draw: () => trSVG([42, 58, 74].map((x) => `<path d="M${x} 22 q6 8 0 16 t0 16 t0 14" fill="none" stroke="${TR_BLUE}" stroke-width="4" stroke-linecap="round"/>`).join("") + trLine(24, 70, 94, 24) + trHeadAt(98, 22, 0.92, -0.39)) },
-  { no: 17, grp: "B", id: "streamway", name: "Theo lối suối", mean: () => "Đi dọc theo con suối (theo chiều các nét sóng đứng)", make: "Nhiều nét lượn sóng THẲNG ĐỨNG song song nhau mô phỏng dòng suối chảy", draw: () => trSVG([30, 48, 66, 84].map((x) => `<path d="M${x} 16 q6 9 0 18 t0 18 t0 18" fill="none" stroke="${TR_BLUE}" stroke-width="4" stroke-linecap="round"/>`).join("")) },
+  { no: 17, grp: "B", id: "streamway", name: "Theo lối suối", mean: () => "Đi dọc theo con suối (theo chiều các nét sóng đứng)", make: "Nhiều nét lượn sóng THẲNG ĐỨNG song song nhau mô phỏng dòng suối chảy", draw: () => trSVG([26, 42, 58, 74, 90].map((x) => `<path d="M${x} 16 q6 9 0 18 t0 18 t0 18" fill="none" stroke="${TR_BLUE}" stroke-width="4" stroke-linecap="round"/>`).join("")) },
   { no: 18, grp: "B", id: "camp", name: "Có trại gần đây", mean: () => "Gần đây có trại, theo hướng mũi tên ở chân dấu", make: "Hình lều có hai cây chống bắt chéo trên đỉnh, mũi tên ở chân chỉ hướng trại", draw: () => trSVG(trLine(44, 12, 62, 32, 4.5) + trLine(76, 12, 58, 32, 4.5) + trLine(28, 66, 60, 30) + trLine(60, 30, 92, 66) + trLine(22, 66, 98, 66) + trLine(30, 79, 94, 79, 4) + trHeadAt(98, 79, 1, 0)) },
   { no: 19, grp: "B", id: "campok", name: "Cắm trại được", mean: () => "Nơi này thích hợp, được cắm trại", make: "Hai tam giác lồng nhau (hình lều vẽ đôi nét)", draw: () => trSVG(`<path d="M60 18 L26 72 H94 Z" fill="none" stroke="${TR_STICK}" stroke-width="5" stroke-linejoin="round"/><path d="M60 35 L41 72 H79 Z" fill="none" stroke="${TR_STICK}" stroke-width="4" stroke-linejoin="round"/>`) },
   { no: 20, grp: "B", id: "campno", name: "Không cắm trại được", mean: () => "Nơi này không cắm trại được", make: "Hình lều đôi nét (như dấu Cắm trại được) bị hai nét bắt chéo thành chữ X phủ lên", draw: () => trSVG(`<path d="M60 18 L26 72 H94 Z" fill="none" stroke="${TR_STICK}" stroke-width="5" stroke-linejoin="round"/><path d="M60 35 L41 72 H79 Z" fill="none" stroke="${TR_STICK}" stroke-width="4" stroke-linejoin="round"/>` + trLine(24, 16, 96, 74, 4.5) + trLine(96, 16, 24, 74, 4.5)) },
@@ -1699,13 +1699,13 @@ const TRAIL_SIGNS = [
   { no: 22, grp: "B", id: "watergood", name: "Nước uống được", mean: () => "Nguồn nước ở đây uống được", make: "Đá xếp thành vòng tròn, bên trong nửa dưới có các nét sóng nước", draw: () => trSVG(`<circle cx="60" cy="45" r="27" fill="none" stroke="${TR_STICK}" stroke-width="5"/>` + trWave(42, 50, 2) + trWave(45, 61, 1) + trWave(57, 61, 1)) },
   { no: 23, grp: "B", id: "waterbad", name: "Nước độc (không uống được)", mean: () => "Nguồn nước ở đây có độc — không uống được", make: "Ba que xếp thành tam giác, bên trong có các nét sóng nước", draw: () => trSVG(trTri(60, 14, 72, 38) + trWave(46, 50, 2) + trWave(48, 61, 1) + trWave(60, 61, 1)) },
   { no: 24, grp: "B", id: "danger", name: "Nguy hiểm", mean: () => "Phía trước có nguy hiểm — chú ý, thận trọng", make: "Ba que xếp thành tam giác, một hòn đá đặt ở giữa", draw: () => trSVG(trTri(60, 16, 70, 34) + `<circle cx="60" cy="50" r="4.5" fill="${TR_STICK}"/>`) },
-  { no: 25, grp: "B", id: "stretcher", name: "Làm cáng", mean: () => "Cần làm cáng — có người bị thương cần khiêng", make: "Hình bầu dục dài có đan lưới bên trong (mặt cáng), hai vòng tròn nhỏ ở hai đầu là tay cầm", draw: () => trSVG(`<rect x="16" y="33" width="88" height="24" rx="12" fill="none" stroke="${TR_STICK}" stroke-width="4.5"/>` + trLine(38, 33, 38, 57, 3.5) + trLine(60, 33, 60, 57, 3.5) + trLine(82, 33, 82, 57, 3.5) + trLine(27, 36, 49, 54, 3) + trLine(49, 36, 71, 54, 3) + trLine(71, 36, 93, 54, 3) + `<circle cx="10" cy="45" r="4.5" fill="none" stroke="${TR_STICK}" stroke-width="3.5"/><circle cx="110" cy="45" r="4.5" fill="none" stroke="${TR_STICK}" stroke-width="3.5"/>`) },
-  { no: 26, grp: "B", id: "backcamp", name: "Về trại lúc 10 giờ", mean: () => "Phải quay về trại, có mặt ở trại lúc 10 giờ", make: "Một vòng tròn, bên trong vẽ hình lều", draw: () => trSVG(`<circle cx="60" cy="45" r="28" fill="none" stroke="${TR_STICK}" stroke-width="5"/><path d="M60 28 L42 64 H78 Z" fill="none" stroke="${TR_STICK}" stroke-width="4" stroke-linejoin="round"/><path d="M60 41 L50 64 H70 Z" fill="none" stroke="${TR_STICK}" stroke-width="3.5" stroke-linejoin="round"/>`) },
-  { no: 27, grp: "B", id: "footprints", name: "Đi theo dấu chân", mean: () => "Đi theo dấu chân (vết chân) để lại trên đường", make: "Khung chữ nhật có hai cạnh đứng kéo dài vượt qua hai cạnh ngang (các góc thừa ra ngoài)", draw: () => trSVG(trLine(28, 26, 92, 26) + trLine(28, 64, 92, 64) + trLine(38, 18, 38, 72) + trLine(82, 18, 82, 72)) },
+  { no: 25, grp: "B", id: "stretcher", name: "Làm cáng", mean: () => "Cần làm cáng — có người bị thương cần khiêng", make: "Hình bầu dục dài: hai vòng tròn ở hai đầu là tay cầm, phần giữa đan lưới là mặt cáng", draw: () => trSVG(`<rect x=\"14\" y=\"32\" width=\"92\" height=\"26\" rx=\"13\" fill=\"none\" stroke=\"${TR_STICK}\" stroke-width=\"4.5\"/><circle cx=\"27\" cy=\"45\" r=\"10\" fill=\"none\" stroke=\"${TR_STICK}\" stroke-width=\"4\"/><circle cx=\"93\" cy=\"45\" r=\"10\" fill=\"none\" stroke=\"${TR_STICK}\" stroke-width=\"4\"/>` + trLine(48, 33, 48, 57, 3) + trLine(60, 33, 60, 57, 3) + trLine(72, 33, 72, 57, 3) + trLine(42, 36, 54, 54, 2.5) + trLine(54, 36, 66, 54, 2.5) + trLine(66, 36, 78, 54, 2.5) + trLine(42, 54, 54, 36, 2.5) + trLine(54, 54, 66, 36, 2.5) + trLine(66, 54, 78, 36, 2.5)) },
+  { no: 26, grp: "B", id: "backcamp", name: "Về trại lúc 10 giờ", mean: () => "Phải quay về trại, có mặt ở trại lúc 10 giờ", make: "Một vòng tròn, bên trong vẽ hình lều bằng hai nét hình chữ Λ lồng nhau", draw: () => trSVG(`<circle cx=\"60\" cy=\"45\" r=\"28\" fill=\"none\" stroke=\"${TR_STICK}\" stroke-width=\"5\"/><path d=\"M41 64 L60 24 L79 64\" fill=\"none\" stroke=\"${TR_STICK}\" stroke-width=\"4\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/><path d=\"M48 64 L60 36 L72 64\" fill=\"none\" stroke=\"${TR_STICK}\" stroke-width=\"3.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/>`) },
+  { no: 27, grp: "B", id: "footprints", name: "Đi theo dấu chân", mean: () => "Đi theo dấu chân (vết chân) để lại trên đường", make: "Khung chữ nhật có hai cạnh ngang kéo dài vượt ra ngoài hai cạnh đứng", draw: () => trSVG(trLine(24, 28, 96, 28) + trLine(24, 62, 96, 62) + trLine(38, 28, 38, 62) + trLine(82, 28, 82, 62)) },
   { no: 28, grp: "B", id: "wait", name: "Đợi ở đây", mean: () => "Dừng lại và đợi tại điểm này (thời gian chờ viết thêm bên cạnh nếu cần)", make: "Hai hình chữ nhật lồng nhau (khung đôi)", draw: () => trSVG(`<rect x="28" y="22" width="64" height="46" fill="none" stroke="${TR_STICK}" stroke-width="5"/><rect x="40" y="32" width="40" height="26" fill="none" stroke="${TR_STICK}" stroke-width="4"/>`) },
   { no: 29, grp: "B", id: "safe", name: "Bình an (an toàn)", mean: () => "Hướng này bình an, an toàn, cứ yên tâm đi tiếp", make: "Ba đầu mũi tên nhỏ (ngạnh chữ V) cùng chiều, xếp nối tiếp theo hướng đi", draw: () => trSVG([22, 50, 78].map((x) => trLine(x, 31, x + 13, 45, 4.5) + trLine(x + 13, 45, x, 59, 4.5)).join("")) },
   { no: 30, grp: "B", id: "enemy", name: "Có kẻ địch", mean: () => "Phía trước có kẻ địch — cảnh giác, có thể phải ẩn nấp hoặc tránh", make: "Hai ngạnh chữ V hướng về phía trước, đối đầu một ngạnh chữ V hướng ngược lại", draw: () => trSVG([22, 41].map((x) => trLine(x, 30, x + 14, 45, 4.5) + trLine(x + 14, 45, x, 60, 4.5)).join("") + trLine(90, 30, 76, 45, 4.5) + trLine(76, 45, 90, 60, 4.5)) },
-  { no: 31, grp: "B", id: "beast", name: "Có thú dữ", mean: () => "Khu vực có thú dữ — nguy hiểm, tránh xa và thận trọng", make: "Vòng tròn có răng cưa chung quanh (các que ngắn tỏa ra) và một chấm ở giữa", draw: () => trSVG(`<circle cx="60" cy="45" r="15" fill="none" stroke="${TR_STICK}" stroke-width="5"/><circle cx="60" cy="45" r="3" fill="${TR_STICK}"/>` + [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((a) => { const r1 = 19, r2 = 26, t = a * Math.PI / 180; return trLine(60 + r1 * Math.cos(t), 45 + r1 * Math.sin(t), 60 + r2 * Math.cos(t), 45 + r2 * Math.sin(t), 4); }).join("")) },
+  { no: 31, grp: "B", id: "beast", name: "Có thú dữ", mean: () => "Khu vực có thú dữ — nguy hiểm, tránh xa và thận trọng", make: "Vòng răng cưa khép kín chung quanh và một chấm ở giữa", draw: () => trSVG(`<path d=\"${Array.from({ length: 56 }, (_, i) => { const a = i * Math.PI / 28, r = i % 2 ? 16.5 : 21.5; return (i ? 'L' : 'M') + (60 + r * Math.cos(a)).toFixed(1) + ' ' + (45 + r * Math.sin(a)).toFixed(1); }).join(' ')} Z\" fill=\"none\" stroke=\"${TR_STICK}\" stroke-width=\"4\" stroke-linejoin=\"round\"/><circle cx=\"60\" cy=\"45\" r=\"3.5\" fill=\"${TR_STICK}\"/>`) },
   { no: 32, grp: "B", id: "finish", name: "Đã đến nơi (hết dấu)", mean: () => "Đã tới nơi — kết thúc hành trình, hết dấu", make: "Đá nhỏ xếp thành vòng tròn, một hòn ở tâm (giống dấu Bắt đầu nhưng không có mũi tên)", draw: () => trSVG(`<circle cx="60" cy="45" r="17" fill="none" stroke="${TR_STICK}" stroke-width="5"/><circle cx="60" cy="45" r="4" fill="${TR_STICK}"/>`) }
 ];
 function trailQuestion() {
@@ -1730,6 +1730,7 @@ function openTrailModule() {
     <div class="tt-modbar">
       <button type="button" data-m="luyen" class="on">🖊️ Luyện tập</button>
       <button type="button" data-m="kiem" class="">📋 Kiểm tra (10 câu)</button>
+      <button type="button" id="trQuizOpen">📚 Trắc nghiệm kiến thức</button>
     </div>
     <div data-role="stage"></div>`;
   const stage = body.querySelector('[data-role="stage"]');
@@ -1739,6 +1740,7 @@ function openTrailModule() {
     test = null;
     mode === "luyen" ? nextPractice() : startTest();
   }));
+  body.querySelector("#trQuizOpen").addEventListener("click", openTrailQuiz);
   function optBtn(html, fn) {
     const b = document.createElement("button");
     b.type = "button"; b.className = "tt-opt"; b.innerHTML = html;
@@ -1832,6 +1834,359 @@ function openTrailDoc() {
     <div class="tt-docgrid">${cards("B")}</div>
     <p><b>Khi rải dấu:</b> đặt ở bên phải đường đi, ngang tầm mắt, dễ thấy; các dấu cách nhau không quá 50 m; dấu mật thư phải đúng hướng và đúng khoảng cách. Số phụ (số người, số phút, số mét…) viết thêm bên cạnh dấu khi cần.</p>
     <p><b>Dễ nhầm:</b> <i>Bắt đầu đi</i> (số 1) và <i>Đã đến nơi</i> (số 32) cùng là vòng tròn có chấm tâm — dấu số 1 có thêm mũi tên. <i>Nước uống được</i> là vòng tròn, <i>nước độc</i> là tam giác. <i>Đi nhanh lên</i> 2 đầu mũi tên, <i>Chạy</i> 3 đầu; <i>Đi chậm lại</i> 1 vạch ngang, <i>Chướng ngại vật</i> 2 vạch.</p>`;
+}
+
+/* ============================================================
+   KIẾN THỨC DẤU ĐI ĐƯỜNG — ngân hàng câu hỏi trắc nghiệm
+   (Firestore: collection "trailQuiz"). Chỉ QUẢN TRỊ mới nhập
+   được ngân hàng, từ file .docx theo định dạng: mỗi câu bắt
+   đầu bằng "Câu N:", các phương án ghi "A. ...", "B. ..." —
+   phương án ĐÚNG được IN ĐẬM trong file. Học sinh Luyện tập
+   từng câu (báo đúng/sai ngay) hoặc Kiểm tra: chọn ngẫu
+   nhiên tối đa 50 câu trong ngân hàng, xáo trộn thứ tự
+   phương án (mỗi lần làm lại khác), đếm ngược 30 phút, có
+   cột danh sách câu hỏi bên phải để chọn nhanh — câu đã trả
+   lời chuyển nền xanh da trời. */
+let tqBank = null, tqTimerId = null;
+async function tqLoadBank(force) {
+  if (tqBank && !force) return tqBank;
+  const snap = await getDocs(collection(db, "trailQuiz"));
+  const arr = [];
+  snap.forEach((d) => { const x = d.data() || {}; if (x.q && Array.isArray(x.opts) && x.opts.length >= 2 && typeof x.correct === "number" && x.correct >= 0 && x.correct < x.opts.length) arr.push({ id: d.id, q: String(x.q), opts: x.opts.map(String), correct: x.correct }); });
+  tqBank = arr;
+  return arr;
+}
+function tqStopTimer() { if (tqTimerId) { clearInterval(tqTimerId); tqTimerId = null; } }
+function tqMakeItems(bank, n) {
+  return modShuffle(bank).slice(0, n).map((q) => {
+    const order = modShuffle(q.opts.map((_, i) => i));
+    return { q: q.q, opts: order.map((i) => q.opts[i]), ci: order.indexOf(q.correct) };
+  });
+}
+/* --- Đọc file .docx: tách đoạn -> dòng, đo tỉ lệ chữ in đậm --- */
+function tqXmlUnescape(s) {
+  return s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&apos;/g, "'").replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&amp;/g, "&");
+}
+function tqDocxLines(xml) {
+  const lines = [];
+  const paras = xml.split(/<w:p[\s>]/).slice(1);
+  for (const p of paras) {
+    const runs = p.match(/<w:r[\s\S]*?<\/w:r>/g) || [];
+    const segs = [{ t: "", b: 0, n: 0 }];
+    for (const r of runs) {
+      const bold = /<w:b(?=[\s/>])/.test(r) && !/<w:b[^>]*w:val="(?:false|0|off)"/.test(r);
+      const parts = r.split(/<w:br\s*\/?>/);
+      parts.forEach((part, pi) => {
+        if (pi > 0) segs.push({ t: "", b: 0, n: 0 });
+        const ts = part.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g) || [];
+        for (const t of ts) {
+          const txt = tqXmlUnescape(t.replace(/<[^>]+>/g, ""));
+          const cur = segs[segs.length - 1];
+          cur.t += txt; cur.n += txt.length; if (bold) cur.b += txt.length;
+        }
+      });
+    }
+    for (const s of segs) { const text = s.t.replace(/\s+/g, " ").trim(); if (text) lines.push({ text, boldRatio: s.n ? s.b / s.n : 0 }); }
+  }
+  return lines;
+}
+function parseQuizDocxXml(xml) {
+  const lines = tqDocxLines(xml);
+  const questions = [], warnings = [];
+  let cur = null;
+  const pushCur = () => {
+    if (!cur) return;
+    if (cur.opts.length === 0) { if (cur.fromCau) warnings.push("Bỏ câu “" + cur.q.slice(0, 40) + "…” — không có phương án nào."); }
+    else if (!cur.q) warnings.push("Bỏ một câu trống nội dung.");
+    else if (cur.opts.length < 2) warnings.push("Bỏ câu “" + cur.q.slice(0, 40) + "…” — có ít hơn 2 phương án.");
+    else if (cur.correct < 0) warnings.push("Bỏ câu “" + cur.q.slice(0, 40) + "…” — chưa thấy phương án nào được in đậm.");
+    else questions.push({ q: cur.q, opts: cur.opts, correct: cur.correct });
+    cur = null;
+  };
+  for (const ln of lines) {
+    const t = ln.text;
+    const qm = t.match(/^câu\s*\d+\s*[:.)]?\s*(.*)$/i);
+    const om = t.match(/^([A-F])\s*[.)]\s*(.+)$/);
+    if (qm) { pushCur(); cur = { q: qm[1].trim(), opts: [], correct: -1, fromCau: true }; continue; }
+    if (om) {
+      if (!cur) { warnings.push("Thấy phương án mà chưa có câu hỏi: “" + t.slice(0, 40) + "…”"); continue; }
+      const idx = cur.opts.length;
+      cur.opts.push(om[2].trim());
+      if (ln.boldRatio >= 0.5) {
+        if (cur.correct >= 0) warnings.push("Câu “" + cur.q.slice(0, 40) + "…” có nhiều phương án in đậm — lấy phương án in đậm đầu tiên.");
+        else cur.correct = idx;
+      }
+      continue;
+    }
+    if (cur && cur.opts.length === 0) { cur.q = (cur.q + " " + t).trim(); continue; }
+    pushCur(); cur = { q: t, opts: [], correct: -1, fromCau: false };
+  }
+  pushCur();
+  return { questions, warnings };
+}
+function tqLoadJSZip() {
+  return new Promise((resolve, reject) => {
+    if (window.JSZip) return resolve(window.JSZip);
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    s.onload = () => resolve(window.JSZip);
+    s.onerror = () => reject(new Error("Không tải được thư viện đọc file .docx — kiểm tra kết nối mạng rồi thử lại."));
+    document.head.appendChild(s);
+  });
+}
+async function openTrailQuiz() {
+  const body = openPanel("📚 Kiến thức dấu đi đường — Trắc nghiệm", true);
+  tqStopTimer();
+  const LETTERS = ["A", "B", "C", "D", "E", "F"];
+  body.innerHTML = `
+    <p class="tt-note">Ngân hàng câu hỏi trắc nghiệm về dấu đi đường do thầy (quản trị) nhập từ file Word (.docx). <b>Luyện tập</b>: trả lời từng câu, biết đúng/sai ngay. <b>Kiểm tra</b>: ${"50"} câu chọn ngẫu nhiên trong ngân hàng, phương án được xáo trộn mỗi lần làm, thời gian 30 phút.</p>
+    <div class="tt-modbar">
+      <button type="button" data-q="luyen" class="on">🖊️ Luyện tập</button>
+      <button type="button" data-q="kiem">📋 Kiểm tra (30 phút)</button>
+    </div>
+    ${myIsAdmin ? `<div style="border:1.5px dashed #b08968;border-radius:12px;padding:10px 12px;margin:10px 0;background:#fffaf0">
+      <b>🛠 Quản trị — nhập ngân hàng câu hỏi từ file .docx</b>
+      <p class="tt-note" style="margin:6px 0">Định dạng file: mỗi câu bắt đầu bằng “Câu 1:”, các phương án ghi “A. …”, “B. …”, “C. …”, “D. …” và <b>phương án đúng phải IN ĐẬM</b> (bôi đen đáp án đúng rồi bấm Ctrl+B trong Word). Câu nào không có phương án in đậm sẽ bị bỏ qua và báo lại ở bước xem trước.</p>
+      <div id="tqBankInfo">Đang đọc ngân hàng…</div>
+      <input type="file" id="tqFile" accept=".docx" style="margin:8px 0">
+      <div id="tqImportMsg"></div>
+      <div id="tqPreview"></div>
+      <div style="margin-top:8px"><button type="button" class="tt-btn" id="tqWipe" style="background:#fdecea;color:#c0392b;border-color:#e5b4ae">🗑 Xoá toàn bộ ngân hàng</button></div>
+    </div>` : ""}
+    <div data-role="qstage"><p>Đang tải ngân hàng câu hỏi…</p></div>`;
+  const stage = body.querySelector('[data-role="qstage"]');
+  let bank = null, bankErr = "";
+  try { bank = await tqLoadBank(); } catch (e) { bankErr = "Chưa đọc được ngân hàng câu hỏi từ máy chủ. Nếu thầy chưa dán rules bản v43 thì cần cập nhật rules trước (file firestore.rules trong gói v43)."; }
+  const infoEl = body.querySelector("#tqBankInfo");
+  if (infoEl) infoEl.innerHTML = bank ? `Ngân hàng hiện có: <b>${bank.length} câu</b>.` : esc(bankErr);
+  /* ---------- Quản trị: nhập / xoá ngân hàng ---------- */
+  if (myIsAdmin) {
+    let parsed = null;
+    const msgEl = body.querySelector("#tqImportMsg"), prevEl = body.querySelector("#tqPreview");
+    body.querySelector("#tqFile").addEventListener("change", async (ev) => {
+      const f = ev.target.files && ev.target.files[0];
+      parsed = null; prevEl.innerHTML = "";
+      if (!f) return;
+      msgEl.innerHTML = "Đang đọc file…";
+      try {
+        const JSZip = await tqLoadJSZip();
+        const zip = await JSZip.loadAsync(f);
+        const docFile = zip.file("word/document.xml");
+        if (!docFile) throw new Error("File không đúng định dạng .docx (không thấy nội dung Word bên trong).");
+        const xml = await docFile.async("string");
+        const res = parseQuizDocxXml(xml);
+        parsed = res.questions;
+        if (!parsed.length) { msgEl.innerHTML = `<span style="color:#c0392b">Không đọc được câu hợp lệ nào.</span>`; }
+        else msgEl.innerHTML = `<span style="color:#1d9d55"><b>Đọc được ${parsed.length} câu hợp lệ.</b></span>`;
+        if (res.warnings.length) msgEl.innerHTML += `<div style="color:#b26a00;margin-top:4px">${res.warnings.slice(0, 6).map((w) => "• " + esc(w)).join("<br>")}${res.warnings.length > 6 ? "<br>• … và " + (res.warnings.length - 6) + " cảnh báo nữa" : ""}</div>`;
+        if (parsed.length) {
+          prevEl.innerHTML = `<div style="margin-top:8px"><b>Xem trước 3 câu đầu:</b>${parsed.slice(0, 3).map((q, i) => `<div style="background:#fff;border:1px solid #e3d9c6;border-radius:8px;padding:8px 10px;margin-top:6px;color:#000"><b>Câu ${i + 1}:</b> ${esc(q.q)}<br>${q.opts.map((o, j) => (j === q.correct ? `<b style="color:#1d9d55">${LETTERS[j]}. ${esc(o)} ✓</b>` : `${LETTERS[j]}. ${esc(o)}`)).join("<br>")}</div>`).join("")}
+          <button type="button" class="tt-btn" id="tqSave" style="margin-top:10px">💾 Lưu ${parsed.length} câu vào ngân hàng</button></div>`;
+          prevEl.querySelector("#tqSave").addEventListener("click", async () => {
+            const btn = prevEl.querySelector("#tqSave");
+            btn.disabled = true; btn.textContent = "Đang lưu…";
+            try {
+              for (let i = 0; i < parsed.length; i += 20) {
+                await Promise.all(parsed.slice(i, i + 20).map((q) => addDoc(collection(db, "trailQuiz"), { q: q.q, opts: q.opts, correct: q.correct, ts: Date.now() })));
+              }
+              tqBank = null;
+              bank = await tqLoadBank(true);
+              if (infoEl) infoEl.innerHTML = `Ngân hàng hiện có: <b>${bank.length} câu</b>.`;
+              msgEl.innerHTML = `<span style="color:#1d9d55"><b>Đã lưu xong vào ngân hàng.</b></span>`;
+              prevEl.innerHTML = "";
+              showStage(currentMode);
+            } catch (e) {
+              btn.disabled = false; btn.textContent = "💾 Thử lưu lại";
+              msgEl.innerHTML = `<span style="color:#c0392b">Lưu không thành công (${esc(e && e.message || e)}). Nếu báo lỗi quyền (permission), thầy cần dán rules bản v43 trước.</span>`;
+            }
+          });
+        }
+      } catch (e) {
+        msgEl.innerHTML = `<span style="color:#c0392b">${esc(e && e.message || String(e))}</span>`;
+      }
+    });
+    let wipeArmed = false;
+    body.querySelector("#tqWipe").addEventListener("click", async () => {
+      const btn = body.querySelector("#tqWipe");
+      if (!wipeArmed) { wipeArmed = true; btn.textContent = "⚠️ Bấm lần nữa để XOÁ THẬT toàn bộ ngân hàng"; setTimeout(() => { wipeArmed = false; const b2 = body.querySelector("#tqWipe"); if (b2) b2.textContent = "🗑 Xoá toàn bộ ngân hàng"; }, 4000); return; }
+      btn.disabled = true; btn.textContent = "Đang xoá…";
+      try {
+        const cur = await tqLoadBank(true);
+        for (let i = 0; i < cur.length; i += 20) await Promise.all(cur.slice(i, i + 20).map((q) => deleteDoc(doc(db, "trailQuiz", q.id))));
+        tqBank = []; bank = [];
+        if (infoEl) infoEl.innerHTML = "Ngân hàng hiện có: <b>0 câu</b>.";
+        btn.textContent = "Đã xoá sạch ngân hàng";
+        showStage(currentMode);
+      } catch (e) { btn.disabled = false; btn.textContent = "🗑 Xoá không thành công — thử lại"; }
+    });
+  }
+  /* ---------- Luyện tập / Kiểm tra ---------- */
+  let currentMode = "luyen";
+  body.querySelectorAll("[data-q]").forEach((b) => b.addEventListener("click", () => {
+    currentMode = b.dataset.q;
+    body.querySelectorAll("[data-q]").forEach((x) => x.classList.toggle("on", x === b));
+    showStage(currentMode);
+  }));
+  function noBank() {
+    stage.innerHTML = `<div style="background:#fff;border:1px solid #e3d9c6;border-radius:12px;padding:16px;color:#000">${bankErr ? esc(bankErr) : "Ngân hàng chưa có câu hỏi nào. Thầy (quản trị) hãy nhập ngân hàng từ file .docx ở khung phía trên."}</div>`;
+  }
+  function showStage(m) { tqStopTimer(); if (!bank || !bank.length) return noBank(); m === "luyen" ? practice() : testIntro(); }
+  /* Luyện tập: từng câu, báo đúng/sai ngay */
+  function practice() {
+    let item = null, done = 0, right = 0, locked = false;
+    const draw = () => {
+      item = tqMakeItems(bank, 1)[0]; locked = false;
+      stage.innerHTML = `
+        <div style="background:#fff;color:#000;border:1px solid #d8cfc0;border-radius:12px;padding:14px">
+          <div style="display:flex;justify-content:space-between;gap:8px"><b>🖊️ Luyện tập</b><span data-role="score">Đã làm: ${done} · Đúng: ${right}</span></div>
+          <p style="font-size:17px;margin:12px 0"><b>${esc(item.q)}</b></p>
+          <div data-role="opts" style="display:grid;gap:8px"></div>
+          <div data-role="fb" style="margin-top:10px;min-height:24px"></div>
+        </div>`;
+      const box = stage.querySelector('[data-role="opts"]');
+      item.opts.forEach((o, j) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "tt-opt"; b.style.cssText = "background:#fff;color:#000;text-align:left";
+        b.innerHTML = `<b>${LETTERS[j]}.</b> ${esc(o)}`;
+        b.addEventListener("click", () => {
+          if (locked) return; locked = true; done++;
+          const ok = j === item.ci; if (ok) right++;
+          const sc = stage.querySelector('[data-role="score"]'); if (sc) sc.textContent = `Đã làm: ${done} · Đúng: ${right}`;
+          [...box.children].forEach((c, k) => { c.disabled = true; if (k === item.ci) { c.style.background = "#d8f3dc"; c.style.borderColor = "#1d9d55"; } else if (k === j) { c.style.background = "#fdecea"; c.style.borderColor = "#c0392b"; } });
+          stage.querySelector('[data-role="fb"]').innerHTML = ok
+            ? `<span style="color:#1d9d55"><b>Đúng rồi!</b></span> <button type="button" class="tt-btn" data-role="next">Câu tiếp theo →</button>`
+            : `<span style="color:#c0392b"><b>Chưa đúng.</b></span> Đáp án đúng: <b>${LETTERS[item.ci]}. ${esc(item.opts[item.ci])}</b> <button type="button" class="tt-btn" data-role="next">Câu tiếp theo →</button>`;
+          stage.querySelector('[data-role="next"]').addEventListener("click", draw);
+        });
+        box.appendChild(b);
+      });
+    };
+    draw();
+  }
+  /* Kiểm tra: tối đa 50 câu, 30 phút đếm ngược */
+  function testIntro() {
+    const n = Math.min(50, bank.length);
+    stage.innerHTML = `
+      <div style="background:#fff;color:#000;border:1px solid #d8cfc0;border-radius:12px;padding:16px">
+        <b>📋 Kiểm tra kiến thức dấu đi đường</b>
+        <p style="margin:8px 0">Bài gồm <b>${n} câu</b> chọn ngẫu nhiên từ ngân hàng ${bank.length} câu. Thứ tự phương án của mỗi câu được xáo trộn ngẫu nhiên — mỗi lần làm lại sẽ khác. Thời gian làm bài: <b>30 phút</b> đếm ngược, hết giờ tự nộp. Dùng cột danh sách câu hỏi bên phải để nhảy nhanh tới câu bất kỳ; câu đã trả lời sẽ chuyển nền xanh da trời.</p>
+        <button type="button" class="tt-btn" id="tqStart">▶ Bắt đầu làm bài</button>
+      </div>`;
+    stage.querySelector("#tqStart").addEventListener("click", () => runTest(n));
+  }
+  function runTest(n) {
+    const items = tqMakeItems(bank, n);
+    const picked = new Array(n).fill(-1);
+    let idx = 0;
+    const startedAt = Date.now();
+    const deadline = startedAt + 30 * 60 * 1000;
+    let finished = false;
+    stage.innerHTML = `
+      <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:1;min-width:270px;background:#fff;color:#000;border:1px solid #d8cfc0;border-radius:12px;padding:14px">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b data-role="qhead"></b><b id="tqClock" style="font-size:17px">⏱ 30:00</b></div>
+          <p data-role="qtext" style="font-size:17px;margin:12px 0"></p>
+          <div data-role="qopts" style="display:grid;gap:8px"></div>
+          <div data-role="qw" style="margin-top:10px"></div>
+          <div style="display:flex;justify-content:space-between;margin-top:14px">
+            <button type="button" class="tt-btn" data-role="prev">← Câu trước</button>
+            <button type="button" class="tt-btn" data-role="next">Câu sau →</button>
+          </div>
+        </div>
+        <div style="width:200px;max-width:100%;background:#fff;color:#000;border:1px solid #d8cfc0;border-radius:12px;padding:10px">
+          <b>Danh sách câu hỏi</b>
+          <div data-role="pal" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px"></div>
+          <div data-role="cnt" style="margin-top:8px"></div>
+          <button type="button" class="tt-btn" data-role="submit" style="width:100%;margin-top:8px">✔ Nộp bài</button>
+        </div>
+      </div>`;
+    const qhead = stage.querySelector('[data-role="qhead"]'), qtext = stage.querySelector('[data-role="qtext"]'),
+      qopts = stage.querySelector('[data-role="qopts"]'), qw = stage.querySelector('[data-role="qw"]'),
+      pal = stage.querySelector('[data-role="pal"]'), cnt = stage.querySelector('[data-role="cnt"]'),
+      clock = stage.querySelector("#tqClock");
+    const palBtns = items.map((_, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = i + 1;
+      b.style.cssText = "background:#fff;color:#000;border:1.5px solid #c9bfa9;border-radius:8px;padding:6px 0;font-weight:600;cursor:pointer";
+      b.addEventListener("click", () => { idx = i; renderQ(); });
+      pal.appendChild(b); return b;
+    });
+    function renderQ() {
+      const it = items[idx];
+      qhead.textContent = `Câu ${idx + 1}/${n}`;
+      qtext.innerHTML = `<b>${esc(it.q)}</b>`;
+      qw.innerHTML = "";
+      qopts.innerHTML = "";
+      it.opts.forEach((o, j) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "tt-opt";
+        b.style.cssText = "text-align:left;background:" + (picked[idx] === j ? "#bfe3ff" : "#fff") + ";color:#000";
+        b.innerHTML = `<b>${LETTERS[j]}.</b> ${esc(o)}`;
+        b.addEventListener("click", () => { picked[idx] = j; renderQ(); });
+        qopts.appendChild(b);
+      });
+      palBtns.forEach((b, i) => {
+        b.style.background = picked[i] >= 0 ? "#bfe3ff" : "#fff";
+        b.style.color = "#000";
+        b.style.outline = i === idx ? "2.5px solid #8a5a2b" : "none";
+      });
+      cnt.textContent = `Đã trả lời: ${picked.filter((x) => x >= 0).length}/${n}`;
+      stage.querySelector('[data-role="prev"]').disabled = idx === 0;
+      stage.querySelector('[data-role="next"]').disabled = idx === n - 1;
+    }
+    stage.querySelector('[data-role="prev"]').addEventListener("click", () => { if (idx > 0) { idx--; renderQ(); } });
+    stage.querySelector('[data-role="next"]').addEventListener("click", () => { if (idx < n - 1) { idx++; renderQ(); } });
+    stage.querySelector('[data-role="submit"]').addEventListener("click", () => {
+      const left = picked.filter((x) => x < 0).length;
+      if (left > 0) {
+        qw.innerHTML = `<span style="color:#b26a00">Còn <b>${left} câu</b> chưa trả lời.</span> <button type="button" class="tt-btn" data-role="fs">Vẫn nộp bài</button>`;
+        qw.querySelector('[data-role="fs"]').addEventListener("click", () => finish());
+        return;
+      }
+      finish();
+    });
+    function tick() {
+      if (finished) return;
+      if (!document.getElementById("tqClock")) { tqStopTimer(); return; }
+      const ms = deadline - Date.now();
+      if (ms <= 0) { finish(); return; }
+      const s = Math.ceil(ms / 1000), mm = String(Math.floor(s / 60)).padStart(2, "0"), ss = String(s % 60).padStart(2, "0");
+      clock.textContent = `⏱ ${mm}:${ss}`;
+      clock.style.color = ms < 60000 ? "#c0392b" : "#000";
+    }
+    tqStopTimer(); tqTimerId = setInterval(tick, 500); tick();
+    function finish() {
+      if (finished) return; finished = true; tqStopTimer();
+      let right = 0;
+      items.forEach((it, i) => { if (picked[i] === it.ci) right++; });
+      const dur = Math.round((Date.now() - startedAt) / 1000);
+      modSaveHistory("kt-kien-thuc-dau-duong", right, n, `Kiến thức dấu đường — đúng ${right}/${n} câu`, dur);
+      stage.innerHTML = `
+        <div style="background:#fff;color:#000;border:1px solid #d8cfc0;border-radius:12px;padding:16px">
+          <b style="font-size:18px">Kết quả: đúng ${right}/${n} câu — điểm ${Math.round(right / n * 100) / 10}/10</b>
+          <p style="margin:6px 0">Thời gian làm bài: ${Math.floor(dur / 60)} phút ${dur % 60} giây. Kết quả đã lưu vào Lịch sử.</p>
+          <div style="display:grid;gap:8px;margin-top:10px">
+          ${items.map((it, i) => `<div style="border:1px solid #e3d9c6;border-radius:8px;padding:8px 10px">
+            <b>Câu ${i + 1}:</b> ${esc(it.q)}<br>
+            ${it.opts.map((o, j) => {
+              if (j === it.ci) return `<span style="color:#1d9d55"><b>${LETTERS[j]}. ${esc(o)} ✓ (đáp án đúng)</b></span>`;
+              if (j === picked[i]) return `<span style="color:#c0392b">${LETTERS[j]}. ${esc(o)} ✗ (em chọn)</span>`;
+              return `${LETTERS[j]}. ${esc(o)}`;
+            }).join("<br>")}
+            ${picked[i] < 0 ? `<br><span style="color:#b26a00">Chưa trả lời</span>` : ""}
+          </div>`).join("")}
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="tt-btn" data-role="again">↻ Làm bài mới</button>
+            <button type="button" class="tt-btn" data-role="toprac">🖊️ Về luyện tập</button>
+          </div>
+        </div>`;
+      stage.querySelector('[data-role="again"]').addEventListener("click", () => testIntro());
+      stage.querySelector('[data-role="toprac"]').addEventListener("click", () => { currentMode = "luyen"; body.querySelectorAll("[data-q]").forEach((x) => x.classList.toggle("on", x.dataset.q === "luyen")); practice(); });
+    }
+    renderQ();
+  }
+  showStage("luyen");
 }
 
 /* ---------------- MẬT THƯ: các hệ mã hoá ----------------
