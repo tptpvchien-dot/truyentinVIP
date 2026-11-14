@@ -551,7 +551,7 @@ const FEAT_LIST = [
   { key: "featSemaphore", label: "Semaphore" },
   { key: "featTrail", label: "Dấu đi đường" },
   { key: "featCipher", label: "Mật thư" },
-  { key: "featQuiz", label: "Trắc nghiệm kiến thức" }
+  { key: "featQuiz", label: "Trắc nghiệm kiến thức chung" }
 ];
 
 const ICO_WHISTLE = '<svg viewBox="0 0 26 26" fill="currentColor" aria-hidden="true"><path d="M25 7.6c0-.9-.7-1.6-1.6-1.6h-8.1c-.6-1-1.8-1.7-3-1.5C8.8 5 5.8 8.3 5.8 12.3c0 4.5 3.6 8.1 8.1 8.1 4 0 7.3-2.9 8-6.7h1.5c.9 0 1.6-.7 1.6-1.6V7.6z"/><circle cx="12.4" cy="12.2" r="2.2" fill="#082d50" opacity=".9"/></svg>';
@@ -649,7 +649,7 @@ function buildChip() {
     return b;
   };
   if (featOn("featTrail")) gFeat.appendChild(featBtn("👣", "Dấu đi đường — Luyện tập & Kiểm tra", () => openTrailModule()));
-  if (featOn("featQuiz")) gFeat.appendChild(featBtn("📚", "Trắc nghiệm kiến thức dấu đi đường", () => openTrailQuiz()));
+  if (featOn("featQuiz")) gFeat.appendChild(featBtn("📚", "Trắc nghiệm kiến thức chung", () => openTrailQuiz()));
   if (featOn("featCipher")) gFeat.appendChild(featBtn("🔐", "Mật thư — Luyện tập & Kiểm tra", () => openCipherModule()));
   if (gFeat.childNodes.length) chip.appendChild(gFeat);
   /* Nút Cài đặt ngay trên thanh ghim, chỉ hiện hình bánh răng */
@@ -757,7 +757,7 @@ async function syncHistory() {
 }
 
 /* ---------------- Lịch sử: nhãn dạng/tốc độ + đồng bộ ngay khi nộp bài ---------------- */
-const KIND_NAMES = { "nhan-morse": "Nhận Morse", "nhan-sem": "Nhận Semaphore", "phat-morse": "Phát Morse", "phat-sem": "Phát Semaphore", "kt-dau-duong": "Kiểm tra dấu đi đường", "kt-kien-thuc-dau-duong": "Kiểm tra kiến thức dấu đường", "kt-mat-thu": "Kiểm tra mật thư" };
+const KIND_NAMES = { "nhan-morse": "Nhận Morse", "nhan-sem": "Nhận Semaphore", "phat-morse": "Phát Morse", "phat-sem": "Phát Semaphore", "kt-dau-duong": "Kiểm tra dấu đi đường", "kt-kien-thuc-dau-duong": "Kiểm tra kiến thức chung", "kt-mat-thu": "Kiểm tra mật thư" };
 function metaFor(entry) {
   const k = (entry && entry.kind) || "";
   let speedLabel = "";
@@ -1470,7 +1470,7 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
           <label style="cursor:pointer"><input type="checkbox" data-ed="fsem" ${m.featSemaphore !== false ? "checked" : ""}> Semaphore</label>
           <label style="cursor:pointer"><input type="checkbox" data-ed="ftrail" ${m.featTrail === true ? "checked" : ""}> Dấu đi đường</label>
           <label style="cursor:pointer"><input type="checkbox" data-ed="fcipher" ${m.featCipher === true ? "checked" : ""}> Mật thư</label>
-          <label style="cursor:pointer"><input type="checkbox" data-ed="fquiz" ${(m.featQuiz === true || (m.featQuiz === undefined && m.featTrail === true)) ? "checked" : ""}> Trắc nghiệm kiến thức</label>
+          <label style="cursor:pointer"><input type="checkbox" data-ed="fquiz" ${(m.featQuiz === true || (m.featQuiz === undefined && m.featTrail === true)) ? "checked" : ""}> Trắc nghiệm kiến thức chung</label>
         </div></div>
         <div class="tt-field" style="margin:0" data-ed="quizsetsfield"><label>Bộ đề thi trắc nghiệm (chọn 1 hoặc nhiều bộ — chỉ dùng khi đã tích quyền Trắc nghiệm ở trên)</label><div data-ed="quizsets" style="display:flex;gap:10px;flex-wrap:wrap;padding-top:7px">Đang đọc các bộ đề…</div></div>
       </div>
@@ -1510,7 +1510,7 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
     if (!box) return;
     try {
       const sets = await tqLoadSets();
-      if (!sets.length) { box.innerHTML = "<span style=\"color:#b26a00\">Chưa có bộ đề nào — thầy tạo bộ đề trong phần Trắc nghiệm kiến thức trước đã.</span>"; return; }
+      if (!sets.length) { box.innerHTML = "<span style=\"color:#b26a00\">Chưa có bộ đề nào — thầy tạo bộ đề trong phần Trắc nghiệm kiến thức chung trước đã.</span>"; return; }
       const picked = Array.isArray(m.quizSets) ? m.quizSets : sets.map((s) => s.id);
       box.innerHTML = "";
       sets.forEach((s) => {
@@ -1552,7 +1552,7 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
     const quizOn = q('[data-ed="fquiz"]').checked;
     if (quizOn) {
       const pickedSets = [...detail.querySelectorAll('[data-ed="qset"]:checked')].map((c) => c.value);
-      if (!pickedSets.length) { msg.textContent = "Thầy chọn ít nhất 1 bộ đề cho tài khoản này nhé (tạo bộ đề trong phần Trắc nghiệm kiến thức nếu chưa có)."; return; }
+      if (!pickedSets.length) { msg.textContent = "Thầy chọn ít nhất 1 bộ đề cho tài khoản này nhé (tạo bộ đề trong phần Trắc nghiệm kiến thức chung nếu chưa có)."; return; }
       data.featQuiz = true;
       data.quizSets = pickedSets;
     } else {
@@ -1899,7 +1899,7 @@ function openTrailDoc() {
 }
 
 /* ============================================================
-   KIẾN THỨC DẤU ĐI ĐƯỜNG — ngân hàng câu hỏi trắc nghiệm
+   TRẮC NGHIỆM KIẾN THỨC CHUNG — ngân hàng câu hỏi trắc nghiệm
    (Firestore: collection "trailQuiz", mỗi câu thuộc một BỘ ĐỀ
    qua trường setId; collection "trailQuizSets" lưu các bộ đề).
    Chỉ QUẢN TRỊ mới nhập được ngân hàng, từ file .docx theo
@@ -2021,7 +2021,7 @@ function tqLoadJSZip() {
   });
 }
 async function openTrailQuiz() {
-  const body = openPanel("📚 Kiến thức dấu đi đường — Trắc nghiệm", true);
+  const body = openPanel("📚 Trắc nghiệm kiến thức chung", true);
   tqStopTimer();
   const LETTERS = ["A", "B", "C", "D", "E", "F"];
   if (!featOn("featQuiz")) {
@@ -2030,7 +2030,7 @@ async function openTrailQuiz() {
   }
   const allowed = tqAllowedSetIds(); // null = toàn bộ ngân hàng, [] = chưa chọn bộ nào
   body.innerHTML = `
-    <p class="tt-note">Ngân hàng câu hỏi trắc nghiệm về dấu đi đường do thầy (quản trị) nhập từ file Word (.docx). <b>Luyện tập</b>: trả lời từng câu, biết đúng/sai ngay. <b>Kiểm tra</b>: 50 câu chọn ngẫu nhiên trong ngân hàng, phương án được xáo trộn mỗi lần làm, thời gian 30 phút.</p>
+    <p class="tt-note">Ngân hàng câu hỏi trắc nghiệm kiến thức chung do thầy (quản trị) nhập từ file Word (.docx). <b>Luyện tập</b>: trả lời từng câu, biết đúng/sai ngay. <b>Kiểm tra</b>: 50 câu chọn ngẫu nhiên trong ngân hàng, phương án được xáo trộn mỗi lần làm, thời gian 30 phút.</p>
     <div id="tqSetsLine" class="tt-note" style="margin-top:0">Đang đọc các bộ đề…</div>
     <div class="tt-modbar">
       <button type="button" data-q="luyen" class="on">🖊️ Luyện tập</button>
@@ -2261,7 +2261,7 @@ async function openTrailQuiz() {
     const n = Math.min(50, bank.length);
     stage.innerHTML = `
       <div style="background:#fff;color:#000;border:1px solid #d8cfc0;border-radius:12px;padding:16px">
-        <b>📋 Kiểm tra kiến thức dấu đi đường</b>
+        <b>📋 Kiểm tra kiến thức chung</b>
         <p style="margin:8px 0">Bài gồm <b>${n} câu</b> chọn ngẫu nhiên từ ngân hàng ${bank.length} câu. Thứ tự phương án của mỗi câu được xáo trộn ngẫu nhiên — mỗi lần làm lại sẽ khác. Thời gian làm bài: <b>30 phút</b> đếm ngược, hết giờ tự nộp. Dùng cột danh sách câu hỏi bên phải để nhảy nhanh tới câu bất kỳ; câu đã trả lời sẽ chuyển nền xanh da trời.</p>
         <button type="button" class="tt-btn" id="tqStart">▶ Bắt đầu làm bài</button>
       </div>`;
