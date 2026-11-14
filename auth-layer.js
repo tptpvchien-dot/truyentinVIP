@@ -677,7 +677,9 @@ function buildChip() {
   if (featOn("featSemaphore")) nav("🚩 Bảng Semaphore", "tabbtn-sem");
   if (featOn("featTrail")) item("👣 Tài liệu dấu đi đường", () => openTrailDoc());
   if (featOn("featCipher")) item("🔐 Tài liệu mật thư", () => openCipherDoc());
-  nav("📜 Quy ước & Giáo viên", "tabbtn-rules");
+  /* Mục Quy ước & Giáo viên: chỉ tài khoản GIÁO VIÊN và
+     quản trị mới thấy (học sinh không thấy mục này). */
+  if (myIsAdmin || (myProfile && myProfile.role === "GV")) nav("📜 Quy ước & Giáo viên", "tabbtn-rules");
   menu.appendChild(document.createElement("hr"));
   item("🕘 Lịch sử", openMyHistory);
   if (myProfile && myProfile.role === "GV" && myProfile.schoolId) item("🏫 Học sinh trường", openSchoolPanel);
@@ -1598,8 +1600,8 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
    ở thanh ghim + mục tài liệu trong menu người dùng chỉ
    hiện khi tài khoản được cấp quyền (xem featOn).
    Nội dung theo tài liệu nghiên cứu chuyên đề của thầy:
-   dấu đi đường dùng BỘ 20 DẤU CƠ BẢN CỦA ĐỘI (hai nguồn
-   giảng dạy độc lập khớp nhau); mật thư dùng 5 dạng đã được
+   dấu đi đường dùng BẢNG 32 DẤU ĐƯỜNG THÔNG DỤNG (20 dấu
+   cơ bản của Đội + 12 dấu bổ sung); mật thư dùng 5 dạng đã được
    kiểm chứng hai chiều (số thay chữ, chữ thay chữ, tọa độ
    chữ, chuồng bồ câu, đọc ngược) trên bạch văn đã chuyển
    theo QUY ƯỚC CỦA LỚP (cùng bộ chuyển đổi với Morse và
@@ -1658,8 +1660,9 @@ function trTri(cx, top, base, half) {
   return `<path d="M${cx} ${top} L${cx - half} ${base} H${cx + half} Z" fill="none" stroke="${TR_STICK}" stroke-width="5" stroke-linejoin="round"/>`;
 }
 
-/* 20 dấu cơ bản của Đội. mean(n): câu nghĩa đầy đủ; make:
-   cách tạo dấu bằng vật liệu tại chỗ (tóm tắt từ tài liệu). */
+/* Bảng 32 dấu đường thông dụng (20 dấu cơ bản của Đội +
+   12 dấu bổ sung). mean(n): câu nghĩa đầy đủ; make: cách
+   tạo dấu bằng vật liệu tại chỗ (từ tài liệu nghiên cứu). */
 const TRAIL_SIGNS = [
   { id: "start", name: "Bắt đầu đi", mean: () => "Điểm bắt đầu — đoàn bắt đầu di chuyển từ đây, theo hướng mũi tên", make: "Đá nhỏ xếp thành vòng tròn, một hòn ở tâm, một que dài làm mũi tên chỉ hướng đi", draw: () => trSVG(`<circle cx="34" cy="45" r="15" fill="none" stroke="${TR_STICK}" stroke-width="5"/><circle cx="34" cy="45" r="4" fill="${TR_STICK}"/>` + trArrow(58, 45, 106, 1)) },
   { id: "proceed", name: "Đi theo hướng này", mean: () => "Đi tiếp theo hướng mũi tên chỉ", make: "Một que dài làm thân mũi tên, hai que ngắn chéo ở đầu làm ngạnh", draw: () => trSVG(trArrow(14, 45, 106, 1)) },
@@ -1680,12 +1683,26 @@ const TRAIL_SIGNS = [
   { id: "wait", name: "Chờ ở đây n phút", param: "phút", mean: (n) => `Dừng lại và chờ tại điểm này ${n} phút`, make: "Bốn que xếp thành khung chữ nhật, kèm thẻ ghi số phút phải chờ", draw: (n) => trSVG(`<rect x="28" y="24" width="50" height="42" fill="none" stroke="${TR_STICK}" stroke-width="5"/>` + trBadge(n)) },
   { id: "letter", name: "Có mật thư hướng này cách n mét", param: "mét", mean: (n) => `Theo hướng mũi tên, cách đây ${n} mét có giấu một mật thư`, make: "Khung chữ nhật có hai đường chéo như mặt phong bì thư, kèm mũi tên chỉ hướng và thẻ ghi số mét", draw: (n) => trSVG(`<rect x="12" y="27" width="46" height="34" fill="none" stroke="${TR_STICK}" stroke-width="4.5"/>` + trLine(12, 27, 58, 61, 3.5) + trLine(58, 27, 12, 61, 3.5) + trArrow(66, 44, 104, 1) + trBadge(n)) },
   { id: "camp", name: "Trại ở hướng này", mean: () => "Điểm trại nằm theo hướng mũi tên chỉ", make: "Hai que xiên chụm đỉnh thành hình lều, một que làm đáy, kèm mũi tên chỉ hướng trại", draw: () => trSVG(trLine(24, 68, 50, 28) + trLine(50, 28, 76, 68) + trLine(18, 68, 82, 68) + trArrow(86, 45, 112, 1)) },
-  { id: "finish", name: "Đích", mean: () => "Đã tới đích — kết thúc hành trình, hết dấu", make: "Đá nhỏ xếp thành vòng tròn, một hòn ở tâm (giống dấu Bắt đầu nhưng không có mũi tên)", draw: () => trSVG(`<circle cx="60" cy="45" r="17" fill="none" stroke="${TR_STICK}" stroke-width="5"/><circle cx="60" cy="45" r="4" fill="${TR_STICK}"/>`) }
+  { id: "finish", name: "Đích", mean: () => "Đã tới đích — kết thúc hành trình, hết dấu", make: "Đá nhỏ xếp thành vòng tròn, một hòn ở tâm (giống dấu Bắt đầu nhưng không có mũi tên)", draw: () => trSVG(`<circle cx="60" cy="45" r="17" fill="none" stroke="${TR_STICK}" stroke-width="5"/><circle cx="60" cy="45" r="4" fill="${TR_STICK}"/>`) },
+  /* --- 12 dấu bổ sung: đủ BẢNG 32 DẤU ĐƯỜNG THÔNG DỤNG --- */
+  { id: "bridge", name: "Qua cầu", mean: () => "Đi qua cầu theo hướng mũi tên", make: "Một vòng cung mô phỏng nhịp cầu, mũi tên đi thẳng phía trên cầu từ bờ này sang bờ kia", draw: () => trSVG(`<path d="M20 64 A42 30 0 0 1 100 64" fill="none" stroke="${TR_STICK}" stroke-width="5" stroke-linecap="round"/>` + trArrow(16, 34, 104, 1)) },
+  { id: "shortcut", name: "Theo lối tắt", mean: () => "Rẽ theo lối tắt (đường chéo ngắn hơn) thay vì đi tiếp đường chính", make: "Một nét thẳng dài là đường chính, một mũi tên rẽ chéo khoảng 45 độ cắt qua đường chính", draw: () => trSVG(trLine(10, 60, 110, 60, 4) + trLine(26, 76, 92, 28) + trHeadAt(97, 25, 0.81, -0.59)) },
+  { id: "riverway", name: "Theo lối sông", mean: () => "Đi dọc theo con sông theo hướng mũi tên", make: "Một nét lượn sóng (con sông) chạy song song ngay bên cạnh mũi tên chỉ hướng đi", draw: () => trSVG(trWave(20, 32, 6) + trArrow(16, 60, 104, 1)) },
+  { id: "crossstream", name: "Vượt suối", mean: () => "Băng ngang qua suối tại điểm này, theo hướng mũi tên", make: "Hai nét sóng dọc mô phỏng dòng suối, mũi tên cắt ngang qua dòng suối", draw: () => trSVG(`<path d="M52 14 q7 8 0 16 t0 16 t0 16 t0 14" fill="none" stroke="${TR_BLUE}" stroke-width="4" stroke-linecap="round"/><path d="M68 14 q7 8 0 16 t0 16 t0 16 t0 14" fill="none" stroke="${TR_BLUE}" stroke-width="4" stroke-linecap="round"/>` + trArrow(12, 45, 108, 1)) },
+  { id: "streamway", name: "Theo lối suối", mean: () => "Đi dọc theo con suối (hướng đi theo chiều dọc của các nét sóng)", make: "Hai đến ba nét lượn sóng song song xếp chồng nhau mô phỏng dòng suối", draw: () => trSVG(trWave(24, 28, 5) + trWave(24, 46, 5) + trWave(24, 64, 5)) },
+  { id: "campok", name: "Cắm trại được", mean: () => "Nơi này thích hợp, được cắm trại", make: "Hình lều đơn giản: hai que xiên chụm đỉnh, một que làm đáy", draw: () => trSVG(trLine(30, 66, 60, 26) + trLine(60, 26, 90, 66) + trLine(22, 66, 98, 66)) },
+  { id: "campno", name: "Không cắm trại được", mean: () => "Nơi này không cắm trại được", make: "Hình lều bị hai que bắt chéo phủ lên thành chữ X", draw: () => trSVG(trLine(38, 62, 58, 32) + trLine(58, 32, 78, 62) + trLine(32, 62, 84, 62) + trLine(26, 22, 94, 70, 4.5) + trLine(94, 22, 26, 70, 4.5)) },
+  { id: "stretcher", name: "Làm cáng", mean: () => "Cần làm cáng — có người bị thương cần khiêng", make: "Hai que dài song song làm hai cạnh cáng, nhiều que ngắn đặt ngang làm nan", draw: () => trSVG(`<rect x="18" y="30" width="84" height="30" fill="none" stroke="${TR_STICK}" stroke-width="5"/>` + trLine(39, 30, 39, 60, 4) + trLine(60, 30, 60, 60, 4) + trLine(81, 30, 81, 60, 4)) },
+  { id: "backcamp", name: "Về trại lúc n giờ", param: "giờ", mean: (n) => `Phải có mặt ở trại lúc ${n} giờ`, make: "Hình lều kèm thẻ ghi giờ phải có mặt ở trại", draw: (n) => trSVG(trLine(24, 64, 46, 30) + trLine(46, 30, 68, 64) + trLine(18, 64, 74, 64) + trBadge(n)) },
+  { id: "footprints", name: "Đi theo dấu chân", mean: () => "Đi theo dấu chân (vết chân) để lại trên đường", make: "Khung chữ nhật, bên trong xếp các hòn đá dẹt thành vết chân so le như bước đi", draw: () => trSVG(`<rect x="16" y="14" width="88" height="62" fill="none" stroke="${TR_STICK}" stroke-width="4.5"/>` + [[38, 32], [57, 52], [76, 32], [92, 52]].map(([cx, cy]) => `<ellipse cx="${cx}" cy="${cy}" rx="5" ry="8.5" fill="${TR_STICK}"/>`).join("")) },
+  { id: "enemy", name: "Có kẻ nghịch — có địch", mean: () => "Phía trước có người lạ/địch — cảnh giác, có thể phải ẩn nấp hoặc tránh", make: "Hai nhóm đầu mũi tên (ngạnh chữ V) quay ngược đầu vào nhau", draw: () => trSVG([24, 42].map((x) => trLine(x, 31, x + 13, 45, 4.5) + trLine(x + 13, 45, x, 59, 4.5)).join("") + [96, 78].map((x) => trLine(x, 31, x - 13, 45, 4.5) + trLine(x - 13, 45, x, 59, 4.5)).join("")) },
+  { id: "beast", name: "Có thú dữ", mean: () => "Khu vực có thú dữ — nguy hiểm, tránh xa và thận trọng", make: "Đá xếp thành vòng tròn, các que ngắn tỏa ra chung quanh như tia nắng", draw: () => trSVG(`<circle cx="60" cy="45" r="15" fill="none" stroke="${TR_STICK}" stroke-width="5"/>` + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => { const r1 = 20, r2 = 28, t = a * Math.PI / 180; return trLine(60 + r1 * Math.cos(t), 45 + r1 * Math.sin(t), 60 + r2 * Math.cos(t), 45 + r2 * Math.sin(t), 4); }).join("")) }
 ];
 function trailParam(s) {
   if (!s.param) return null;
   if (s.param === "người") return 2 + Math.floor(Math.random() * 8);
   if (s.param === "phút") return 5 * (1 + Math.floor(Math.random() * 6));
+  if (s.param === "giờ") return 8 + Math.floor(Math.random() * 4);
   return 5 * (2 + Math.floor(Math.random() * 9));
 }
 function trailQuestion() {
@@ -1806,11 +1823,10 @@ function openTrailDoc() {
   const body = openPanel("👣 Tài liệu dấu đi đường", true);
   const cards = TRAIL_SIGNS.map((s) => `<div class="tt-signcard">${s.draw(s.param ? "n" : null)}<b>${esc(s.name)}</b><span>${esc(s.mean(s.param ? "n" : null))}</span></div>`).join("");
   body.innerHTML = `
-    <p>Bộ <b>20 dấu cơ bản của Đội</b> dưới đây là bộ được hai tài liệu giảng dạy độc lập liệt kê trùng khớp, và khớp với 20/32 dấu của bảng dấu đường mở rộng đang lưu hành. Khi làm dấu thật, que/cành cây đóng vai các nét thẳng và thân mũi tên, đá nhỏ xếp thành nét cong và vòng tròn.</p>
+    <p><b>Bảng 32 dấu đường thông dụng.</b> Que/cành cây làm các nét thẳng và thân mũi tên, đá nhỏ xếp thành nét cong và vòng tròn, số trong vòng tròn nhỏ là số đi kèm dấu (số người, số phút, số mét, giờ).</p>
     <div class="tt-docgrid">${cards}</div>
-    <p><b>Quy ước khi rải dấu</b> (theo tài liệu tập huấn của Đội): đặt dấu ở <b>bên phải đường đi</b>, ngang tầm mắt, dễ thấy; các dấu cách nhau <b>không quá 50 m</b>; ghi đúng ký hiệu; riêng dấu mật thư phải chỉ đúng hướng và tương đối chính xác khoảng cách ghi trong dấu.</p>
-    <p><b>Lưu ý khi học:</b> dấu <i>Bắt đầu đi</i> và dấu <i>Đích</i> cùng là vòng tròn có chấm ở tâm — dấu Bắt đầu có thêm mũi tên chỉ hướng đi và nằm ở đầu hành trình, dấu Đích nằm ở cuối hành trình. Dấu <i>Quay lại</i> theo bản Đội gồm <b>hai</b> mũi tên ngược chiều nhau (một số bảng rút gọn còn một mũi tên). Tên gọi "tập hợp" không phải là một dấu chuẩn — dấu gần nhất là <i>Hai đoàn nhập 1</i>.</p>
-    <p class="tt-note">Phần mở rộng (bảng 32 dấu): ngoài 20 dấu trên còn có Qua cầu, Theo lối tắt, Theo lối sông, Vượt suối, Theo lối suối, Cắm trại được, Không cắm trại được, Làm cáng, Về trại lúc 10 giờ, Đi theo dấu chân, Có kẻ nghịch — có địch, Có thú dữ. Nhóm này mới kiểm chứng được ở một nguồn hướng đạo, chưa đối chiếu được với bảng 32 phía Đội, nên ứng dụng chưa đưa vào phần luyện tập và kiểm tra.</p>`;
+    <p><b>Khi rải dấu:</b> đặt ở bên phải đường đi, ngang tầm mắt, dễ thấy; các dấu cách nhau không quá 50 m; dấu mật thư phải đúng hướng và đúng khoảng cách.</p>
+    <p><b>Chú ý:</b> dấu <i>Bắt đầu đi</i> và dấu <i>Đích</i> cùng là vòng tròn có chấm tâm — dấu Bắt đầu có thêm mũi tên. <i>Nước sạch</i> là vòng tròn, <i>nước không uống được</i> là tam giác.</p>`;
 }
 
 /* ---------------- MẬT THƯ: các hệ mã hoá ----------------
@@ -1822,8 +1838,16 @@ const CIPHER_MSGS = ["ĐI HỌC", "HỌC TỐT", "ĐOÀN KẾT", "CHĂM NGOAN", 
 function caesarShift(conv, k) {
   return conv.split("").map((ch) => ch === " " ? " " : String.fromCharCode(65 + ((ch.charCodeAt(0) - 65 + k) % 26))).join("");
 }
-function coordOf(ch) {
-  const i = "ABCDEFGHIJKLMNOPQRSTUVWXY".indexOf(ch);
+function coordGrid(kwLetters) {
+  /* Bảng tọa độ 5×5 (25 chữ, bỏ Z). Có từ khóa: điền chữ của
+     từ khóa trước (bỏ trùng), điền tiếp các chữ còn lại. */
+  if (!kwLetters) return "ABCDEFGHIJKLMNOPQRSTUVWXY";
+  let seq = "";
+  for (const ch of kwLetters + "ABCDEFGHIJKLMNOPQRSTUVWXY") if (!seq.includes(ch)) seq += ch;
+  return seq.slice(0, 25);
+}
+function coordOfK(ch, grid) {
+  const i = grid.indexOf(ch);
   return i < 0 ? ch : "ABCDE"[Math.floor(i / 5)] + (i % 5 + 1);
 }
 /* Chuồng bồ câu: lưới vuông 3×3 mỗi ô 2 chữ (AB|CD|EF / GH|IJ|KL /
@@ -1841,8 +1865,25 @@ const PIGPEN_MAP = (() => {
     .forEach(([w, a, b]) => { m[a] = { g: "x", w, dot: 0 }; m[b] = { g: "x", w, dot: 1 }; });
   return m;
 })();
-function pigpenGlyph(ch, x, y, s) {
-  const p = PIGPEN_MAP[ch];
+/* Lưới nhọn có thể XOAY theo khóa: 4 cặp chữ nằm trên một
+   vòng theo chiều kim đồng hồ (trên → phải → dưới → trái)
+   là S·T → W·X → Y·Z → U·V. Khóa cho biết cặp nào ở trên
+   cùng, cả vòng xoay theo. pigpenXMap(top) trả về ánh xạ
+   chữ → {ô, chấm} cho 8 chữ của lưới nhọn theo khóa đó. */
+const PIGPEN_RING = ["ST", "WX", "YZ", "UV"];
+function pigpenXMap(top) {
+  const pos = ["top", "right", "bottom", "left"];
+  const start = Math.max(0, PIGPEN_RING.indexOf(top || "ST"));
+  const m = {};
+  for (let i = 0; i < 4; i++) {
+    const pair = PIGPEN_RING[(start + i) % 4], w = pos[i];
+    m[pair[0]] = { g: "x", w, dot: 0 };
+    m[pair[1]] = { g: "x", w, dot: 1 };
+  }
+  return m;
+}
+function pigpenGlyph(ch, x, y, s, xMap) {
+  const p = (xMap && xMap[ch]) || PIGPEN_MAP[ch];
   if (!p) return "";
   const u = s / 30, X = (d) => (x + d * u).toFixed(1), Y = (d) => (y + d * u).toFixed(1);
   const L = 3, R = 27, T = 3, B = 27;
@@ -1857,7 +1898,7 @@ function pigpenGlyph(ch, x, y, s) {
   else lines = [`<line x1="${X(26)}" y1="${Y(4)}" x2="${X(11)}" y2="${Y(15)}"/>`, `<line x1="${X(26)}" y1="${Y(26)}" x2="${X(11)}" y2="${Y(15)}"/>`];
   return `<g stroke="#37474f" stroke-width="${(2.6 * u).toFixed(1)}" stroke-linecap="round">${lines.join("")}${p.dot ? `<circle cx="${X(p.g === "x" && p.w === "left" ? 9.5 : p.g === "x" && p.w === "right" ? 20.5 : 15)}" cy="${Y(p.g === "x" && p.w === "top" ? 9.5 : p.g === "x" && p.w === "bottom" ? 20.5 : 15)}" r="${(3 * u).toFixed(1)}" fill="#37474f" stroke="none"/>` : ""}</g>`;
 }
-function pigpenSVG(conv) {
+function pigpenSVG(conv, xMap) {
   const S = 30, GAP = 4, SPACE = 18, MAXW = 322;
   const items = [];
   let x = 4, y = 4, maxX = 0;
@@ -1869,11 +1910,12 @@ function pigpenSVG(conv) {
     maxX = Math.max(maxX, x);
   }
   const H = y + S + 6;
-  return `<svg viewBox="0 0 ${Math.min(MAXW, maxX + 2)} ${H}" style="max-width:100%;height:auto;display:block;margin:6px auto" role="img" aria-label="Bản mật thư chuồng"><rect x="0" y="0" width="${Math.min(MAXW, maxX + 2)}" height="${H}" rx="8" fill="#fffdf5"/>${items.map(([ch, ix, iy]) => pigpenGlyph(ch, ix, iy, S)).join("")}</svg>`;
+  return `<svg viewBox="0 0 ${Math.min(MAXW, maxX + 2)} ${H}" style="max-width:100%;height:auto;display:block;margin:6px auto" role="img" aria-label="Bản mật thư chuồng"><rect x="0" y="0" width="${Math.min(MAXW, maxX + 2)}" height="${H}" rx="8" fill="#fffdf5"/>${items.map(([ch, ix, iy]) => pigpenGlyph(ch, ix, iy, S, xMap)).join("")}</svg>`;
 }
-function pigpenRefSVG() {
+function pigpenRefSVG(xMap) {
   /* Bảng tra chuồng: hai lưới có ghi chữ, để học sinh đối chiếu.
-     Chữ thứ hai trong mỗi ô khi viết mật thư phải thêm dấu chấm. */
+     Chữ thứ hai trong mỗi ô khi viết mật thư phải thêm dấu chấm.
+     Lưới nhọn vẽ theo khóa xoay xMap (mặc định: S·T ở trên). */
   let cells = "";
   const pairs = [["A", "B"], ["C", "D"], ["E", "F"], ["G", "H"], ["I", "J"], ["K", "L"], ["M", "N"], ["O", "P"], ["Q", "R"]];
   pairs.forEach((pr, i) => {
@@ -1881,17 +1923,19 @@ function pigpenRefSVG() {
     cells += `<text x="${cx + 25}" y="${cy + 30}" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f" font-family="system-ui,sans-serif">${pr[0]}·${pr[1]}</text>`;
   });
   const grid = [50, 100].map((v) => `<line x1="${v}" y1="0" x2="${v}" y2="150"/><line x1="0" y1="${v}" x2="150" y2="${v}"/>`).join("");
-  const xlabels = `<text x="225" y="64" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f" font-family="system-ui,sans-serif">S·T</text>
-    <text x="170" y="110" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f" font-family="system-ui,sans-serif">U·V</text>
-    <text x="280" y="110" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f" font-family="system-ui,sans-serif">W·X</text>
-    <text x="225" y="168" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f" font-family="system-ui,sans-serif">Y·Z</text>`;
+  const xm = xMap || pigpenXMap("ST");
+  const pairStr = (w) => { const letters = Object.keys(xm).filter((k) => xm[k].w === w).sort((a, b) => xm[a].dot - xm[b].dot); return letters.join("·"); };
+  const xlabels = `<text x="225" y="64" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f" font-family="system-ui,sans-serif">${pairStr("top")}</text>
+    <text x="170" y="110" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f" font-family="system-ui,sans-serif">${pairStr("left")}</text>
+    <text x="280" y="110" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f" font-family="system-ui,sans-serif">${pairStr("right")}</text>
+    <text x="225" y="168" text-anchor="middle" font-size="15" font-weight="700" fill="#37474f" font-family="system-ui,sans-serif">${pairStr("bottom")}</text>`;
   return `<svg viewBox="0 0 300 210" style="max-width:340px;width:100%;height:auto;display:block;margin:6px auto" role="img" aria-label="Bảng tra mật thư chuồng">
     <rect x="0" y="0" width="300" height="210" rx="8" fill="#fffdf5"/>
     <g stroke="#37474f" stroke-width="2.5"><rect x="1" y="1" width="148" height="148" fill="none"/>${grid}
     <line x1="150" y1="30" x2="300" y2="180"/><line x1="300" y1="30" x2="150" y2="180"/></g>${cells}${xlabels}</svg>`;
 }
-function coordTableHTML() {
-  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXY";
+function coordTableHTML(grid) {
+  const letters = grid || "ABCDEFGHIJKLMNOPQRSTUVWXY";
   let rows = "";
   for (let r = 0; r < 5; r++) {
     let tds = "";
@@ -1907,29 +1951,109 @@ function caesarStripHTML(k) {
     <tr><td style="color:#666">Chữ thật</td>${[...a].map((c) => `<td style="text-align:center">${c}</td>`).join("")}</tr>
     <tr><td style="color:#666">Chữ mật</td>${[...b].map((c) => `<td style="text-align:center;font-weight:700">${c}</td>`).join("")}</tr></tbody></table></div>`;
 }
-const CIPHER_SYSTEMS = [
-  { id: "so", name: "Số thay chữ", keyInfo: () => "🔑 Khóa: <b>A = 1</b> — mỗi chữ thay bằng số thứ tự của nó trong bảng chữ cái (A=1, B=2, …, Z=26)",
-    enc: (conv) => conv.split(" ").map((w) => [...w].map((ch) => ch.charCodeAt(0) - 64).join("-")).join(" – "),
-    help: () => `<p>Mỗi chữ trong bản tin (đã chuyển theo quy ước lớp) được thay bằng số thứ tự của nó: A=1, B=2, C=3, …, Z=26. Các số trong một tiếng nối bằng dấu -, các tiếng cách nhau bằng dấu –.</p>` },
-  { id: "caesar", name: "Chữ thay chữ (dịch chuyển)", keyInfo: (k) => `🔑 Khóa: <b>A = ${String.fromCharCode(65 + k)}</b> — bạch văn A viết thành ${String.fromCharCode(65 + k)}, mọi chữ đều dịch ${k} vị trí trong bảng chữ cái`,
-    enc: (conv, k) => caesarShift(conv, k),
-    help: (k) => `<p>Toàn bộ bảng chữ cái dịch vòng tròn ${k} vị trí: chữ thật A viết thành ${String.fromCharCode(65 + k)}. Khi giải, tra hàng chữ mật rồi đọc xuống hàng chữ thật:</p>${caesarStripHTML(k)}` },
-  { id: "toado", name: "Tọa độ chữ", keyInfo: () => "🔑 Bảng tọa độ 5×5 (bỏ chữ Z): mỗi chữ ghi bằng (chữ hàng)(số cột), ví dụ D = A4",
-    enc: (conv) => conv.split(" ").map((w) => [...w].map(coordOf).join("-")).join(" / "),
-    help: () => `<p>25 chữ cái (bỏ Z) xếp vào bảng 5×5. Hàng đánh bằng chữ A–E, cột bằng số 1–5; mỗi chữ ghi bằng chữ hàng rồi số cột:</p>${coordTableHTML()}` },
-  { id: "chuong", name: "Mật thư chuồng (chuồng bồ câu)", keyInfo: () => "🔑 Bảng chuồng cố định — mở mục Bảng tra bên dưới để đối chiếu từng ký hiệu",
-    enc: (conv) => conv,
-    help: () => `<p>Mỗi chữ được vẽ bằng <b>khung của ô chứa nó</b> trong hai lưới dưới đây; hai chữ chung một ô thì chữ thứ hai có thêm <b>dấu chấm</b> trong ký hiệu:</p>${pigpenRefSVG()}` },
-  { id: "docnguoc", name: "Đọc ngược", keyInfo: () => "🔑 Không cần khóa số — mỗi tiếng trong bản tin bị viết ngược thứ tự các chữ",
-    enc: (conv) => conv.split(" ").map((w) => [...w].reverse().join("")).join(" "),
-    help: () => `<p>Mỗi tiếng bị đảo ngược thứ tự chữ cái (ví dụ DDI viết thành IDD). Khi giải, đảo ngược lại từng tiếng. Đây là dạng đơn giản nhất của hệ dời chỗ.</p>` }
+/* ============ KHÓA và CÂU DẤU HIỆU (OTT) ============
+   Mỗi đề mật thư có hai dạng khóa:
+   - "given" (cho sẵn): khóa ghi thẳng trong đề — để làm quen.
+   - "find" (tự tìm khóa): đề chỉ cho một CÂU DẤU HIỆU, học
+     sinh phải suy ra khóa từ câu đó. Đây là dạng chính trong
+     Kiểm tra, đúng cách ra đề mật thư trong hoạt động Đội:
+     khóa giấu trong câu nói gợi ý (tài liệu huấn luyện gọi
+     là chìa khóa OTT cho bằng câu gợi ý). */
+const SO_CLUES = [
+  { start: "S", text: "“Nước Việt Nam là một”", derive: "Đất nước Việt Nam hình chữ S và là MỘT nước thống nhất → chữ S nhận số 1; bảng số đếm vòng tròn bắt đầu từ S (S=1, T=2, …, hết Z quay về A)." },
+  { start: "H", text: "“Thủ đô Hà Nội là trái tim của cả nước” — chữ đầu của tên thủ đô đứng đầu bảng số", derive: "Thủ đô là Hà Nội → chữ H nhận số 1, đếm vòng tròn từ H." },
+  { start: "M", text: "“Mèo con kêu meo meo” — tên con vật trong câu đứng đầu bảng số", derive: "Con vật trong câu là mèo → chữ M nhận số 1, đếm vòng tròn từ M." },
+  { start: "B", text: "“Biển xanh sóng vỗ rì rào” — chữ đầu câu đứng đầu bảng số", derive: "Chữ đầu câu là B → chữ B nhận số 1, đếm vòng tròn từ B." },
+  { start: "D", text: "“Đội ta là Đội Thiếu niên Tiền phong” — chữ đầu câu đứng đầu bảng số", derive: "Chữ đầu câu là Đ, đã chuyển thành D → chữ D nhận số 1, đếm vòng tròn từ D." },
+  { start: "T", text: "“Trường em xanh, sạch, đẹp” — chữ đầu câu đứng đầu bảng số", derive: "Chữ đầu câu là T → chữ T nhận số 1, đếm vòng tròn từ T." },
+  { start: "V", text: "“Việt Nam quê hương em” — chữ đầu câu đứng đầu bảng số", derive: "Chữ đầu câu là V → chữ V nhận số 1, đếm vòng tròn từ V." },
+  { start: "L", text: "“Lớp em đoàn kết, thân ái” — chữ đầu câu đứng đầu bảng số", derive: "Chữ đầu câu là L → chữ L nhận số 1, đếm vòng tròn từ L." }
 ];
-function cipherItem(sysId) {
+const CAESAR_CLUES = [
+  { name: "An", animal: "dê" }, { name: "Bình", animal: "dê" }, { name: "Cường", animal: "gà" },
+  { name: "Dũng", animal: "trâu" }, { name: "Hà", animal: "mèo" }, { name: "Khoa", animal: "vịt" },
+  { name: "Lan", animal: "bò" }, { name: "Minh", animal: "gà" }, { name: "Nam", animal: "cá" },
+  { name: "Phúc", animal: "heo" }, { name: "Sơn", animal: "khỉ" }, { name: "Tuấn", animal: "ngựa" }, { name: "Vinh", animal: "dê" }
+];
+function caesarClueMade() {
+  const c = CAESAR_CLUES[Math.floor(Math.random() * CAESAR_CLUES.length)];
+  const plain = convertText(c.name).toUpperCase()[0];
+  const cipherL = convertText(c.animal).toUpperCase()[0];
+  const k = (cipherL.charCodeAt(0) - plain.charCodeAt(0) + 26) % 26;
+  return { key: { k }, clue: { text: `Dấu hiệu: “${c.name} đi chăn ${c.animal}”`, derive: `Tên “${c.name}” bắt đầu bằng chữ thật ${plain}; con vật “${c.animal}” bắt đầu bằng chữ ${cipherL}. Vậy ${plain} viết thành ${cipherL} — đếm khoảng cách trong bảng chữ cái, cả bảng dịch ${k} vị trí.` } };
+}
+const TOADO_KEYS = [
+  { kw: "HOA", sent: "HOA nở rộ khắp sân trường" }, { kw: "SÁCH", sent: "SÁCH là người bạn lớn của em" },
+  { kw: "BẠN", sent: "BẠN bè giúp nhau cùng tiến bộ" }, { kw: "LỚP", sent: "LỚP em đoàn kết, thân ái" },
+  { kw: "XANH", sent: "XANH tươi hàng cây sân trường" }, { kw: "VÀNG", sent: "VÀNG óng cánh đồng lúa chín" },
+  { kw: "BIỂN", sent: "BIỂN quê em sóng vỗ rì rào" }, { kw: "ĐỘI", sent: "ĐỘI ta tiến bước theo cờ" }
+];
+function toadoClueMade() {
+  const c = TOADO_KEYS[Math.floor(Math.random() * TOADO_KEYS.length)];
+  let letters = "";
+  for (const ch of convertText(c.kw).toUpperCase()) if (!letters.includes(ch)) letters += ch;
+  return { key: { kw: c.kw, grid: coordGrid(letters) }, clue: { text: `Dấu hiệu: “${c.sent}”`, derive: `Từ đầu tiên của câu là “${c.kw}” — đó là TỪ KHÓA. Chuyển theo quy ước lớp được ${letters} (đã bỏ chữ trùng), điền vào bảng theo từng hàng, rồi điền tiếp các chữ còn lại theo thứ tự bảng chữ cái (bỏ Z).` } };
+}
+const CHUONG_CLUES = [
+  { top: "ST", word: "SÔNG" }, { top: "UV", word: "UỐNG" }, { top: "WX", word: "XANH" }, { top: "YZ", word: "YÊU" }
+];
+function chuongClueMade() {
+  const c = CHUONG_CLUES[Math.floor(Math.random() * CHUONG_CLUES.length)];
+  const xm = pigpenXMap(c.top);
+  const pairStr = (w) => Object.keys(xm).filter((k) => xm[k].w === w).sort((a, b) => xm[a].dot - xm[b].dot).join("·");
+  return { key: { top: c.top, xMap: xm }, clue: { text: `Dấu hiệu: cặp chữ đầu của từ “${c.word}” nằm ở trên cùng của lưới nhọn`, derive: `Từ “${c.word}” bắt đầu bằng cặp ${c.top.split("").join("·")} → cặp này lên TRÊN CÙNG. Cả vòng xoay theo chiều kim đồng hồ: trên ${pairStr("top")}, phải ${pairStr("right")}, dưới ${pairStr("bottom")}, trái ${pairStr("left")}.` } };
+}
+const CIPHER_SYSTEMS = [
+  { id: "so", name: "Số thay chữ",
+    makeGiven: () => ({ key: { start: "A" }, clue: null }),
+    makeFind: () => { const c = SO_CLUES[Math.floor(Math.random() * SO_CLUES.length)]; return { key: { start: c.start }, clue: { text: "🕵️ " + c.text, derive: c.derive } }; },
+    enc: (conv, key) => { const off = key.start.charCodeAt(0) - 65; return conv.split(" ").map((w) => [...w].map((ch) => ((ch.charCodeAt(0) - 65 - off + 26) % 26) + 1).join("-")).join(" – "); },
+    keyInfo: (key) => key.start === "A" ? "🔑 Khóa: <b>A = 1</b> — mỗi chữ thay bằng số thứ tự của nó (A=1, B=2, …, Z=26)" : `🔑 Khóa: <b>${key.start} = 1</b> — bảng số đếm vòng tròn bắt đầu từ chữ ${key.start}`,
+    help: (key) => `<p>Mỗi chữ thay bằng số thứ tự của nó trong bảng chữ cái, đếm vòng tròn bắt đầu từ <b>${key.start} = 1</b> (sau Z quay lại A). Số trong một tiếng nối bằng dấu -, các tiếng cách nhau bằng dấu –.</p>`,
+    findHelp: `<p><b>Cách tìm khóa:</b> câu dấu hiệu chỉ mặt chữ cái nhận số 1 — chữ đầu câu, hoặc chữ mà câu đố nhắc tới (ví dụ: đất nước hình chữ S). Từ chữ đó đếm vòng tròn: nó là 1, chữ tiếp theo là 2, … hết Z quay về A.</p>` },
+  { id: "caesar", name: "Chữ thay chữ (dịch chuyển)",
+    makeGiven: () => ({ key: { k: 2 + Math.floor(Math.random() * 23) }, clue: null }),
+    makeFind: () => caesarClueMade(),
+    enc: (conv, key) => caesarShift(conv, key.k),
+    keyInfo: (key) => `🔑 Khóa: <b>A = ${String.fromCharCode(65 + key.k)}</b> — bạch văn A viết thành ${String.fromCharCode(65 + key.k)}, mọi chữ đều dịch ${key.k} vị trí`,
+    help: (key) => `<p>Bảng chữ cái dịch vòng tròn ${key.k} vị trí. Khi giải, tra hàng chữ mật rồi đọc xuống hàng chữ thật:</p>${caesarStripHTML(key.k)}`,
+    findHelp: `<p><b>Cách tìm khóa:</b> câu dấu hiệu có dạng “một bạn đi chăn một con vật”: chữ đầu của TÊN là một chữ THẬT, chữ đầu của CON VẬT là chữ MẬT viết thay nó. Đếm khoảng cách giữa hai chữ đó trong bảng chữ cái — đó là độ dịch của cả bảng.</p>` },
+  { id: "toado", name: "Tọa độ chữ",
+    makeGiven: () => ({ key: { kw: null, grid: coordGrid(null) }, clue: null }),
+    makeFind: () => toadoClueMade(),
+    enc: (conv, key) => conv.split(" ").map((w) => [...w].map((ch) => coordOfK(ch, key.grid)).join("-")).join(" / "),
+    keyInfo: (key) => key.kw ? `🔑 Bảng tọa độ dựng bằng từ khóa <b>${esc(key.kw)}</b> (điền từ khóa trước, bỏ chữ trùng)` : "🔑 Bảng tọa độ 5×5 (bỏ chữ Z): mỗi chữ ghi bằng (chữ hàng)(số cột), ví dụ D = A4",
+    help: (key) => `<p>25 chữ cái (bỏ Z) xếp vào bảng 5×5${key.kw ? ` dựng bằng từ khóa <b>${esc(key.kw)}</b>` : ""}. Hàng đánh bằng chữ A–E, cột bằng số 1–5; mỗi chữ ghi bằng chữ hàng rồi số cột:</p>${coordTableHTML(key.grid)}`,
+    findHelp: `<p><b>Cách tìm khóa:</b> TỪ ĐẦU TIÊN của câu dấu hiệu là từ khóa. Chuyển từ khóa theo quy ước lớp, bỏ chữ trùng, điền vào bảng theo từng hàng, rồi điền tiếp các chữ còn lại theo thứ tự bảng chữ cái (bỏ Z).</p>` },
+  { id: "chuong", name: "Mật thư chuồng (chuồng bồ câu)",
+    makeGiven: () => ({ key: { top: "ST", xMap: pigpenXMap("ST") }, clue: null }),
+    makeFind: () => chuongClueMade(),
+    enc: (conv) => conv,
+    keyInfo: (key) => key.top === "ST" ? "🔑 Bảng chuồng chuẩn — cặp S·T ở trên cùng của lưới nhọn" : `🔑 Lưới nhọn đã xoay theo khóa — cặp <b>${key.top.split("").join("·")}</b> ở trên cùng`,
+    help: (key) => `<p>Mỗi chữ vẽ bằng <b>khung của ô chứa nó</b>; chữ thứ hai trong ô thêm <b>dấu chấm</b>. Lưới nhọn theo khóa của đề này:</p>${pigpenRefSVG(key.xMap)}`,
+    findHelp: `<p><b>Cách tìm khóa:</b> câu dấu hiệu cho biết cặp chữ nào của lưới nhọn nằm ở TRÊN CÙNG. Bốn cặp chữ nằm trên một vòng theo chiều kim đồng hồ: S·T → W·X → Y·Z → U·V — một cặp lên trên thì cả vòng xoay theo, suy ra vị trí ba cặp còn lại.</p>${pigpenRefSVG()}` },
+  { id: "docnguoc", name: "Đọc ngược",
+    makeGiven: () => ({ key: { whole: false }, clue: null }),
+    makeFind: (conv) => {
+      const words = conv.split(" ");
+      if (Math.random() < 0.5) {
+        const last = words[words.length - 1];
+        return { key: { whole: true }, clue: { text: `🕵️ Dấu hiệu: tiếng “${last}” vốn ở cuối bản tin thật, trong mật thư lại đứng ở ĐẦU và viết ngược thành “${[...last].reverse().join("")}”`, derive: "Tiếng cuối chạy lên đầu và bị viết ngược → cả bản tin bị đảo ngược TOÀN BỘ (cả thứ tự các tiếng). Khi giải, đảo ngược lại toàn bộ dãy chữ." } };
+      }
+      const first = words[0];
+      return { key: { whole: false }, clue: { text: `🕵️ Dấu hiệu: tiếng đầu tiên “${first}” trong mật thư viết thành “${[...first].reverse().join("")}”`, derive: "Tiếng đầu vẫn đứng đầu, chỉ bị viết ngược một mình → mỗi tiếng bị đảo ngược RIÊNG, thứ tự các tiếng giữ nguyên. Khi giải, đảo ngược lại từng tiếng." } };
+    },
+    enc: (conv, key) => key.whole ? [...conv].reverse().join("") : conv.split(" ").map((w) => [...w].reverse().join("")).join(" "),
+    keyInfo: (key) => key.whole ? "🔑 Khóa: cả bản tin bị viết đảo ngược toàn bộ (cả thứ tự các tiếng)" : "🔑 Khóa: mỗi tiếng trong bản tin bị viết ngược thứ tự các chữ",
+    help: (key) => key.whole ? `<p>Toàn bộ bản tin — cả thứ tự các tiếng lẫn thứ tự chữ trong tiếng — bị đảo ngược từ cuối lên đầu. Khi giải, viết lại cả dãy theo chiều ngược lại.</p>` : `<p>Mỗi tiếng bị đảo ngược thứ tự chữ cái (ví dụ DDI viết thành IDD), thứ tự các tiếng giữ nguyên. Khi giải, đảo ngược lại từng tiếng.</p>`,
+    findHelp: `<p><b>Cách tìm khóa:</b> hệ này không có khóa số — phải nhận ra DẠNG đảo ngược qua tiếng mẫu trong dấu hiệu: tiếng mẫu còn đứng đúng vị trí của nó thì là đảo ngược từng tiếng; tiếng cuối của bản tin thật chạy lên đầu thì là đảo ngược toàn bộ.</p>` }
+];
+function cipherItem(mode, sysId) {
   const sys = sysId ? CIPHER_SYSTEMS.find((s) => s.id === sysId) : CIPHER_SYSTEMS[Math.floor(Math.random() * CIPHER_SYSTEMS.length)];
   const phrase = CIPHER_MSGS[Math.floor(Math.random() * CIPHER_MSGS.length)];
   const conv = convertText(phrase).toUpperCase();
-  const key = sys.id === "caesar" ? 2 + Math.floor(Math.random() * 23) : null;
-  return { sys, phrase, conv, key, cipher: sys.enc(conv, key) };
+  const made = (mode === "find" ? sys.makeFind(conv) : sys.makeGiven(conv)) || {};
+  return { sys, phrase, conv, key: made.key, clue: made.clue || null, cipher: sys.enc(conv, made.key), xMap: made.key && made.key.xMap };
 }
 function cipherAnswerOk(input, item) {
   const norm = (s) => String(s || "").toUpperCase().replace(/\s+/g, " ").trim();
@@ -1955,12 +2079,16 @@ function openCipherModule() {
     mode === "luyen" ? practice() : startTest();
   }));
   function itemHTML(item, withHelp) {
-    const disp = item.sys.id === "chuong" ? pigpenSVG(item.conv) : `<div class="tt-cipher">${esc(item.cipher)}</div>`;
+    const disp = item.sys.id === "chuong" ? pigpenSVG(item.conv, item.xMap) : `<div class="tt-cipher">${esc(item.cipher)}</div>`;
+    const keyLine = item.clue
+      ? `<p style="margin:0 0 8px">${esc(item.clue.text)}<br><span style="color:#666">Khóa không cho sẵn — em hãy suy ra khóa từ dấu hiệu trên.</span></p>`
+      : `<p style="margin:0 0 8px">${item.sys.keyInfo(item.key)}</p>`;
+    const helpBody = withHelp ? (item.clue ? item.sys.findHelp : item.sys.help(item.key)) : "";
     return `<div class="tt-qbox">
       <p style="margin:0 0 2px"><b>Hệ mật thư: ${esc(item.sys.name)}</b></p>
-      <p style="margin:0 0 8px">${item.sys.keyInfo(item.key)}</p>
+      ${keyLine}
       ${disp}
-      ${withHelp ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600;color:#0b5cad">📖 Bảng tra của hệ này</summary>${item.sys.help(item.key)}</details>` : ""}
+      ${withHelp ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600;color:#0b5cad">${item.clue ? "📖 Cách tìm khóa của hệ này" : "📖 Bảng tra của hệ này"}</summary>${helpBody}</details>` : ""}
     </div>
     <div class="tt-field"><label>Giải mật thư — viết bản tin giải được (theo quy ước lớp như khi nhận Morse, hoặc viết tiếng Việt có dấu):</label>
     <input type="text" class="tt-modinput" data-role="ans" autocomplete="off" placeholder="Ví dụ: DDI HOJC"></div>`;
@@ -1971,7 +2099,12 @@ function openCipherModule() {
     bar.innerHTML = `<select data-role="sys" style="flex:1;padding:9px;border-radius:9px;border:1.5px solid #bbb;font-size:14.5px;min-width:170px">
       <option value="">🎲 Ngẫu nhiên hệ mật thư</option>
       ${CIPHER_SYSTEMS.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join("")}
-    </select><button type="button" data-role="newq" style="flex:0 1 auto">Câu mới</button>`;
+    </select>
+    <select data-role="kmode" style="flex:1;padding:9px;border-radius:9px;border:1.5px solid #bbb;font-size:14.5px;min-width:170px">
+      <option value="find">🕵️ Tự tìm khóa qua dấu hiệu</option>
+      <option value="given">🔑 Cho sẵn khóa (làm quen)</option>
+    </select>
+    <button type="button" data-role="newq" style="flex:0 1 auto">Câu mới</button>`;
     stage.innerHTML = "";
     stage.appendChild(bar);
     const host = document.createElement("div");
@@ -1979,7 +2112,7 @@ function openCipherModule() {
     let item = null, done = false;
     function draw() {
       done = false;
-      item = cipherItem(bar.querySelector('[data-role="sys"]').value || null);
+      item = cipherItem(bar.querySelector('[data-role="kmode"]').value, bar.querySelector('[data-role="sys"]').value || null);
       host.innerHTML = itemHTML(item, true);
       const btn = document.createElement("button");
       btn.type = "button"; btn.className = "tt-btn"; btn.textContent = "Kiểm tra đáp án";
@@ -1992,9 +2125,10 @@ function openCipherModule() {
         note.className = ok ? "tt-msg" : "tt-err";
         note.style.display = "block";
         note.style.marginTop = "10px";
-        note.innerHTML = ok
+        note.innerHTML = (ok
           ? `✅ Đúng rồi! Bản tin là <b>${esc(item.conv)}</b> (${esc(item.phrase)}).`
-          : `❌ Chưa đúng. Đáp án đúng: <b>${esc(item.conv)}</b> (${esc(item.phrase)}). Em xem lại bảng tra rồi thử câu mới nhé.`;
+          : `❌ Chưa đúng. Đáp án đúng: <b>${esc(item.conv)}</b> (${esc(item.phrase)}).`)
+          + (item.clue ? `<br>🕵️ Cách tìm khóa: ${esc(item.clue.derive)}` : "");
         host.appendChild(note);
         btn.disabled = true;
       });
@@ -2002,13 +2136,14 @@ function openCipherModule() {
     }
     bar.querySelector('[data-role="newq"]').addEventListener("click", draw);
     bar.querySelector('[data-role="sys"]').addEventListener("change", draw);
+    bar.querySelector('[data-role="kmode"]').addEventListener("change", draw);
     draw();
   }
   function startTest() {
     const pool = CIPHER_MSGS.filter((m) => convertText(m).replace(/ /g, "").length <= 11);
     const mk = () => {
-      const it = cipherItem(null);
-      if (convertText(it.phrase).replace(/ /g, "").length > 11) it.phrase = pool[Math.floor(Math.random() * pool.length)], it.conv = convertText(it.phrase).toUpperCase(), it.cipher = it.sys.enc(it.conv, it.key);
+      const it = cipherItem("find", null);
+      if (convertText(it.phrase).replace(/ /g, "").length > 11) { it.phrase = pool[Math.floor(Math.random() * pool.length)]; it.conv = convertText(it.phrase).toUpperCase(); it.cipher = it.sys.enc(it.conv, it.key); if (it.sys.id === "docnguoc") { const made = it.sys.makeFind(it.conv); it.key = made.key; it.clue = made.clue; it.cipher = it.sys.enc(it.conv, it.key); } }
       return it;
     };
     test = { list: Array.from({ length: 10 }, mk), idx: 0, correct: 0, startedAt: Date.now() };
@@ -2046,31 +2181,33 @@ function openCipherModule() {
 function openCipherDoc() {
   const body = openPanel("🔐 Tài liệu mật thư", true);
   body.innerHTML = `
-    <p><b>Mật thư</b> là kỹ năng truyền tin chính thức của Đội. Theo tài liệu huấn luyện, mật thư gồm <b>3 hệ thống</b>: <b>thay thế</b> (mỗi chữ đổi thành ký hiệu khác), <b>dời chỗ</b> (giữ nguyên chữ, đổi vị trí) và <b>ẩn giấu</b> (giấu bản tin trong văn bản bình thường). Trước khi mã hoá, bạch văn tiếng Việt được chuyển sang thể thức điện tín không dấu — trong ứng dụng này dùng đúng <b>quy ước của lớp</b> như ở phần Morse và Semaphore (lưu ý: một số tài liệu in viết dấu thanh ở cuối tiếng, khác quy ước lớp ở những tiếng có phụ âm cuối).</p>
-    <p>Thể thức trình bày bản mật thư: mở đầu <b>NW/</b>, kết thúc <b>/AR</b>, chìa khóa ghi sau ký hiệu <b>OTT:</b>. Đáp án khi giải ra giữ nguyên dạng điện tín, không tự Việt hoá.</p>
-    <h3 style="margin:14px 0 4px">1. Số thay chữ — hệ thay thế</h3>
-    <p>Mỗi chữ thay bằng số thứ tự trong bảng chữ cái: A=1, B=2, …, Z=26. Khóa ghi: A = 1.<br>
-    Ví dụ: ĐI HỌC → (chuyển: DDI HOJC) → <span class="tt-cipher" style="font-size:16px">4-4-9 – 8-15-10-3</span></p>
-    <h3 style="margin:14px 0 4px">2. Chữ thay chữ (dịch chuyển vòng tròn) — hệ thay thế</h3>
-    <p>Toàn bộ bảng chữ cái dịch vòng tròn một số vị trí cố định. Khóa cho bằng một cặp chữ, ví dụ <b>A = D</b> nghĩa là bạch văn A viết thành D (dịch 3 vị trí), mọi chữ dịch như nhau. Khi giải thử cả hai chiều nếu chưa rõ chiều khóa.</p>
+    <p><b>Mật thư</b> có 3 hệ: <b>thay thế</b> (đổi mỗi chữ thành ký hiệu khác), <b>dời chỗ</b> (giữ nguyên chữ, đổi vị trí), <b>ẩn giấu</b> (giấu tin trong văn bản thường). Bạch văn phải chuyển sang thể thức điện tín theo <b>quy ước của lớp</b> trước khi mã hoá. Bản mật thư mở đầu <b>NW/</b>, kết thúc <b>/AR</b>, khóa ghi sau ký hiệu <b>OTT:</b>.</p>
+    <h3 style="margin:14px 0 4px">1. Số thay chữ — thay thế</h3>
+    <p>Mỗi chữ thay bằng số thứ tự của nó, đếm vòng tròn từ chữ nhận số 1 của khóa. Khóa thường: A = 1.<br>
+    Ví dụ (A = 1): ĐI HỌC → DDI HOJC → <span class="tt-cipher" style="font-size:16px">4-4-9 – 8-15-10-3</span></p>
+    <h3 style="margin:14px 0 4px">2. Chữ thay chữ — thay thế</h3>
+    <p>Cả bảng chữ cái dịch vòng tròn cùng một số vị trí. Khóa ghi bằng một cặp chữ, ví dụ A = D (dịch 3).</p>
     ${caesarStripHTML(3)}
-    <p>Ví dụ với khóa A = D: ĐI HỌC → <span class="tt-cipher" style="font-size:16px">GGL KRMF</span></p>
-    <h3 style="margin:14px 0 4px">3. Tọa độ chữ — hệ thay thế</h3>
-    <p>25 chữ cái (bỏ chữ Z — chữ này không xuất hiện trong tiếng Việt đã chuyển đổi) xếp vào bảng 5×5; mỗi chữ ghi bằng (chữ hàng)(số cột):</p>
+    <p>Ví dụ (A = D): ĐI HỌC → <span class="tt-cipher" style="font-size:16px">GGL KRMF</span></p>
+    <h3 style="margin:14px 0 4px">3. Tọa độ chữ — thay thế</h3>
+    <p>25 chữ (bỏ Z) xếp vào bảng 5×5; mỗi chữ ghi bằng (chữ hàng)(số cột). Bảng có thể dựng bằng một từ khóa: điền chữ của từ khóa trước (bỏ trùng) rồi điền tiếp các chữ còn lại.</p>
     ${coordTableHTML()}
     <p>Ví dụ: ĐI THEO DẤU → <span class="tt-cipher" style="font-size:16px">A4-A4-B4 / D5-B3-A5-C5 / A4-A1-A1-D4-E1</span></p>
-    <h3 style="margin:14px 0 4px">4. Mật thư chuồng (chuồng bồ câu) — hệ thay thế bằng hình</h3>
-    <p>26 chữ xếp vào lưới vuông 3×3 (mỗi ô 2 chữ) và lưới nhọn 4 ô. Mỗi chữ vẽ bằng khung của ô chứa nó; chữ thứ hai trong ô thêm một dấu chấm:</p>
+    <h3 style="margin:14px 0 4px">4. Mật thư chuồng — thay thế bằng hình</h3>
+    <p>Mỗi chữ vẽ bằng khung của ô chứa nó; chữ thứ hai trong ô thêm dấu chấm. Lưới nhọn (S·T, W·X, Y·Z, U·V) có thể xoay theo khóa.</p>
     ${pigpenRefSVG()}
-    <p>Ví dụ — bản mật thư của câu VỀ TRẠI (chuyển: VEEF TRAJI):</p>
+    <p>Ví dụ — VỀ TRẠI (VEEF TRAJI):</p>
     ${pigpenSVG("VEEF TRAJI")}
-    <h3 style="margin:14px 0 4px">5. Đọc ngược — hệ dời chỗ</h3>
-    <p>Mỗi tiếng bị viết ngược thứ tự các chữ (cũng có dạng đảo ngược toàn bộ bản tin, hoặc đảo ngược thứ tự các tiếng). Ví dụ: HỌC TỐT → (chuyển: HOJC TOOST) → <span class="tt-cipher" style="font-size:16px">CJOH TSOOT</span></p>
-    <h3 style="margin:14px 0 4px">Các dạng nâng cao (đọc thêm)</h3>
-    <p><b>CAM RANH</b> (dời chỗ): viết bản tin thành các hàng dưới một từ khóa, đánh số các chữ của khóa theo thứ tự bảng chữ cái, rồi đọc từng cột theo thứ tự số — tên gọi lấy từ từ khóa mẫu kinh điển CAM RANH.<br>
-    <b>Tọa độ số có từ khóa</b> (thay thế): điền từ khóa vào bảng 5×5 trước (bỏ chữ trùng), điền tiếp các chữ còn lại, rồi ghi mỗi chữ bằng cặp số (hàng, cột) viết liền nhau.<br>
-    <b>Ẩn giấu</b>: giấu bản tin bằng quy tắc đọc — đọc cách dòng, nhảy cóc theo bước, bỏ chữ giả, ghép chữ đầu các tiếng… người giải phải nhận được quy tắc kèm theo khóa.</p>
-    <p class="tt-note">Năm dạng đầu là phần luyện tập và kiểm tra trong ứng dụng. Nội dung đầy đủ, gồm nguồn tài liệu và các điểm các tài liệu chưa thống nhất, có trong file tài liệu nghiên cứu chuyên đề mật thư và dấu đi đường của thầy.</p>`;
+    <h3 style="margin:14px 0 4px">5. Đọc ngược — dời chỗ</h3>
+    <p>Đảo ngược từng tiếng (HOJC → CJOH) hoặc đảo ngược toàn bộ bản tin. Ví dụ: HỌC TỐT → <span class="tt-cipher" style="font-size:16px">CJOH TSOOT</span></p>
+    <h3 style="margin:14px 0 4px">🕵️ Tìm khóa qua câu dấu hiệu</h3>
+    <p>Trong đề thật, khóa <b>không ghi thẳng</b> mà giấu trong một câu dấu hiệu (OTT). Cách nhận ra:</p>
+    <p>• <b>Số thay chữ:</b> câu chỉ mặt chữ nhận số 1. Ví dụ: “Nước Việt Nam là một” → đất nước hình chữ <b>S</b> và là <b>một</b> → <b>S = 1</b>, đếm vòng tròn từ S.<br>
+    • <b>Chữ thay chữ:</b> câu dạng “tên một bạn đi chăn một con vật”: chữ đầu của tên là chữ thật, chữ đầu của con vật là chữ mật. Ví dụ: “An đi chăn dê” → A viết thành D → dịch 3.<br>
+    • <b>Tọa độ chữ:</b> từ đầu tiên của câu dấu hiệu là từ khóa dựng bảng. Ví dụ: “HOA nở rộ…” → từ khóa HOA.<br>
+    • <b>Chuồng:</b> câu cho biết cặp chữ nào của lưới nhọn ở trên cùng; bốn cặp S·T → W·X → Y·Z → U·V nằm trên một vòng theo chiều kim đồng hồ, một cặp lên trên thì cả vòng xoay theo.<br>
+    • <b>Đọc ngược:</b> nhìn tiếng mẫu trong dấu hiệu — tiếng mẫu còn đúng vị trí là đảo ngược từng tiếng; tiếng cuối của bản tin thật chạy lên đầu là đảo ngược toàn bộ.</p>
+    <p class="tt-note">Dạng nâng cao (đọc thêm): CAM RANH — viết bản tin thành hàng dưới một từ khóa rồi đọc cột theo thứ tự bảng chữ cái của khóa; tọa độ số có từ khóa — như tọa độ chữ nhưng ghi bằng cặp số; ẩn giấu — đọc cách dòng, nhảy cóc, bỏ chữ giả… theo quy tắc đi kèm.</p>`;
 }
 
 /* ---------------- Dung lượng Firebase (chỉ quản trị) ----------------
