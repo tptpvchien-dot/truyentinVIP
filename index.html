@@ -1752,20 +1752,25 @@ function setLamp(lampEl, on){
   lampEl.classList.toggle("on", !!on);
   lampEl.classList.remove("dash");
 }
-/* NHỊP NGHỈ MORSE theo đúng file còi của thầy (đo thật trên
-   file Morse_0_fkye.mp3: tích ≈ 67 ms, nghỉ TRONG một ký tự
-   ≈ 58 ms, nghỉ GIỮA hai ký tự ≈ 148 ms): trong cùng một ký
-   tự (và trong cả mạch NW/AR) các tiếng thổi liền nhau với
-   khoảng nghỉ RẤT NGẮN, chỉ ngắt rõ khi chuyển ký tự — khác
-   hẳn nhịp sách giáo khoa 1-3-1-3-7 mà thầy nghe thấy "ngắt"
-   ở các bản trước. units quy ước: 1 = trong ký tự, 2 = giữa
-   các lần lặp NW/AR (ngắn nhưng rõ ranh giới để nghe ra đúng
-   3 lần: -..-- -..-- -..--), 3 = giữa ký tự, 7 = giữa từ. */
+/* NHỊP NGHỈ MORSE — tính theo TỈ LỆ đo thật trên file còi
+   chuẩn của huấn luyện viên (Morse_0_fkye.mp3, đo trên toàn
+   bộ 52 tiếng còi): tích ≈ 66 ms; nghỉ TRONG một ký tự
+   ≈ 55 ms (bằng 0,85 lần tích); nghỉ GIỮA hai ký tự ≈ 143 ms
+   (bằng 2,2 lần tích, gấp 2,6 lần nghỉ trong chữ); các
+   khoảng lặng 1,3–2,1 giây trong file là ngắt giữa các đoạn
+   nhạc nên không dùng làm nghỉ giữa từ — nghỉ giữa từ suy
+   theo tỉ lệ chuẩn 7/3 của nghỉ giữa chữ (≈ 5,1 tích).
+   Mọi khoảng nghỉ đều tính theo ĐƠN VỊ tích của tốc độ đang
+   chọn (unit = 1200/WPM ms) để nhịp co giãn đúng tỉ lệ file
+   ở mọi tốc độ, như huấn luyện viên thổi chậm lại.
+   units quy ước: 1 = trong ký tự (0,85u), 2 = giữa các lần
+   lặp NW/AR (1,4u — giữa hai bậc trên/dưới), 3 = giữa ký tự
+   (2,2u), 7 = giữa từ (5,1u). */
 function morseGapMs(units, unit){
-  if (units <= 1) return Math.min(70, Math.max(30, unit * 0.55));
-  if (units <= 2) return Math.min(140, Math.max(60, unit * 1.0));
-  if (units <= 3) return Math.min(300, Math.max(110, unit * 1.5));
-  return Math.min(540, Math.max(200, unit * 2.7));
+  if (units <= 1) return unit * 0.85;
+  if (units <= 2) return unit * 1.4;
+  if (units <= 3) return unit * 2.2;
+  return unit * 5.1;
 }
 function playLetterTone(code, wpm, lampEl, done){
   audioInit();
@@ -2580,6 +2585,6 @@ renderHistory();
 
 
   <script src="app-config.js?v=29"></script>
-<script type="module" src="auth-layer.js?v=61"></script>
+<script type="module" src="auth-layer.js?v=62"></script>
 </body>
 </html>
