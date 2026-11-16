@@ -493,6 +493,7 @@ function grantAccess() {
     else if (!featOn("featSemaphore") && featOn("featMorse") && km && km.getAttribute("aria-pressed") !== "true") km.click();
   }
   maybePromptEmail();
+  applyHistDeletions();
   syncHistory();
   setInterval(syncHistory, 20000);
   startHistWatch();
@@ -745,6 +746,50 @@ const syncFailed = new Set(); /* hash các bài lỗi đồng bộ trong phiên 
    Bài cũ (trước v49) chưa có dấu: chỉ nhận là của mình khi tên
    trên bài khớp đúng họ tên trong hồ sơ — nhờ vậy máy dùng chung
    không bao giờ đẩy bài của tài khoản này sang tài khoản khác. */
+/* Quản trị xoá lịch sử của một thành viên: ngoài xoá bài trên
+   máy chủ, còn ghi DẤU XOÁ lên hồ sơ của thành viên đó (mảng
+   histDeleted chứa mã băm từng bài bị xoá lẻ; histClearedAt là
+   mốc thời gian khi xoá toàn bộ). Ứng dụng phía học sinh đọc dấu
+   này và tự dọn các bài tương ứng khỏi máy của em — xoá là xoá
+   trên toàn hệ thống, học sinh cũng không còn xem lại được. */
+async function markHistDeleted(uid, hashes, clearAll) {
+  try {
+    const ref = doc(db, "profiles", uid);
+    if (clearAll) await updateDoc(ref, { histClearedAt: Date.now() });
+    const hs = (hashes || []).filter(Boolean);
+    for (let i = 0; i < hs.length; i += 100) await updateDoc(ref, { histDeleted: arrayUnion(...hs.slice(i, i + 100)) });
+  } catch (e) { /* ghi dấu hỏng không được chặn việc xoá trên máy chủ */ }
+}
+function histEntryTime(e) {
+  const s = (e && e.date) || "";
+  const dm = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const tm = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (!dm || !tm) return 0;
+  return new Date(+dm[3], +dm[2] - 1, +dm[1], +tm[1], +tm[2], +(tm[3] || 0)).getTime();
+}
+function histGone(e) {
+  if (!e || !myProfile) return false;
+  const del = myProfile.histDeleted;
+  if (Array.isArray(del) && del.includes(entryHash(e))) return true;
+  const ca = myProfile.histClearedAt || 0;
+  if (ca) { const t = histEntryTime(e); if (t && t <= ca) return true; }
+  return false;
+}
+function applyHistDeletions() {
+  if (!myProfile) return;
+  if (!myProfile.histClearedAt && !(Array.isArray(myProfile.histDeleted) && myProfile.histDeleted.length)) return;
+  const arr = loadLocalHist();
+  if (!arr.length) return;
+  const kept = [], goneKeys = [];
+  for (const e of arr) { if (histGone(e)) goneKeys.push(entryHash(e)); else kept.push(e); }
+  if (!goneKeys.length) return;
+  try {
+    localStorage.setItem("ltmt_history", JSON.stringify(kept));
+    const done = new Set(JSON.parse(localStorage.getItem("tt_synced") || "[]"));
+    goneKeys.forEach((h) => done.add(h));
+    localStorage.setItem("tt_synced", JSON.stringify([...done].slice(-400)));
+  } catch (e) {}
+}
 function histMine(e) {
   if (!e || !currentUser) return false;
   if (e.uid) return e.uid === currentUser.uid;
@@ -755,12 +800,13 @@ async function syncHistory() {
   if (syncing || !currentUser || !db) return;
   syncing = true;
   try {
+    applyHistDeletions();
     const arr = loadLocalHist();
     if (!arr.length) return;
     const done = new Set(JSON.parse(localStorage.getItem("tt_synced") || "[]"));
     let added = 0;
     for (const entry of arr) {
-      if (!histMine(entry)) continue; /* chỉ đồng bộ bài của chính tài khoản đang đăng nhập */
+      if (!histMine(entry) || histGone(entry)) continue; /* chỉ đồng bộ bài của chính tài khoản; bài quản trị đã xoá thì không đẩy lại */
       const key = entryHash(entry);
       if (done.has(key) || syncFailed.has(key)) continue;
       if (added >= 50) break;
@@ -816,6 +862,11 @@ function histTableHTML(rows, firstColLabel, nameOf) {
 async function openMyHistory() {
   const body = openPanel("🕘 Lịch sử làm bài", true);
   body.innerHTML = "<p>Đang tải lịch sử…</p>";
+  try {
+    const pd = await getDoc(doc(db, "profiles", currentUser.uid));
+    if (pd.exists()) { const d = pd.data(); if (d.histDeleted !== undefined) myProfile.histDeleted = d.histDeleted; if (d.histClearedAt !== undefined) myProfile.histClearedAt = d.histClearedAt; }
+  } catch (e) { /* không đọc lại được hồ sơ thì dùng dấu xoá đã có trong phiên */ }
+  applyHistDeletions();
   let rows = [], serverOk = true;
   const serverKeys = new Set();
   try {
@@ -1625,13 +1676,19 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
         delAll.disabled = true; delAll.textContent = "Đang xoá…";
         try {
           for (const it of items) await deleteDoc(doc(db, "history", it.id));
-          box.innerHTML = "<div class='tt-hist'>Đã xoá toàn bộ lịch sử làm bài của " + esc(m.username || "") + ".</div>";
+          await markHistDeleted(m.uid, items.map((it) => entryHash(it.entry || {})), true);
+          box.innerHTML = "<div class='tt-hist'>Đã xoá toàn bộ lịch sử làm bài của " + esc(m.username || "") + " — trên máy của học sinh cũng sẽ tự xoá khi em mở lại ứng dụng.</div>";
         } catch (e) { alert(errText(e.code)); delAll.disabled = false; }
       });
       box.querySelectorAll("[data-hdel]").forEach((b) => b.addEventListener("click", async () => {
         if (!confirm("Xoá bài làm này của " + m.username + "? Xoá xong không lấy lại được.")) return;
         b.disabled = true;
-        try { await deleteDoc(doc(db, "history", b.dataset.hdel)); loadHistBox(); }
+        try {
+          await deleteDoc(doc(db, "history", b.dataset.hdel));
+          const it = items.find((x) => x.id === b.dataset.hdel);
+          if (it) await markHistDeleted(m.uid, [entryHash(it.entry || {})], false);
+          loadHistBox();
+        }
         catch (e) { alert(errText(e.code)); b.disabled = false; }
       }));
     } catch (e) { box.innerHTML = esc(errText(e.code)); }
@@ -1644,10 +1701,10 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
     try {
       const snap = await getDocs(query(collection(db, "history"), where("uid", "==", m.uid)));
       if (snap.empty) { box.innerHTML = "<div class='tt-hist'>" + esc(m.username || "") + " chưa có bài làm nào được đồng bộ — không có gì để xoá.</div>"; return; }
-      const ids = [];
-      snap.forEach((d) => ids.push(d.id));
+      const ids = [], hashes = [];
+      snap.forEach((d) => { ids.push(d.id); hashes.push(entryHash((d.data() || {}).entry || {})); });
       box.innerHTML = `<div class="tt-hist" style="text-align:left;line-height:1.55"><b>Xoá lịch sử làm bài của ${esc(displayName(m))} (@${esc(m.username || "")})</b><br>
-        Hiện có <b>${ids.length} bài</b> đã đồng bộ trên máy chủ. Xoá xong không lấy lại được (bài lưu trên máy của học sinh không bị xoá, nhưng sẽ không đồng bộ lại những bài cũ đó).
+        Hiện có <b>${ids.length} bài</b> đã đồng bộ trên máy chủ. Xoá xong không lấy lại được — bài cũng sẽ biến mất khỏi mục Lịch sử trên máy của học sinh khi em mở lại ứng dụng (xoá trên toàn hệ thống).
         <div class="tt-acts" style="margin-top:8px">
           <button data-dh="yes" class="danger">Xoá hết ${ids.length} bài</button>
           <button data-dh="no">Để sau</button>
@@ -1657,7 +1714,8 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
         ev.target.disabled = true; ev.target.textContent = "Đang xoá…";
         try {
           for (const id of ids) await deleteDoc(doc(db, "history", id));
-          box.innerHTML = "<div class='tt-hist'>Đã xoá toàn bộ " + ids.length + " bài làm của " + esc(m.username || "") + ".</div>";
+          await markHistDeleted(m.uid, hashes, true);
+          box.innerHTML = "<div class='tt-hist'>Đã xoá toàn bộ " + ids.length + " bài làm của " + esc(m.username || "") + " — trên máy của học sinh cũng sẽ tự xoá khi em mở lại ứng dụng.</div>";
         } catch (e) { alert(errText(e.code)); ev.target.disabled = false; ev.target.textContent = "Xoá hết " + ids.length + " bài"; }
       });
     } catch (e) { box.innerHTML = esc(errText(e.code)); }
