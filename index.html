@@ -377,7 +377,7 @@
             <div class="figstyle" style="display:flex;gap:6px;justify-content:center;align-items:center;margin-top:6px">
               <span class="muted">Hình người:</span>
               <button class="btn ghost" id="figStickBtn" style="padding:4px 12px">Người que</button>
-              <button class="btn ghost" id="fig3dBtn" style="padding:4px 12px">Người 3D</button>
+              <button class="btn ghost" id="fig3dBtn" style="padding:4px 12px">Người thật</button>
             </div>
             <div class="nowchar" aria-live="polite">
               <span class="ch" id="nowSemChar"></span>
@@ -1087,62 +1087,89 @@ function semFigureSVG(idPrefix, animated, useCloth, v3d){
   const flagL = flagMesh(idPrefix, "L");
   const flagR = flagMesh(idPrefix, "R");
   if (v3d){
+    /* NGƯỜI THẬT theo ảnh thầy gửi 16/11: nam trưởng thành, tóc
+       đen ngắn, áo sơ mi XANH đồng phục (cổ bẻ, cầu vai, hai túi
+       ngực có nắp, bảng tên + huy hiệu), tay áo ngắn để lộ cẳng
+       tay da, quần tối màu, giày đen. Giữ nguyên khung xương,
+       điểm neo hai vai và id nhóm tay/cẳng tay như bản cũ nên
+       mọi cơ chế chuyển tay, gấp khuỷu, vải cờ dùng chung. */
     const gS = idPrefix + "G3Shirt", gP = idPrefix + "G3Pants", gK = idPrefix + "G3Skin",
-          gH = idPrefix + "G3Hair", gF = idPrefix + "G3Scarf", gD = idPrefix + "G3Shad", gE = idPrefix + "G3Shoe";
+          gH = idPrefix + "G3Hair", gD = idPrefix + "G3Shad", gE = idPrefix + "G3Shoe";
     return `<svg viewBox="${SEM_VB.x} ${SEM_VB.y} ${SEM_VB.w} ${SEM_VB.h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Hình người phát semaphore">
    <defs>
-    <linearGradient id="${gS}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6ea3e8"/><stop offset="0.55" stop-color="#3f74c9"/><stop offset="1" stop-color="#2c56a0"/></linearGradient>
-    <linearGradient id="${gP}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3d5f92"/><stop offset="1" stop-color="#22385c"/></linearGradient>
-    <radialGradient id="${gK}" cx="0.38" cy="0.3" r="0.95"><stop offset="0" stop-color="#ffe7c4"/><stop offset="0.6" stop-color="#f4c88f"/><stop offset="1" stop-color="#eab078"/></radialGradient>
-    <linearGradient id="${gH}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a4020"/><stop offset="1" stop-color="#2e2010"/></linearGradient>
-    <linearGradient id="${gF}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ef5350"/><stop offset="1" stop-color="#c62828"/></linearGradient>
+    <linearGradient id="${gS}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6ea8ec"/><stop offset="0.55" stop-color="#3a74d2"/><stop offset="1" stop-color="#2a58a8"/></linearGradient>
+    <linearGradient id="${gP}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#42557e"/><stop offset="1" stop-color="#27354f"/></linearGradient>
+    <radialGradient id="${gK}" cx="0.38" cy="0.3" r="0.95"><stop offset="0" stop-color="#ffe9c9"/><stop offset="0.6" stop-color="#f5cd97"/><stop offset="1" stop-color="#ecb57e"/></radialGradient>
+    <linearGradient id="${gH}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#45454c"/><stop offset="1" stop-color="#131318"/></linearGradient>
     <radialGradient id="${gD}" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#0f1e37" stop-opacity="0.26"/><stop offset="1" stop-color="#0f1e37" stop-opacity="0"/></radialGradient>
-    <linearGradient id="${gE}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a4a52"/><stop offset="1" stop-color="#23232a"/></linearGradient>
+    <linearGradient id="${gE}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3c3c44"/><stop offset="1" stop-color="#17171c"/></linearGradient>
    </defs>
    <g id="${idPrefix}Figure" data-fig3d="1">
     <ellipse cx="100" cy="191" rx="42" ry="7" fill="url(#${gD})"/>
-    <line x1="93" y1="106" x2="81" y2="176" stroke="#1e3252" stroke-width="15.5" stroke-linecap="round"/>
-    <line x1="107" y1="106" x2="119" y2="176" stroke="#1e3252" stroke-width="15.5" stroke-linecap="round"/>
+    <line x1="93" y1="106" x2="81" y2="176" stroke="#1c2a44" stroke-width="15.5" stroke-linecap="round"/>
+    <line x1="107" y1="106" x2="119" y2="176" stroke="#1c2a44" stroke-width="15.5" stroke-linecap="round"/>
     <line x1="93" y1="106" x2="81" y2="176" stroke="url(#${gP})" stroke-width="11.5" stroke-linecap="round"/>
     <line x1="107" y1="106" x2="119" y2="176" stroke="url(#${gP})" stroke-width="11.5" stroke-linecap="round"/>
     <ellipse cx="77" cy="183" rx="11" ry="5" fill="url(#${gE})"/>
     <ellipse cx="123" cy="183" rx="11" ry="5" fill="url(#${gE})"/>
-    <ellipse cx="77" cy="187" rx="11.5" ry="2.3" fill="#e8e8ec"/>
-    <ellipse cx="123" cy="187" rx="11.5" ry="2.3" fill="#e8e8ec"/>
-    <rect x="94.5" y="39" width="11" height="15" rx="3" fill="#eec08c"/>
+    <ellipse cx="77" cy="187" rx="11.5" ry="2.3" fill="#55555e"/>
+    <ellipse cx="123" cy="187" rx="11.5" ry="2.3" fill="#55555e"/>
+    <rect x="94.5" y="38" width="11" height="17" rx="3" fill="#eec08c"/>
     <path d="M82,57 Q100,48 118,57 L113.5,106 Q100,117 86.5,106 Z" fill="url(#${gS})" stroke="rgba(18,38,72,0.45)" stroke-width="1.2"/>
     <path d="M104,50 Q116,55 118,57 L113.5,106 Q109,111 105,113 Z" fill="rgba(10,25,55,0.14)"/>
     <path d="M90,53 Q86,55 84,58 L88,104 Q91,108 94,110 L93,60 Z" fill="rgba(255,255,255,0.13)"/>
     <path d="M86.8,100 Q100,107 113.2,100 L112.6,107 Q100,116 87.4,107 Z" fill="#1d3557" opacity="0.85"/>
-    <path d="M89,49 L111,49 L100,76 Z" fill="url(#${gF})" stroke="#8e1414" stroke-width="1"/>
-    <path d="M93,51 L100,66 L97,51 Z" fill="rgba(255,255,255,0.18)"/>
-    <circle cx="100" cy="54" r="3.4" fill="#b71c1c" stroke="#8e1414" stroke-width="0.8"/>
-    <circle cx="84" cy="34" r="3.6" fill="#f2c79b" stroke="#d29a5f" stroke-width="0.8"/>
-    <circle cx="116" cy="34" r="3.6" fill="#f2c79b" stroke="#d29a5f" stroke-width="0.8"/>
-    <circle cx="100" cy="33" r="16" fill="url(#${gK})" stroke="#cf9257" stroke-width="1.1"/>
-    <ellipse cx="89.5" cy="41" rx="2.8" ry="1.7" fill="#f2937e" opacity="0.5"/>
-    <ellipse cx="110.5" cy="41" rx="2.8" ry="1.7" fill="#f2937e" opacity="0.5"/>
-    <path d="M83.8,30 A16.2,16.2 0 0 1 116.2,30 Q113,20.5 104,19.2 Q100,24 95,19.6 Q86,21 83.8,30 Z" fill="url(#${gH})"/>
-    <path d="M83.8,28 Q82.2,36 84.6,40.5 L87.2,38.5 Q85.6,32.5 86.2,27.5 Z" fill="url(#${gH})"/>
-    <path d="M116.2,28 Q117.8,36 115.4,40.5 L112.8,38.5 Q114.4,32.5 113.8,27.5 Z" fill="url(#${gH})"/>
-    <path d="M91,20.5 Q100,16.8 109,20.5" stroke="rgba(255,255,255,0.4)" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-    <path d="M89.5,31.5 Q94,29.9 98,31.3" stroke="#5a3a1a" stroke-width="1.3" fill="none" stroke-linecap="round"/>
-    <path d="M102,31.3 Q106,29.9 110.5,31.5" stroke="#5a3a1a" stroke-width="1.3" fill="none" stroke-linecap="round"/>
-    <circle cx="94" cy="35.5" r="1.9" fill="#26221f"/>
-    <circle cx="106" cy="35.5" r="1.9" fill="#26221f"/>
-    <circle cx="93.4" cy="34.9" r="0.6" fill="#fff"/>
-    <circle cx="105.4" cy="34.9" r="0.6" fill="#fff"/>
-    <path d="M100,37 Q101.2,40 99.8,41.4" stroke="#d29a5f" stroke-width="1.1" fill="none" stroke-linecap="round"/>
-    <path d="M94.5,43.5 Q100,47.5 105.5,43.5" stroke="#a05a2c" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <line x1="100" y1="61" x2="100" y2="103" stroke="rgba(15,35,75,0.35)" stroke-width="1"/>
+    <circle cx="100" cy="68" r="1.5" fill="#17457f" stroke="#9db9e8" stroke-width="0.5"/>
+    <circle cx="100" cy="80" r="1.5" fill="#17457f" stroke="#9db9e8" stroke-width="0.5"/>
+    <circle cx="100" cy="92" r="1.5" fill="#17457f" stroke="#9db9e8" stroke-width="0.5"/>
+    <path d="M92.5,48.5 L107.5,48.5 L100,61 Z" fill="#f0c28d"/>
+    <path d="M91,47 L100,60 L95.5,64.5 L87.5,52.5 Z" fill="#2a58a8" stroke="rgba(15,35,75,0.4)" stroke-width="0.8"/>
+    <path d="M109,47 L100,60 L104.5,64.5 L112.5,52.5 Z" fill="#2a58a8" stroke="rgba(15,35,75,0.4)" stroke-width="0.8"/>
+    <path d="M82.5,55.5 L95,51.5 L96,57 L83.5,61 Z" fill="#2a58a8" stroke="rgba(15,35,75,0.35)" stroke-width="0.7"/>
+    <path d="M117.5,55.5 L105,51.5 L104,57 L116.5,61 Z" fill="#2a58a8" stroke="rgba(15,35,75,0.35)" stroke-width="0.7"/>
+    <circle cx="93.8" cy="55.2" r="1.3" fill="#d7e5fb"/>
+    <circle cx="106.2" cy="55.2" r="1.3" fill="#d7e5fb"/>
+    <rect x="88" y="70" width="10" height="11" rx="1" fill="rgba(20,45,95,0.18)" stroke="rgba(15,35,75,0.4)" stroke-width="0.8"/>
+    <line x1="88" y1="74" x2="98" y2="74" stroke="rgba(15,35,75,0.4)" stroke-width="0.8"/>
+    <rect x="89" y="66.3" width="8" height="3.4" fill="#eef3fb" stroke="#b9cbe8" stroke-width="0.5"/>
+    <rect x="102" y="70" width="10" height="11" rx="1" fill="rgba(20,45,95,0.18)" stroke="rgba(15,35,75,0.4)" stroke-width="0.8"/>
+    <line x1="102" y1="74" x2="112" y2="74" stroke="rgba(15,35,75,0.4)" stroke-width="0.8"/>
+    <circle cx="107" cy="67.8" r="2" fill="#ffd54a" stroke="#b8860b" stroke-width="0.6"/>
+    <ellipse cx="83.6" cy="35" rx="3" ry="4.6" fill="#f2c48d" stroke="#cf9257" stroke-width="0.8"/>
+    <ellipse cx="116.4" cy="35" rx="3" ry="4.6" fill="#f2c48d" stroke="#cf9257" stroke-width="0.8"/>
+    <path d="M84.5,31 Q84,47 92,50.5 Q100,53.5 108,50.5 Q116,47 115.5,31 Q115,16.5 100,15.8 Q85,16.5 84.5,31 Z" fill="url(#${gK})" stroke="#cf9257" stroke-width="1"/>
+    <path d="M86,44 Q88,49 93,51" stroke="rgba(160,100,50,0.18)" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <path d="M114,44 Q112,49 107,51" stroke="rgba(160,100,50,0.18)" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <path d="M83.8,36 Q81.5,14 100,13.2 Q118.5,14 116.2,36 Q115.5,25 107,21.8 Q98,19.5 90.5,23.5 Q84.8,27 83.8,36 Z" fill="url(#${gH})"/>
+    <path d="M84,33 L86.8,33 L86.8,41.5 L84.2,39 Z" fill="url(#${gH})"/>
+    <path d="M116,33 L113.2,33 L113.2,41.5 L115.8,39 Z" fill="url(#${gH})"/>
+    <path d="M90,17.5 Q100,14.8 110,17.5" stroke="rgba(255,255,255,0.28)" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <path d="M88.8,30.6 Q93.8,28.9 98.6,30.2" stroke="#23262b" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <path d="M101.4,30.2 Q106.2,28.9 111.2,30.6" stroke="#23262b" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <ellipse cx="93.8" cy="35.2" rx="3.3" ry="1.85" fill="#fdfdfd" stroke="rgba(90,60,30,0.35)" stroke-width="0.6"/>
+    <ellipse cx="106.2" cy="35.2" rx="3.3" ry="1.85" fill="#fdfdfd" stroke="rgba(90,60,30,0.35)" stroke-width="0.6"/>
+    <circle cx="93.8" cy="35.3" r="1.65" fill="#2a1d12"/>
+    <circle cx="106.2" cy="35.3" r="1.65" fill="#2a1d12"/>
+    <circle cx="93.2" cy="34.7" r="0.55" fill="#fff"/>
+    <circle cx="105.6" cy="34.7" r="0.55" fill="#fff"/>
+    <path d="M90.6,34.4 Q93.8,32.8 97,34.4" stroke="#6b4a2a" stroke-width="0.8" fill="none" stroke-linecap="round"/>
+    <path d="M103,34.4 Q106.2,32.8 109.4,34.4" stroke="#6b4a2a" stroke-width="0.8" fill="none" stroke-linecap="round"/>
+    <path d="M100,37.2 Q101.4,40.8 99.7,42.3" stroke="#cf9257" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+    <path d="M97.8,42.6 Q100,43.8 102.2,42.6" stroke="rgba(160,100,50,0.5)" stroke-width="0.8" fill="none" stroke-linecap="round"/>
+    <path d="M94.6,46.2 Q100,48 105.4,46.2" stroke="#9a5a30" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <path d="M96.5,48.6 Q100,49.6 103.5,48.6" stroke="rgba(160,90,48,0.45)" stroke-width="0.9" fill="none" stroke-linecap="round"/>
     <g id="${idPrefix}ArmL">
       <line x1="87" y1="59" x2="87" y2="92" stroke="#1d3557" stroke-width="13.5" stroke-linecap="round"/>
-      <line x1="87" y1="59" x2="87" y2="92" stroke="#4a80d2" stroke-width="9.5" stroke-linecap="round"/>
-      <line x1="87" y1="84" x2="87" y2="91" stroke="#eef3fb" stroke-width="9.8" stroke-linecap="round"/>
-      <circle cx="87" cy="59" r="7" fill="#3f74c9" stroke="#1d3557" stroke-width="1"/>
+      <line x1="87" y1="59" x2="87" y2="80" stroke="#3a74d2" stroke-width="9.8" stroke-linecap="round"/>
+      <line x1="87" y1="77" x2="87" y2="81" stroke="#2a58a8" stroke-width="10.4" stroke-linecap="round"/>
+      <line x1="87" y1="80" x2="87" y2="92" stroke="#e8b57e" stroke-width="8.6" stroke-linecap="round"/>
+      <line x1="87" y1="80" x2="87" y2="92" stroke="#f8d7a8" stroke-width="5.4" stroke-linecap="round"/>
+      <circle cx="87" cy="59" r="7" fill="#3a74d2" stroke="#1d3557" stroke-width="1"/>
       <g id="${idPrefix}ForeL">
         <line x1="87" y1="92" x2="87" y2="125" stroke="#df9f66" stroke-width="9.5" stroke-linecap="round"/>
         <line x1="87" y1="92" x2="87" y2="125" stroke="#f7cf9f" stroke-width="6.8" stroke-linecap="round"/>
-        <circle cx="87" cy="92" r="4.8" fill="#2f5aa8" stroke="#1d3557" stroke-width="0.8"/>
+        <circle cx="87" cy="92" r="4.4" fill="url(#${gK})" stroke="#cf9257" stroke-width="0.8"/>
         <rect x="84.3" y="103" width="5.4" height="43" fill="#8a6134" stroke="#6d4a22" stroke-width="0.6"/>
         <rect x="85.1" y="103" width="1.6" height="43" fill="#c49a58"/>
         <circle cx="87" cy="122" r="5.4" fill="url(#${gK})" stroke="#cf9257" stroke-width="1"/>
@@ -1151,13 +1178,15 @@ function semFigureSVG(idPrefix, animated, useCloth, v3d){
     </g>
     <g id="${idPrefix}ArmR">
       <line x1="113" y1="59" x2="113" y2="92" stroke="#1d3557" stroke-width="13.5" stroke-linecap="round"/>
-      <line x1="113" y1="59" x2="113" y2="92" stroke="#4a80d2" stroke-width="9.5" stroke-linecap="round"/>
-      <line x1="113" y1="84" x2="113" y2="91" stroke="#eef3fb" stroke-width="9.8" stroke-linecap="round"/>
-      <circle cx="113" cy="59" r="7" fill="#3f74c9" stroke="#1d3557" stroke-width="1"/>
+      <line x1="113" y1="59" x2="113" y2="80" stroke="#3a74d2" stroke-width="9.8" stroke-linecap="round"/>
+      <line x1="113" y1="77" x2="113" y2="81" stroke="#2a58a8" stroke-width="10.4" stroke-linecap="round"/>
+      <line x1="113" y1="80" x2="113" y2="92" stroke="#e8b57e" stroke-width="8.6" stroke-linecap="round"/>
+      <line x1="113" y1="80" x2="113" y2="92" stroke="#f8d7a8" stroke-width="5.4" stroke-linecap="round"/>
+      <circle cx="113" cy="59" r="7" fill="#3a74d2" stroke="#1d3557" stroke-width="1"/>
       <g id="${idPrefix}ForeR">
         <line x1="113" y1="92" x2="113" y2="125" stroke="#df9f66" stroke-width="9.5" stroke-linecap="round"/>
         <line x1="113" y1="92" x2="113" y2="125" stroke="#f7cf9f" stroke-width="6.8" stroke-linecap="round"/>
-        <circle cx="113" cy="92" r="4.8" fill="#2f5aa8" stroke="#1d3557" stroke-width="0.8"/>
+        <circle cx="113" cy="92" r="4.4" fill="url(#${gK})" stroke="#cf9257" stroke-width="0.8"/>
         <rect x="110.3" y="103" width="5.4" height="43" fill="#8a6134" stroke="#6d4a22" stroke-width="0.6"/>
         <rect x="111.1" y="103" width="1.6" height="43" fill="#c49a58"/>
         <circle cx="113" cy="122" r="5.4" fill="url(#${gK})" stroke="#cf9257" stroke-width="1"/>
@@ -1167,6 +1196,7 @@ function semFigureSVG(idPrefix, animated, useCloth, v3d){
    </g>
   </svg>`;
   }
+
   return `<svg viewBox="${SEM_VB.x} ${SEM_VB.y} ${SEM_VB.w} ${SEM_VB.h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Hình người phát semaphore">
    <g id="${idPrefix}Figure">
     <circle cx="100" cy="34" r="16" fill="var(--panel2)" stroke="var(--ink)" stroke-width="3"/>
@@ -1242,24 +1272,25 @@ function applyFig(prefix, state){
   const gL = $(prefix + "ArmL"), gR = $(prefix + "ArmR");
   if (!gL || !gR) return;
   const aL = anchorFor(prefix, "L"), aR = anchorFor(prefix, "R");
-  gL.setAttribute("transform", `rotate(${state.l || 0} ${aL.sx} ${aL.sy})`);
-  gR.setAttribute("transform", `rotate(${state.r || 0} ${aR.sx} ${aR.sy})`);
+  /* TƯ THẾ NGHỈ (cặp 0+0) theo ảnh thầy gửi 16/11: hai tay
+     VẮT CHÉO ở bụng — vai khép vào trong ±13° theo mức gấp,
+     khuỷu gấp 100° để bàn tay trái sang hẳn phía phải, bàn
+     tay phải sang hẳn phía trái; hai cán cờ bắt chéo trước
+     bụng, hai lá cờ rủ xuống trước thân đúng như ảnh. */
+  const rf = state.restFold || 0;
+  const effL = (state.l || 0) + 13 * rf, effR = (state.r || 0) - 13 * rf;
+  gL.setAttribute("transform", `rotate(${effL} ${aL.sx} ${aL.sy})`);
+  gR.setAttribute("transform", `rotate(${effR} ${aR.sx} ${aR.sy})`);
   let flexL = 0, flexR = 0;
   if (state.flex){ if ((state.flexSide || "R") === "L") flexL = -85 * state.flex; else flexR = 85 * state.flex; }
-  /* TƯ THẾ NGHỈ (cặp 0+0): KHÔNG buông tay xuôi xuống — cả hai
-     tay GẤP KHUỶU ôm vào bụng, cờ đặt ở bụng (theo yêu cầu của
-     thầy). Góc gấp 78° đưa bàn tay + cán cờ lên ngang bụng trước
-     thân; dấu gấp giống hệt cơ chế gấp tách chữ trùng (trái âm,
-     phải dương) nên hai cẳng tay ôm vào giữa. */
-  const rf = state.restFold || 0;
-  if (rf){ flexL += -78 * rf; flexR += 78 * rf; }
+  if (rf){ flexL += -100 * rf; flexR += 100 * rf; }
   flexL += state.animFlexL || 0;
   flexR += state.animFlexR || 0;
   const fL = $(prefix + "ForeL"), fR = $(prefix + "ForeR");
   if (fL) fL.setAttribute("transform", `rotate(${flexL} ${aL.ex} ${aL.ey})`);
   if (fR) fR.setAttribute("transform", `rotate(${flexR} ${aR.ex} ${aR.ey})`);
   const inst = cloth[prefix];
-  if (inst){ inst.angL = state.l || 0; inst.angR = state.r || 0; inst.flexL = flexL; inst.flexR = flexR; }
+  if (inst){ inst.angL = effL; inst.angR = effR; inst.flexL = flexL; inst.flexR = flexR; }
 }
 function animateFigureTo(prefix, state, tl, tr, holdMs, toFold){
   const fromL = state.l || 0, fromR = state.r || 0;
@@ -1415,18 +1446,20 @@ function setFigure(prefix, pair, state, holdMs){
     return animateFigureTo(prefix, state, tl, tr, holdMs, isRest ? 1 : 0);
   }
   const aL = anchorFor(prefix, "L"), aR = anchorFor(prefix, "R");
-  gL.setAttribute("transform", `rotate(${tl} ${aL.sx} ${aL.sy})`);
-  gR.setAttribute("transform", `rotate(${tr} ${aR.sx} ${aR.sy})`);
-  /* Hình tĩnh ở tư thế nghỉ cũng gấp khuỷu như hình động. */
+  /* Hình tĩnh ở tư thế nghỉ cũng vắt chéo tay ở bụng như hình động:
+     vai khép ±13°, khuỷu gấp 100°. */
+  const stl = isRest ? tl + 13 : tl, str = isRest ? tr - 13 : tr;
+  gL.setAttribute("transform", `rotate(${stl} ${aL.sx} ${aL.sy})`);
+  gR.setAttribute("transform", `rotate(${str} ${aR.sx} ${aR.sy})`);
   const sFL = $(prefix + "ForeL"), sFR = $(prefix + "ForeR");
-  if (sFL) sFL.setAttribute("transform", `rotate(${isRest ? -78 : 0} ${aL.ex} ${aL.ey})`);
-  if (sFR) sFR.setAttribute("transform", `rotate(${isRest ? 78 : 0} ${aR.ex} ${aR.ey})`);
+  if (sFL) sFL.setAttribute("transform", `rotate(${isRest ? -100 : 0} ${aL.ex} ${aL.ey})`);
+  if (sFR) sFR.setAttribute("transform", `rotate(${isRest ? 100 : 0} ${aR.ex} ${aR.ey})`);
   if (inst){
-    inst.flexL = isRest ? -78 : 0; inst.flexR = isRest ? 78 : 0;
-    inst.angL = tl; inst.angR = tr;
-    if (inst.prevL !== null && inst.prevL !== undefined){ const d = Math.abs(tl - inst.prevL); if (d > 4) kickCloth(prefix, "L", d); }
-    if (inst.prevR !== null && inst.prevR !== undefined){ const d = Math.abs(tr - inst.prevR); if (d > 4) kickCloth(prefix, "R", d); }
-    inst.prevL = tl; inst.prevR = tr;
+    inst.flexL = isRest ? -100 : 0; inst.flexR = isRest ? 100 : 0;
+    inst.angL = stl; inst.angR = str;
+    if (inst.prevL !== null && inst.prevL !== undefined){ const d = Math.abs(stl - inst.prevL); if (d > 4) kickCloth(prefix, "L", d); }
+    if (inst.prevR !== null && inst.prevR !== undefined){ const d = Math.abs(str - inst.prevR); if (d > 4) kickCloth(prefix, "R", d); }
+    inst.prevL = stl; inst.prevR = str;
   }
   return 0;
 }
@@ -1476,16 +1509,17 @@ function buildMorseEvents(converted){
 /* ============================================================
    NGHI THỨC MĐ/KT (theo trình tự thầy chốt ngày 16/11):
    - Morse: thổi 1 HỒI TÈ DÀI (900 ms, hoặc 4 đơn vị nếu dài
-     hơn) → thổi 3 lần NW liên tiếp (−· ·−−, cách nhau 3 đơn
-     vị) → [cổng sẵn sàng] → nội dung bản tin → kết thúc bằng
-     3 lần AR liên tiếp (·−·−·, cách nhau 3 đơn vị).
+     hơn) → thổi 3 lần NW LIỀN một mạch không nghỉ giữa các
+     lần (−· ·−− ×3) → phát LUÔN nội dung bản tin (không chờ
+     cổng sẵn sàng) → kết thúc bằng 3 lần AR LIỀN một mạch
+     (·−·−· ×3).
    - Semaphore: phất 3 VÒNG HÌNH SỐ 8 trên đầu → đưa cờ về tư
-     thế nghỉ (hai tay vắt chéo vừa phải ở bụng) → [cổng sẵn
-     sàng] → nội dung bản tin → kết thúc bằng 1 lần VẮT CHÉO
-     CỜ TRÊN ĐẦU → đưa về tư thế nghỉ.
-   Giữa nghi thức mở đầu và nội dung bản tin có một "cổng sẵn sàng":
-   trình phát dừng ở đó, hiện nút nổi Sẵn sàng; người nhận bấm nút
-   thì mới phát tiếp, đồng thời ghim khung phát + khung nhập.
+     thế nghỉ (hai tay vắt chéo ở bụng như ảnh thầy gửi) →
+     [cổng sẵn sàng] → nội dung bản tin → kết thúc bằng 1 lần
+     VẮT CHÉO CỜ TRÊN ĐẦU → đưa về tư thế nghỉ.
+   Cổng sẵn sàng chỉ còn ở Semaphore: trình phát dừng ở đó,
+   hiện nút nổi Sẵn sàng; người nhận bấm nút thì mới phát
+   tiếp, đồng thời ghim khung phát + khung nhập.
    ============================================================ */
 function mdktOn(){ const t = $("mdktToggle"); return t ? t.checked : true; }
 function prosignEvents(codeStr, charNo){
@@ -1502,21 +1536,16 @@ function buildMorseEventsMdkt(converted){
     /* 1 hồi tè dài gọi chú ý */
     { on:true, longBlast:true, dash:true, ch: "⚑", code: "-", charNo: 0, proc:true },
     { on:false, units:3 },
-    /* 3 lần NW liên tiếp */
-    ...prosignEvents("-..--", 0),
+    /* 3 lần NW thổi LIỀN một mạch, không nghỉ giữa các lần
+       (thầy chốt 16/11) — ghép thành một prosign dài duy nhất */
+    ...prosignEvents("-..---..---..--", 0),
+    /* Xong NW là phát luôn nội dung bản tin, KHÔNG chờ cổng
+       sẵn sàng nữa (thầy chốt 16/11) */
     { on:false, units:3 },
-    ...prosignEvents("-..--", 0),
-    { on:false, units:3 },
-    ...prosignEvents("-..--", 0),
-    { gate:true },
     ...b.events,
     { on:false, units:7 },
-    /* Kết thúc: 3 lần AR liên tiếp */
-    ...prosignEvents(".-.-.", b.totalChars),
-    { on:false, units:3 },
-    ...prosignEvents(".-.-.", b.totalChars),
-    { on:false, units:3 },
-    ...prosignEvents(".-.-.", b.totalChars)
+    /* Kết thúc: 3 lần AR thổi LIỀN một mạch, không nghỉ */
+    ...prosignEvents(".-.-..-.-..-.-.", b.totalChars)
   ];
   return { events, totalChars: b.totalChars };
 }
@@ -2507,6 +2536,6 @@ renderHistory();
 
 
   <script src="app-config.js?v=29"></script>
-<script type="module" src="auth-layer.js?v=58"></script>
+<script type="module" src="auth-layer.js?v=59"></script>
 </body>
 </html>
