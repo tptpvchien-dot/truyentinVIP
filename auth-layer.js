@@ -1769,14 +1769,14 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
    Bài Kiểm tra của hai module lưu vào cùng lịch sử
    ltmt_history nên tự đồng bộ lên máy chủ như các môn khác.
    ============================================================ */
-function modSaveHistory(kind, correct, total, msg, durSec) {
+function modSaveHistory(kind, correct, total, msg, durSec, scoreOverride) {
   try {
     const arr = loadLocalHist();
     arr.push({
       uid: currentUser ? currentUser.uid : "",
       name: (myProfile && myProfile.name) || "", cls: (myProfile && myProfile.className) || "",
       date: new Date().toLocaleString("vi-VN"), kind,
-      score: Math.round((correct / total) * 100) / 10, correct, total, plays: 1, msg, dur: durSec
+      score: scoreOverride != null ? Math.round(scoreOverride * 10) / 10 : Math.round((correct / total) * 100) / 10, correct, total, plays: 1, msg, dur: durSec
     });
     localStorage.setItem("ltmt_history", JSON.stringify(arr.slice(-300)));
   } catch (e) { /* lưu lịch sử hỏng không được làm gián đoạn bài làm */ }
@@ -3084,39 +3084,267 @@ function cipherAnswerOk(input, item) {
 }
 
 
+
+/* ================================================================
+   CHẤM ĐIỂM TỪNG BƯỚC cho bài mật thư (theo yêu cầu của thầy):
+   một bài kiểm tra chỉ gồm 1 MẬT THƯ, học sinh trình bày bài
+   giải theo đúng 5 bước của Đội và được chấm từng bước:
+   Hệ thống (1đ) · Dạng (1đ) · Khóa (2đ) · Các ký tự (3đ) ·
+   Bạch văn (3đ) — tổng 10 điểm. Nộp bài xong xem được đáp án
+   và điểm của từng bước.
+   ================================================================ */
+const CIPHER_FAMS = { thaythe: "Mật thư thay thế", doicho: "Mật thư dời chỗ", angiau: "Mật thư ẩn giấu" };
+const CIPHER_TAX = {
+  so: { fam: "thaythe", dang: "Các mẫu tự được thay thế bằng số" },
+  caesar: { fam: "thaythe", dang: "Các mẫu tự được thay thế bằng mẫu tự khác" },
+  toado: { fam: "thaythe", dang: "Các mẫu tự được thay thế bằng cặp tọa độ (chữ hàng – số cột)" },
+  chuong: { fam: "thaythe", dang: "Các mẫu tự được thay thế bằng hình chuồng (khung ô và dấu chấm)" },
+  gio: { fam: "thaythe", dang: "Các mẫu tự được thay thế bằng giờ" },
+  so2tang: { fam: "thaythe", dang: "Các mẫu tự được thay thế bằng số hai tầng (số có mũ tầng)" },
+  nguyenphu: { fam: "thaythe", dang: "Các mẫu tự được thay thế bằng nguyên âm – phụ âm (theo mã Morse)" },
+  tavet: { fam: "doicho", dang: "Hai chữ một cặp: chữ đầu thành hàng trên, chữ sau thành hàng dưới (bắt tà vẹt)" },
+  duongray: { fam: "doicho", dang: "Chia đôi bản tin thành hai hàng song song rồi đọc theo cột (đặt đường ray)" },
+  ovuong: { fam: "doicho", dang: "Xếp các mẫu tự vào ô vuông 5×5 rồi đọc theo đường chéo" },
+  docnguoc: { fam: "doicho", dang: "Đảo ngược thứ tự các mẫu tự" },
+  angiau: { fam: "angiau", dang: "Các mẫu tự thật giấu xen kẽ với mẫu tự giả, lấy theo số 1 – 2 luân phiên" }
+};
+function noAccent(s) { return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D"); }
+function fmtKyTu(conv) { return String(conv || "").split(" ").map((w) => [...w].join(" ")).join(" - "); }
+function gioParseMin(t) {
+  const s = noAccent(t).toLowerCase().replace(/['’]/g, "");
+  let m = s.match(/(\d{1,2})\s*(?:gio|h|:)\s*(\d{1,2})?/);
+  if (m) return (+m[1]) * 60 + (m[2] ? +m[2] : 0);
+  m = s.match(/^(\d{2,3})$/);
+  if (m) { const n = m[1]; if (n.endsWith("3")) return (+n.slice(0, -1)) * 60 + 30; return (+n) * 60; }
+  m = s.match(/^(\d{1,2})$/);
+  if (m) return (+m[1]) * 60;
+  return null;
+}
+function cipherKeyType(item) {
+  switch (item.sys.id) {
+    case "so": return "so";
+    case "so2tang": return "so2";
+    case "caesar": return "caesar";
+    case "toado": return "toado";
+    case "chuong": case "ovuong": case "docnguoc": case "angiau": return "sel";
+    case "gio": return item.clue ? "gio" : "fixed";
+    default: return "text";
+  }
+}
+function cipherSelCfg(item) {
+  const id = item.sys.id;
+  if (id === "chuong") return { label: "Cặp chữ ở trên cùng của lưới nhọn", opts: [["ST", "S·T"], ["WX", "W·X"], ["YZ", "Y·Z"], ["UV", "U·V"]], exp: item.key.top };
+  if (id === "ovuong") return { label: "Hướng đọc trong ô vuông", opts: [["NE", "Đông Bắc ↗"], ["SE", "Đông Nam ↘"]], exp: item.key.dir };
+  if (id === "docnguoc") return { label: "Cách đảo ngược", opts: [["whole", "Đảo ngược toàn bộ bản tin"], ["each", "Đảo ngược từng tiếng"]], exp: item.key.whole ? "whole" : "each" };
+  if (id === "angiau") return { label: "Lấy các chữ ở vị trí số", opts: [["1", "Số 1 (vị trí lẻ)"], ["2", "Số 2 (vị trí chẵn)"]], exp: String(item.key.keep) };
+  return null;
+}
+function cipherKeyFrac(item, vals) {
+  const id = item.sys.id, k = item.key || {};
+  switch (cipherKeyType(item)) {
+    case "so": return ((String(vals.L || "").toUpperCase() === k.L) ? 0.5 : 0) + ((parseInt(vals.v, 10) === k.v) ? 0.5 : 0);
+    case "so2": return ((parseInt(vals.v, 10) === k.v) ? 1 / 3 : 0) + ((String(vals.L1 || "").toUpperCase() === k.L1) ? 1 / 3 : 0) + ((String(vals.L2 || "").toUpperCase() === k.L2) ? 1 / 3 : 0);
+    case "caesar": {
+      const c = (vals.c || "").toUpperCase().charCodeAt(0), p = (vals.p || "").toUpperCase().charCodeAt(0);
+      if (!c || !p || isNaN(c) || isNaN(p)) return 0;
+      const d = ((p - c) % 26 + 26) % 26;
+      return (d === k.s || d === (26 - k.s) % 26) ? 1 : 0;
+    }
+    case "toado": {
+      if (!k.kw) return (!String(vals.w || "").trim() || /chuan|khong/.test(noAccent(vals.w).toLowerCase())) ? 1 : 0;
+      const w = noAccent(vals.w).toUpperCase().replace(/[^A-Z]/g, "");
+      return (w === noAccent(k.kw).toUpperCase().replace(/[^A-Z]/g, "") || w === convertText(k.kw).toUpperCase().replace(/[^A-Z]/g, "")) ? 1 : 0;
+    }
+    case "sel": { const cfg = cipherSelCfg(item); return (cfg && vals.v === cfg.exp) ? 1 : 0; }
+    case "gio": {
+      const txt = (item.clue && item.clue.text) || "";
+      const cm = txt.match(/chữ ([A-Z])\s*$/);
+      const hm = txt.match(/là (.+?) —/);
+      if (!cm || !hm) return 0;
+      const exp = gioParseMin(hm[1]), got = gioParseMin(vals.h);
+      return ((String(vals.L || "").toUpperCase() === cm[1]) ? 0.5 : 0) + ((exp !== null && got !== null && got === exp) ? 0.5 : 0);
+    }
+    case "fixed": return 1;
+    case "text": {
+      const t = noAccent(vals.t).toLowerCase();
+      if (id === "tavet") return /ta vet|cap chu/.test(t) ? 1 : 0;
+      if (id === "duongray") return /duong ray|chia doi/.test(t) ? 1 : 0;
+      if (id === "nguyenphu") { const a = /nguyen/.test(t) && /tich/.test(t), b = /phu/.test(t) && /\bte\b/.test(t); return (a && b) ? 1 : (a || b) ? 0.5 : 0; }
+      return 0;
+    }
+  }
+  return 0;
+}
+function cipherKeyAnswer(item) {
+  const id = item.sys.id, k = item.key || {};
+  switch (id) {
+    case "so": return `Cặp neo ${k.L} = ${k.v} (chữ ${k.L} mang số ${k.v})`;
+    case "so2tang": return `Số ${k.v}: tầng 1 là chữ ${k.L1} (${k.L1} = ${k.v}¹), tầng 2 là chữ ${k.L2} (${k.L2} = ${k.v}²)`;
+    case "caesar": return `A = ${String.fromCharCode(65 + (k.s || 0))} — trong mật thư, chữ A đọc là ${String.fromCharCode(65 + (k.s || 0))}`;
+    case "toado": return k.kw ? `Từ khóa: ${k.kw}` : "Bảng tọa độ chuẩn (không dùng từ khóa)";
+    case "chuong": return `Cặp ${String(k.top || "").split("").join("·")} ở trên cùng của lưới nhọn`;
+    case "gio": return item.clue ? item.clue.derive : "A = 0 giờ, mỗi chữ hơn chữ trước 30 phút";
+    case "tavet": return "Bắt tà vẹt: chữ đầu của các cặp thành hàng trên, chữ sau thành hàng dưới";
+    case "duongray": return "Đặt đường ray: chia đôi mật thư thành hai hàng song song, đọc theo cột dọc";
+    case "ovuong": return `Đọc theo các đường chéo hướng ${k.dir === "NE" ? "Đông Bắc ↗" : "Đông Nam ↘"}`;
+    case "docnguoc": return k.whole ? "Đảo ngược toàn bộ bản tin" : "Đảo ngược từng tiếng";
+    case "angiau": return `Đánh số 1 – 2 luân phiên, lấy các chữ ở vị trí số ${k.keep}`;
+    case "nguyenphu": return "Nguyên tích, phụ te: nguyên âm là tích (·), phụ âm là te (−)";
+  }
+  return "";
+}
+function kyTuFrac(input, conv) {
+  const a = String(input || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const b = String(conv || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!b) return 0;
+  if (a === b) return 1;
+  let same = 0; const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) if (a[i] === b[i]) same++;
+  return same / Math.max(a.length, b.length);
+}
+function bachVanFrac(input, item) {
+  if (cipherAnswerOk(input, item)) return 1;
+  const convWords = String(item.conv || "").split(" ").filter(Boolean);
+  let cand = String(input || "").toUpperCase().trim();
+  if (!/^[A-Z0-9 ]+$/.test(cand)) cand = convertText(cand).toUpperCase();
+  const w = cand.split(/\s+/).filter(Boolean);
+  if (!convWords.length || !w.length) return 0;
+  let same = 0; const n = Math.min(w.length, convWords.length);
+  for (let i = 0; i < n; i++) if (w[i] === convWords[i]) same++;
+  return same / Math.max(w.length, convWords.length);
+}
+/* --- Công cụ hỗ trợ giải mật thư thay thế (thuần, có kiểm chứng) --- */
+function toolCaesarDecode(text, k) { return String(text || "").toUpperCase().replace(/[A-Z]/g, (c) => String.fromCharCode(65 + ((c.charCodeAt(0) - 65 + k) % 26))); }
+function toolSoLetter(n, L, v) { const li = (String(L || "A").toUpperCase().charCodeAt(0) - 65); return String.fromCharCode(65 + (((li + (n - v)) % 26) + 26) % 26); }
+function toolSoDecode(text, L, v) {
+  /* Dãy số của hệ Số: trong một tiếng các số cách nhau bằng ", ",
+     giữa các tiếng là " – " (hoặc "/" / "-"). Giải từng tiếng:
+     các số trong tiếng giải thành các chữ rồi ghép liền nhau. */
+  return String(text || "").split(/\s*[-–—\/]\s*/).filter((w) => w.trim()).map((w) => w.split(/[\s,;]+/).filter(Boolean).map((tk) => /^\d+$/.test(tk) ? toolSoLetter(parseInt(tk, 10), L, v) : tk).join("")).join(" ");
+}
+
 /* ---------------- Module MẬT THƯ ---------------- */
 function openCipherModule() {
   const body = openPanel("🔐 Mật thư — Luyện tập & Kiểm tra", true);
   let mode = "luyen";
-  let test = null;
+  let curItem = null;
   body.innerHTML = `
     <div class="tt-modbar">
       <button type="button" data-m="luyen" class="on">🖊️ Luyện tập</button>
-      <button type="button" data-m="kiem">📋 Kiểm tra (10 câu)</button>
+      <button type="button" data-m="kiem">📋 Kiểm tra (1 mật thư)</button>
     </div>
+    <p class="tt-note" style="margin:2px 0 8px">Bài mật thư được trình bày và chấm theo <b>5 bước</b>: Hệ thống (1đ) · Dạng (1đ) · Khóa (2đ) · Các ký tự (3đ) · Bạch văn (3đ). Kiểm tra chỉ gồm <b>1 mật thư</b>; nộp bài xong em xem được đáp án và điểm từng bước. Bấm nút 🧰 ở góc phải để mở công cụ hỗ trợ giải mật thư thay thế.</p>
     <div data-role="stage"></div>`;
   const stage = body.querySelector('[data-role="stage"]');
   body.querySelectorAll("[data-m]").forEach((b) => b.addEventListener("click", () => {
     mode = b.dataset.m;
     body.querySelectorAll("[data-m]").forEach((x) => x.classList.toggle("on", x === b));
-    test = null;
     mode === "luyen" ? practice() : startTest();
   }));
-  function itemHTML(item, withHelp) {
+  function keyFieldHTML(item, given) {
+    const t = cipherKeyType(item), k = item.key || {};
+    const dis = given ? " disabled" : "";
+    const st = "padding:8px;border:1.5px solid #bbb;border-radius:8px;font-size:14.5px";
+    const one = (kk, val, ph, extra) => `<input type="text" data-kk="${kk}" value="${esc(val || "")}"${dis} placeholder="${esc(ph || "")}" autocomplete="off" style="${st};${extra || "width:100%"}">`;
+    switch (t) {
+      case "so": return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <label>Chữ neo ${one("L", given ? k.L : "", "N", "width:64px;text-transform:uppercase")}</label>
+        <label>Số neo ${one("v", given ? k.v : "", "10", "width:80px")}</label>
+        <span style="color:#666;font-size:13px">Ví dụ cách ghi: chữ N là số 10 → cặp neo N = 10</span></div>`;
+      case "so2": return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <label>Số chung ${one("v", given ? k.v : "", "9", "width:70px")}</label>
+        <label>Chữ tầng 1 ${one("L1", given ? k.L1 : "", "I", "width:64px;text-transform:uppercase")}</label>
+        <label>Chữ tầng 2 ${one("L2", given ? k.L2 : "", "S", "width:64px;text-transform:uppercase")}</label></div>`;
+      case "caesar": return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <span>Trong mật thư, chữ</span> ${one("c", given ? "A" : "", "A", "width:64px;text-transform:uppercase")}
+        <span>đọc là chữ</span> ${one("p", given ? String.fromCharCode(65 + (k.s || 0)) : "", "D", "width:64px;text-transform:uppercase")}</div>`;
+      case "toado": return one("w", given ? (k.kw || "Bảng chuẩn (không từ khóa)") : "", "Từ khóa dựng bảng (đề không có từ khóa thì để trống)");
+      case "sel": { const cfg = cipherSelCfg(item); return `<label style="display:block">${esc(cfg.label)}:
+        <select data-kk="v" ${dis} style="${st};width:100%;margin-top:4px"><option value="">— Chọn —</option>${cfg.opts.map(([v, l]) => `<option value="${v}" ${given && cfg.exp === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`; }
+      case "gio": return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <label>Chữ ${one("L", "", "T", "width:64px;text-transform:uppercase")}</label>
+        <label>có giờ là ${one("h", "", "9h30", "width:110px")}</label>
+        <span style="color:#666;font-size:13px">(theo dấu hiệu trong chìa khóa)</span></div>`;
+      case "fixed": return `<p style="margin:0;color:#555">Hệ này dùng quy luật cố định: <b>A = 0 giờ</b>, mỗi chữ hơn chữ trước 30 phút — không có khóa riêng, bước này được đủ điểm.</p>`;
+      default: {
+        const ph = item.sys.id === "tavet" ? "Viết khóa/phương pháp, ví dụ: Bắt tà vẹt…" : item.sys.id === "duongray" ? "Viết khóa/phương pháp, ví dụ: Đặt đường ray…" : "Viết quy luật khóa, ví dụ: Nguyên tích, phụ te…";
+        const gv = item.sys.id === "tavet" ? "Bắt tà vẹt" : item.sys.id === "duongray" ? "Đặt đường ray" : "Nguyên tích, phụ te";
+        return one("t", given ? gv : "", ph);
+      }
+    }
+  }
+  function readKeyVals(item, root) {
+    const g = (kk) => { const el = root.querySelector(`[data-kk="${kk}"]`); return el ? el.value : ""; };
+    switch (cipherKeyType(item)) {
+      case "so": return { L: g("L"), v: g("v") };
+      case "so2": return { v: g("v"), L1: g("L1"), L2: g("L2") };
+      case "caesar": return { c: g("c"), p: g("p") };
+      case "toado": return { w: g("w") };
+      case "sel": return { v: g("v") };
+      case "gio": return { L: g("L"), h: g("h") };
+      case "text": return { t: g("t") };
+      default: return {};
+    }
+  }
+  function keyYoursText(item, root) {
+    if (cipherKeyType(item) === "sel") {
+      const el = root.querySelector('[data-kk="v"]');
+      return (el && el.selectedOptions && el.selectedOptions[0] && el.value) ? el.selectedOptions[0].textContent : "(chưa chọn)";
+    }
+    const parts = Object.values(readKeyVals(item, root)).map((x) => String(x || "").trim()).filter(Boolean);
+    return parts.length ? parts.join(" · ") : "(chưa ghi khóa)";
+  }
+  function stepFormHTML(item, given, withHelp) {
     const disp = item.disp ? item.disp : item.sys.id === "chuong" ? pigpenSVG(item.conv, item.xMap) : `<div class="tt-cipher">${esc(item.cipher)}</div>`;
     const keyLine = item.clue
-      ? `<p style="margin:0 0 8px">🔑 <b>Chìa khóa (OTT):</b> ${esc(item.clue.text)}<br><span style="color:#666">Chìa khóa không ghi thẳng quy luật — em hãy suy ra khóa từ chìa khóa trên, rồi mới giải.</span></p>`
+      ? `<p style="margin:0 0 8px">🔑 <b>Chìa khóa (OTT):</b> ${esc(item.clue.text)}<br><span style="color:#666">Chìa khóa không ghi thẳng quy luật — em hãy suy ra hệ thống và khóa từ chìa khóa trên, rồi mới giải.</span></p>`
       : `<p style="margin:0 0 8px">${item.sys.keyInfo(item.key)}</p>`;
     const helpBody = withHelp ? (item.clue ? item.sys.findHelp : item.sys.help(item.key)) : "";
+    const selSt = "width:100%;padding:9px;border-radius:9px;border:1.5px solid #bbb;font-size:14.5px;background:#fff";
     return `<div class="tt-qbox">
-      <p style="margin:0 0 2px"><b>Hệ mật thư: ${esc(item.sys.name)}</b></p>
       ${keyLine}
       <p style="margin:0 0 2px;color:#666">✉ Bản mật thư:</p>
       ${disp}
       ${withHelp ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600;color:#0b5cad">${item.clue ? "📖 Cách tìm khóa của hệ này" : "📖 Bảng tra / cách giải của hệ này"}</summary>${helpBody}</details>` : ""}
     </div>
-    <div class="tt-field"><label>Giải mật thư — viết bản tin giải được (theo quy ước lớp như khi nhận Morse, hoặc viết tiếng Việt có dấu):</label>
-    <input type="text" class="tt-modinput" data-role="ans" autocomplete="off" placeholder="Ví dụ: DDI HOJC"></div>`;
+    <div class="tt-field"><label><b>Bước 1 — Hệ thống mật thư</b> (1 điểm):</label>
+      <select data-k="fam" style="${selSt}"><option value="">— Chọn hệ thống —</option>${Object.entries(CIPHER_FAMS).map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join("")}</select></div>
+    <div class="tt-field"><label><b>Bước 2 — Dạng mật thư</b> (1 điểm):</label>
+      <select data-k="dang" style="${selSt}"><option value="">— Chọn dạng —</option>${CIPHER_SYSTEMS.map((s) => `<option value="${s.id}">${esc(CIPHER_TAX[s.id].dang)}</option>`).join("")}</select></div>
+    <div class="tt-field"><label><b>Bước 3 — Khóa</b> (2 điểm)${given ? " — khóa đã cho sẵn ở đề" : ""}:</label>
+      ${keyFieldHTML(item, given)}</div>
+    <div class="tt-field"><label><b>Bước 4 — Các ký tự</b> (3 điểm) — dãy chữ đã giải, viết rời từng chữ, giữa các tiếng là dấu " - ":</label>
+      <input type="text" data-k="kytu" class="tt-modinput" autocomplete="off" placeholder="Ví dụ: D I - C H U Y E E N R - D D E E N S"></div>
+    <div class="tt-field"><label><b>Bước 5 — Bạch văn</b> (3 điểm) — bản tin đầy đủ, viết theo quy ước lớp hoặc tiếng Việt có dấu:</label>
+      <input type="text" data-k="bv" class="tt-modinput" autocomplete="off" placeholder="Ví dụ: DI CHUYỂN ĐẾN SÂN BÓNG ĐÁ"></div>`;
+  }
+  function gradeSteps(item, root, given) {
+    const tax = CIPHER_TAX[item.sys.id];
+    const steps = [];
+    const famEl = root.querySelector('[data-k="fam"]');
+    const famVal = famEl ? famEl.value : "";
+    steps.push({ label: "Hệ thống mật thư", max: 1, frac: famVal === tax.fam ? 1 : 0, yours: famVal ? CIPHER_FAMS[famVal] : "(chưa chọn)", answer: CIPHER_FAMS[tax.fam] });
+    const dangEl = root.querySelector('[data-k="dang"]');
+    const dangVal = dangEl ? dangEl.value : "";
+    steps.push({ label: "Dạng mật thư", max: 1, frac: dangVal === item.sys.id ? 1 : 0, yours: dangVal ? CIPHER_TAX[dangVal].dang : "(chưa chọn)", answer: tax.dang });
+    steps.push({ label: "Khóa", max: 2, frac: given ? 1 : cipherKeyFrac(item, readKeyVals(item, root)), yours: given ? "(khóa cho sẵn ở đề)" : keyYoursText(item, root), answer: cipherKeyAnswer(item) });
+    const ktEl = root.querySelector('[data-k="kytu"]');
+    steps.push({ label: "Các ký tự", max: 3, frac: kyTuFrac(ktEl ? ktEl.value : "", item.conv), yours: (ktEl && ktEl.value) || "(bỏ trống)", answer: fmtKyTu(item.conv) });
+    const bvEl = root.querySelector('[data-k="bv"]');
+    steps.push({ label: "Bạch văn", max: 3, frac: bachVanFrac(bvEl ? bvEl.value : "", item), yours: (bvEl && bvEl.value) || "(bỏ trống)", answer: `${item.conv} (${item.phrase})` });
+    steps.forEach((s) => { s.pts = Math.round(s.frac * s.max * 10) / 10; });
+    return { steps, total: Math.round(steps.reduce((a, s) => a + s.pts, 0) * 10) / 10 };
+  }
+  function reviewHTML(item, res, title) {
+    const rows = res.steps.map((s, i) => {
+      const icon = s.frac >= 1 ? "✅" : s.frac > 0 ? "🟡" : "❌";
+      return `<div style="border:1px solid #e3d9c6;border-radius:10px;padding:8px 10px;margin-top:8px;background:#fff;color:#000">
+        <b>Bước ${i + 1} — ${esc(s.label)}: ${icon} ${String(s.pts).replace(".", ",")}/${s.max} điểm</b><br>
+        <span style="color:#555">Em làm:</span> ${esc(s.yours)}<br>
+        <span style="color:#555">Đáp án:</span> <b>${esc(s.answer)}</b></div>`;
+    }).join("");
+    return `<div class="tt-qbox"><p style="font-size:18px;text-align:center;margin:4px 0"><b>${esc(title)}: ${String(res.total).replace(".", ",")}/10 điểm</b></p>${rows}
+    ${item.clue ? `<p style="margin-top:10px">🕵️ <b>Cách tìm khóa của đề này:</b> ${esc(item.clue.derive)}</p>` : ""}</div>`;
   }
   function practice() {
     const bar = document.createElement("div");
@@ -3137,24 +3365,19 @@ function openCipherModule() {
     let item = null, done = false;
     function draw() {
       done = false;
-      item = cipherItem(bar.querySelector('[data-role="kmode"]').value, bar.querySelector('[data-role="sys"]').value || null);
-      host.innerHTML = itemHTML(item, true);
+      const given = bar.querySelector('[data-role="kmode"]').value === "given";
+      item = cipherItem(given ? "given" : "find", bar.querySelector('[data-role="sys"]').value || null);
+      curItem = item;
+      host.innerHTML = stepFormHTML(item, given, true);
       const btn = document.createElement("button");
-      btn.type = "button"; btn.className = "tt-btn"; btn.textContent = "Kiểm tra đáp án";
+      btn.type = "button"; btn.className = "tt-btn"; btn.textContent = "Chấm bài theo từng bước";
       btn.addEventListener("click", () => {
         if (done) return;
         done = true;
-        const inp = host.querySelector('[data-role="ans"]');
-        const ok = cipherAnswerOk(inp.value, item);
-        const note = document.createElement("div");
-        note.className = ok ? "tt-msg" : "tt-err";
-        note.style.display = "block";
-        note.style.marginTop = "10px";
-        note.innerHTML = (ok
-          ? `✅ Đúng rồi! Bản tin là <b>${esc(item.conv)}</b> (${esc(item.phrase)}).`
-          : `❌ Chưa đúng. Đáp án đúng: <b>${esc(item.conv)}</b> (${esc(item.phrase)}).`)
-          + (item.clue ? `<br>🕵️ Cách tìm khóa: ${esc(item.clue.derive)}` : "");
-        host.appendChild(note);
+        const res = gradeSteps(item, host, given);
+        const box = document.createElement("div");
+        box.innerHTML = reviewHTML(item, res, "Kết quả luyện tập");
+        host.appendChild(box);
         btn.disabled = true;
       });
       host.appendChild(btn);
@@ -3165,39 +3388,102 @@ function openCipherModule() {
     draw();
   }
   function startTest() {
-    const mk = () => {
-      let it = cipherItem("find", null);
-      for (let t = 0; t < 40 && stripSpaces(it.conv).length > 13; t++) it = cipherItem("find", null);
-      return it;
-    };
-    test = { list: Array.from({ length: 10 }, mk), idx: 0, correct: 0, startedAt: Date.now() };
-    showTestQ();
-  }
-  function showTestQ() {
-    const item = test.list[test.idx];
-    stage.innerHTML = `<p style="text-align:center;color:#555;margin:0 0 8px">Câu ${test.idx + 1}/${test.list.length} — giải mật thư rồi bấm Nộp câu</p>` + itemHTML(item, false);
-    const inp = stage.querySelector('[data-role="ans"]');
+    let item = cipherItem("find", null);
+    for (let t = 0; t < 40 && stripSpaces(item.conv).length > 13; t++) item = cipherItem("find", null);
+    curItem = item;
+    const startedAt = Date.now();
+    stage.innerHTML = `<p style="text-align:center;color:#555;margin:0 0 8px">Bài kiểm tra gồm <b>1 mật thư</b> — giải và trình bày đủ 5 bước rồi bấm Nộp bài</p>` + stepFormHTML(item, false, false);
     const btn = document.createElement("button");
-    btn.type = "button"; btn.className = "tt-btn"; btn.textContent = test.idx === test.list.length - 1 ? "Nộp câu cuối và xem điểm" : "Nộp câu →";
+    btn.type = "button"; btn.className = "tt-btn"; btn.textContent = "Nộp bài và xem đáp án";
     btn.addEventListener("click", () => {
-      if (cipherAnswerOk(inp.value, item)) test.correct++;
-      test.idx++;
-      if (test.idx < test.list.length) { showTestQ(); return; }
-      const dur = Math.round((Date.now() - test.startedAt) / 1000);
-      modSaveHistory("kt-mat-thu", test.correct, test.list.length, "Kiểm tra mật thư — 10 câu", dur);
-      const score = (Math.round((test.correct / test.list.length) * 100) / 10).toFixed(1).replace(".", ",");
-      stage.innerHTML = `<div class="tt-qbox" style="text-align:center">
-        <p style="font-size:19px;margin:4px 0"><b>Hoàn thành bài kiểm tra!</b></p>
-        <p>Đúng <b>${test.correct}/${test.list.length}</b> câu — Điểm: <b>${score}/10</b></p>
-        <p class="tt-note">Kết quả đã lưu vào Lịch sử của em và sẽ đồng bộ cho thầy khi có mạng.</p></div>`;
+      const res = gradeSteps(item, stage, false);
+      const dur = Math.round((Date.now() - startedAt) / 1000);
+      const full = res.steps.filter((s) => s.frac >= 1).length;
+      modSaveHistory("kt-mat-thu", full, 5, "Kiểm tra mật thư — 1 mật thư (chấm từng bước)", dur, res.total);
+      stage.innerHTML = reviewHTML(item, res, "Điểm bài kiểm tra")
+        + `<p class="tt-note" style="text-align:center">Kết quả đã lưu vào Lịch sử của em và sẽ đồng bộ cho thầy khi có mạng.</p>`;
       const nb = document.createElement("button");
       nb.type = "button"; nb.className = "tt-btn"; nb.textContent = "Làm bài kiểm tra mới";
       nb.addEventListener("click", startTest);
       stage.appendChild(nb);
     });
     stage.appendChild(btn);
-    if (inp) inp.focus();
   }
+  /* ---------- Nút nổi + công cụ hỗ trợ giải mật thư thay thế ----------
+     Dựng sẵn BẢNG TRA theo khóa em chọn nên không cần bảng xoay:
+     chữ thay chữ — chọn độ dịch là thấy cả bảng và bản giải;
+     số thay chữ — chọn cặp neo là thấy cả bảng số → chữ. */
+  const fab = document.createElement("button");
+  fab.type = "button"; fab.textContent = "🧰"; fab.title = "Hỗ trợ giải mật thư thay thế";
+  fab.style.cssText = "position:fixed;right:14px;bottom:86px;z-index:95;width:54px;height:54px;border-radius:50%;border:none;background:#0b5cad;color:#fff;font-size:25px;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer";
+  const tool = document.createElement("div");
+  tool.style.cssText = "display:none;position:fixed;right:10px;bottom:148px;z-index:95;width:min(94vw,410px);max-height:64vh;overflow:auto;background:#fff;color:#000;border:1.5px solid #b08968;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:12px";
+  tool.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <b>🧰 Hỗ trợ giải mật thư thay thế</b>
+      <button type="button" data-t="close" style="border:1px solid #ccc;background:#f4f4f4;border-radius:8px;padding:2px 10px;cursor:pointer">✕ Đóng</button>
+    </div>
+    <p style="margin:6px 0;color:#555;font-size:13px">Công cụ dựng bảng tra theo khóa em chọn — <b>em vẫn phải tự tìm khóa</b> từ chìa khóa (OTT). Không cần bảng xoay.</p>
+    <div class="tt-modbar" style="margin:6px 0">
+      <button type="button" data-t="tabc" class="on">Chữ thay chữ</button>
+      <button type="button" data-t="tabn">Số thay chữ</button>
+    </div>
+    <div data-t="panec">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span>Độ dịch khi giải:</span>
+        <button type="button" data-t="shm" style="width:36px;height:36px;border-radius:9px;border:1.5px solid #bbb;background:#fff;cursor:pointer;font-size:17px">−</button>
+        <b data-t="shv" style="font-size:18px;min-width:28px;text-align:center">0</b>
+        <button type="button" data-t="shp" style="width:36px;height:36px;border-radius:9px;border:1.5px solid #bbb;background:#fff;cursor:pointer;font-size:17px">+</button>
+        <span style="color:#666;font-size:12.5px">chữ thật = chữ mật dịch tới bấy nhiêu ô</span>
+      </div>
+      <div data-t="cmap" style="font-family:monospace;font-size:12.5px;line-height:1.5;margin:8px 0;word-break:break-all"></div>
+      <textarea data-t="cin" rows="2" placeholder="Dán / gõ mật thư (chữ) vào đây…" style="width:100%;padding:8px;border:1.5px solid #bbb;border-radius:9px;font-size:14.5px"></textarea>
+      <button type="button" data-t="cfill" class="tt-btn" style="margin:6px 0">⬇ Lấy mật thư đang làm</button>
+      <div data-t="cout" style="background:#f2f8ff;border:1px solid #cfe4f7;border-radius:9px;padding:8px 10px;min-height:38px;font-weight:600"></div>
+    </div>
+    <div data-t="panen" style="display:none">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span>Cặp neo:</span>
+        <label>Chữ <select data-t="al" style="padding:7px;border:1.5px solid #bbb;border-radius:8px">${"ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((c) => `<option ${c === "A" ? "selected" : ""}>${c}</option>`).join("")}</select></label>
+        <label>= Số <input type="number" data-t="av" value="1" min="1" max="26" style="width:70px;padding:7px;border:1.5px solid #bbb;border-radius:8px"></label>
+      </div>
+      <div data-t="nmap" style="font-size:12.5px;line-height:1.6;margin:8px 0"></div>
+      <textarea data-t="nin" rows="2" placeholder="Dán dãy số vào đây, cách nhau bằng dấu cách hoặc phẩy…" style="width:100%;padding:8px;border:1.5px solid #bbb;border-radius:9px;font-size:14.5px"></textarea>
+      <button type="button" data-t="nfill" class="tt-btn" style="margin:6px 0">⬇ Lấy mật thư đang làm</button>
+      <div data-t="nout" style="background:#f2f8ff;border:1px solid #cfe4f7;border-radius:9px;padding:8px 10px;min-height:38px;font-weight:600"></div>
+    </div>`;
+  body.appendChild(fab);
+  body.appendChild(tool);
+  fab.addEventListener("click", () => { tool.style.display = tool.style.display === "none" ? "block" : "none"; });
+  tool.querySelector('[data-t="close"]').addEventListener("click", () => { tool.style.display = "none"; });
+  const q = (s) => tool.querySelector(`[data-t="${s}"]`);
+  let shift = 0;
+  const paintC = () => {
+    q("shv").textContent = shift;
+    const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let bot = "";
+    for (let i = 0; i < 26; i++) bot += String.fromCharCode(65 + ((i + shift) % 26));
+    q("cmap").innerHTML = `MẬT:&nbsp;${A.split("").join(" ")}<br>THẬT: ${bot.split("").join(" ")}`;
+    q("cout").textContent = toolCaesarDecode(q("cin").value, shift) || "…";
+  };
+  const paintN = () => {
+    const L = q("al").value, v = parseInt(q("av").value, 10) || 1;
+    const parts = [];
+    for (let n = 1; n <= 26; n++) parts.push(`${n}→${toolSoLetter(n, L, v)}`);
+    q("nmap").innerHTML = parts.join(" · ");
+    q("nout").textContent = toolSoDecode(q("nin").value, L, v) || "…";
+  };
+  q("shm").addEventListener("click", () => { shift = (shift + 25) % 26; paintC(); });
+  q("shp").addEventListener("click", () => { shift = (shift + 1) % 26; paintC(); });
+  q("cin").addEventListener("input", paintC);
+  q("al").addEventListener("change", paintN);
+  q("av").addEventListener("input", paintN);
+  q("nin").addEventListener("input", paintN);
+  q("cfill").addEventListener("click", () => { if (curItem) { q("cin").value = curItem.cipher || ""; paintC(); } });
+  q("nfill").addEventListener("click", () => { if (curItem) { q("nin").value = curItem.cipher || ""; paintN(); } });
+  q("tabc").addEventListener("click", () => { q("tabc").classList.add("on"); q("tabn").classList.remove("on"); q("panec").style.display = ""; q("panen").style.display = "none"; });
+  q("tabn").addEventListener("click", () => { q("tabn").classList.add("on"); q("tabc").classList.remove("on"); q("panen").style.display = ""; q("panec").style.display = "none"; });
+  paintC(); paintN();
   practice();
 }
 
@@ -3210,6 +3496,9 @@ function openCipherDoc() {
   body.innerHTML = `
     <p><b>Mật thư</b> gồm 2 yếu tố: <b>hệ thống</b> và <b>chìa khóa</b>. Trong đề, dòng có ký hiệu 🔑 là <b>chìa khóa (OTT)</b> — phần gợi ý giúp đoán ra hệ thống và quy luật; dòng ✉ là bản mật thư. Bạch văn chuyển sang thể thức điện tín theo <b>quy ước của lớp</b> trước khi mã hoá; bản mật thư mở đầu <b>NW/</b>, kết thúc <b>/AR</b>.</p>
     <p><b>Cách đọc một mật thư:</b> (1) tìm ý nghĩa của chìa khóa trước; (2) từ chìa khóa xác định hệ thống; (3) dịch theo quy luật của hệ đó.</p>
+    <h3 style="margin:14px 0 4px">Trình bày bài giải — 5 bước (cách chấm bài Kiểm tra mật thư)</h3>
+    <p>Một bài giải mật thư trình bày đủ 5 bước: <b>(1) Hệ thống</b> — thay thế, dời chỗ hay ẩn giấu; <b>(2) Dạng</b> — mẫu tự được thay bằng gì / sắp xếp lại thế nào (bảng dưới); <b>(3) Khóa</b> — cặp neo, độ dịch, từ khóa… suy ra từ chìa khóa; <b>(4) Các ký tự</b> — dãy chữ đã giải, viết rời từng chữ, giữa các tiếng là dấu " - " (ví dụ: D I - C H U Y E E N R - D D E E N S); <b>(5) Bạch văn</b> — bản tin hoàn chỉnh. Trong ứng dụng, Kiểm tra mật thư gồm đúng <b>1 mật thư</b> và chấm từng bước: 1 + 1 + 2 + 3 + 3 = <b>10 điểm</b>.</p>
+    <div style="overflow-x:auto"><table class="tt-table" style="margin:6px auto"><thead><tr><th>Hệ mật thư</th><th>Hệ thống</th><th>Dạng</th></tr></thead><tbody>${CIPHER_SYSTEMS.map((s) => `<tr><td>${esc(s.name)}</td><td>${esc(CIPHER_FAMS[CIPHER_TAX[s.id].fam])}</td><td>${esc(CIPHER_TAX[s.id].dang)}</td></tr>`).join("")}</tbody></table></div>
     <h3 style="margin:14px 0 4px">1. Số thay chữ — thay thế</h3>
     <p>Mỗi chữ thay bằng số của nó, đếm <b>vòng tròn</b> theo bảng chữ cái. Chìa khóa cho <b>một cặp neo</b> (một chữ = một số), từ đó đếm ra cả bảng. Trường hợp quen thuộc nhất: A = 1.<br>
     Ví dụ: chìa khóa “Nguyên tử lượng Oxy” → neo <b>O = 16</b> → VUI viết là <span class="tt-cipher" style="font-size:16px">23, 22, 10</span></p>
