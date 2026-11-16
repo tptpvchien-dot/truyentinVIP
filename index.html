@@ -308,7 +308,7 @@
             </label>
             <label class="switch">
               <input type="checkbox" id="mdktToggle" checked />
-              <span>MĐ/KT — mở đầu &amp; kết thúc bản tin theo chuẩn (mở cờ / còi bắt đầu, AR &amp; kết thúc liên lạc)</span>
+              <span>MĐ/KT — nghi thức mở đầu &amp; kết thúc bản tin (Morse: tè dài + NW ×3 … AR ×3 · Semaphore: phất 3 vòng số 8 … vắt chéo cờ)</span>
             </label>
           </div>
 
@@ -1283,10 +1283,56 @@ function animateFigureTo(prefix, state, tl, tr, holdMs, toFold){
   applyFig(prefix, state); /* khung đầu: góc đúng bằng góc chữ trước */
   return dur;
 }
+/* PHẤT CỜ HÌNH SỐ 8 TRÊN ĐẦU (nghi thức mở đầu Semaphore):
+   bàn tay mỗi bên vạch đúng một hình số 8 (quỹ đạo Lissajous
+   tỉ lệ 1:2) phía trên đầu, hai bên đối xứng gương nhau nên
+   hai cờ chéo qua nhau ở giữa. Góc vai + góc khuỷu được tính
+   bằng động học ngược 2 khâu (vai–khuỷu–tay, mỗi khâu 33 đơn
+   vị như hình vẽ) từ vị trí đích của bàn tay từng khung hình;
+   khuỷu luôn hướng ra ngoài. Vào vòng: hoà trộn mượt từ tư
+   thế hiện tại (minJerk 12% đầu); biên độ số 8 nở/thu bằng
+   minJerk ở 15% đầu/cuối; vải cờ bay theo chuyển động thật.
+   Tạm dừng thì đóng băng thời gian chạy vòng. */
+function fig8ArmIK(tx, ty, mirror){
+  let r = Math.hypot(tx, ty);
+  if (r > 64){ const s = 64 / r; tx *= s; ty *= s; r = 64; }
+  const alpha = Math.atan2(-tx, ty) * 180 / Math.PI;
+  const beta = Math.acos(Math.min(1, r / 66)) * 180 / Math.PI;
+  return mirror ? { ang: alpha + beta, flex: -2 * beta } : { ang: alpha - beta, flex: 2 * beta };
+}
+function startFig8(prefix, state, loops, durMs){
+  if (!state) return;
+  figAnims[prefix] = { phase:"fig8", state, last:null, elapsed:0, dur: durMs || 3900, loops: loops || 3,
+    fromL: state.l || 0, fromR: state.r || 0, fromFold: state.restFold || 0, ikL:null, ikR:null };
+}
 function stepFigAnim(prefix, now){
   const a = figAnims[prefix];
   if (!a) return;
   const st = a.state;
+  if (a.phase === "fig8"){
+    if (a.last == null) a.last = now;
+    const dt = now - a.last; a.last = now;
+    let paused = false;
+    try { paused = !!(typeof player !== "undefined" && player.paused); } catch(e){}
+    if (!paused) a.elapsed = (a.elapsed || 0) + dt;
+    const u = Math.min(1, (a.elapsed || 0) / a.dur);
+    const env = Math.min(minJerk(u / 0.15), minJerk((1 - u) / 0.15));
+    const blend = minJerk(u / 0.12);
+    const th = 2 * Math.PI * a.loops * u;
+    const sw = Math.sin(th) * env, sw2 = Math.sin(2 * th) * env;
+    const ikL = fig8ArmIK(-18 + 26 * sw, -54 + 12 * sw2, false);
+    const ikR = fig8ArmIK(18 - 26 * sw, -54 + 12 * sw2, true);
+    a.ikL = (a.ikL == null) ? nearestAngle(a.fromL, ikL.ang) : nearestAngle(a.ikL, ikL.ang);
+    a.ikR = (a.ikR == null) ? nearestAngle(a.fromR, ikR.ang) : nearestAngle(a.ikR, ikR.ang);
+    st.l = a.fromL + (a.ikL - a.fromL) * blend;
+    st.r = a.fromR + (a.ikR - a.fromR) * blend;
+    st.animFlexL = ikL.flex * blend;
+    st.animFlexR = ikR.flex * blend;
+    st.restFold = (a.fromFold || 0) * (1 - minJerk(Math.min(1, u * 5)));
+    if (u >= 1){ delete figAnims[prefix]; }
+    applyFig(prefix, st);
+    return;
+  }
   if (a.phase === "go"){
     let done = true;
     /* Gấp/mở tư thế nghỉ chạy cùng nhịp chuyển tay (minimum-jerk
@@ -1428,13 +1474,15 @@ function buildMorseEvents(converted){
 }
 
 /* ============================================================
-   NGHI THỨC MĐ/KT (mở đầu & kết thúc bản tin theo chuẩn):
-   - Morse: mở đầu bằng prosign KA −·−·−, kết thúc bản tin AR
-     ·−·−· rồi kết thúc liên lạc SK ···−·− (ITU-R M.1677-1).
-   - Semaphore: mở đầu bằng động tác MỞ CỜ (hai cờ vẫy chéo hình
-     số 8 rồi đưa lên cao — giáo trình Đội), bên nhận đáp K (sẵn
-     sàng) mới phát tiếp; kết thúc: đưa cả hai cờ lên đầu rồi thu
-     cờ về trạng thái nghỉ.
+   NGHI THỨC MĐ/KT (theo trình tự thầy chốt ngày 16/11):
+   - Morse: thổi 1 HỒI TÈ DÀI (900 ms, hoặc 4 đơn vị nếu dài
+     hơn) → thổi 3 lần NW liên tiếp (−· ·−−, cách nhau 3 đơn
+     vị) → [cổng sẵn sàng] → nội dung bản tin → kết thúc bằng
+     3 lần AR liên tiếp (·−·−·, cách nhau 3 đơn vị).
+   - Semaphore: phất 3 VÒNG HÌNH SỐ 8 trên đầu → đưa cờ về tư
+     thế nghỉ (hai tay vắt chéo vừa phải ở bụng) → [cổng sẵn
+     sàng] → nội dung bản tin → kết thúc bằng 1 lần VẮT CHÉO
+     CỜ TRÊN ĐẦU → đưa về tư thế nghỉ.
    Giữa nghi thức mở đầu và nội dung bản tin có một "cổng sẵn sàng":
    trình phát dừng ở đó, hiện nút nổi Sẵn sàng; người nhận bấm nút
    thì mới phát tiếp, đồng thời ghim khung phát + khung nhập.
@@ -1451,25 +1499,36 @@ function prosignEvents(codeStr, charNo){
 function buildMorseEventsMdkt(converted){
   const b = buildMorseEvents(converted);
   const events = [
-    ...prosignEvents("-.-.-", 0),
+    /* 1 hồi tè dài gọi chú ý */
+    { on:true, longBlast:true, dash:true, ch: "⚑", code: "-", charNo: 0, proc:true },
+    { on:false, units:3 },
+    /* 3 lần NW liên tiếp */
+    ...prosignEvents("-..--", 0),
+    { on:false, units:3 },
+    ...prosignEvents("-..--", 0),
+    { on:false, units:3 },
+    ...prosignEvents("-..--", 0),
     { gate:true },
     ...b.events,
     { on:false, units:7 },
+    /* Kết thúc: 3 lần AR liên tiếp */
     ...prosignEvents(".-.-.", b.totalChars),
-    { on:false, units:7 },
-    ...prosignEvents("...-.-", b.totalChars)
+    { on:false, units:3 },
+    ...prosignEvents(".-.-.", b.totalChars),
+    { on:false, units:3 },
+    ...prosignEvents(".-.-.", b.totalChars)
   ];
   return { events, totalChars: b.totalChars };
 }
-const SEM_WAVE = [[0,0],[7,1],[4,4],[1,7],[4,4],[7,1],[0,0]];
 function buildSemStepsMdkt(converted){
   const b = buildSemSteps(converted);
   const steps = [
-    ...SEM_WAVE.map(pair => ({ type:"proc", pair, label:"Mở cờ — chú ý, bắt đầu bản tin", holdMs:420 })),
+    { type:"fig8", loops:3, holdMs:3900, label:"Mở cờ — phất 3 vòng hình số 8 trên đầu" },
+    { type:"proc", pair:SEM_REST, label:"Về tư thế nghỉ — hai tay vắt chéo ở bụng", holdMs:1000 },
     { type:"gate" },
     ...b.steps,
-    { type:"proc", pair:[4,4], label:"Kết thúc — đưa cả hai cờ lên đầu", holdMs:700 },
-    { type:"space", pair:SEM_REST, label:"Thu cờ — về trạng thái nghỉ" }
+    { type:"cross", holdMs:900, label:"Kết thúc — vắt chéo cờ trên đầu" },
+    { type:"proc", pair:SEM_REST, label:"Thu cờ — về tư thế nghỉ", holdMs:1000 }
   ];
   return { steps, totalChars: b.totalChars };
 }
@@ -1785,13 +1844,13 @@ function playMorseStep(){
   if (ev.gate){ showReadyGate(); return; }
   const unit = 1200 / parseFloat($("wpmRange").value);
   if (ev.on){
-    const isDash = ev.units === 3;
+    const isDash = ev.dash || ev.units === 3;
     beep(true, isDash); setLamp($("lamp"), true);
     if (showEffective()){ $("nowChar").textContent = ev.ch; $("nowCode").textContent = disp(ev.code); }
     else { $("nowChar").textContent = ""; $("nowCode").textContent = ""; }
     setProgress(ev.charNo, player.total);
   } else { signalOff(); }
-  player.timer = setTimeout(playMorseStep, ev.units * unit);
+  player.timer = setTimeout(playMorseStep, ev.longBlast ? Math.max(900, 4 * unit) : ev.units * unit);
 }
 function playSemStep(){
   if (!player.playing || player.paused) return;
@@ -1804,6 +1863,24 @@ function playSemStep(){
   }
   const st = player.steps[player.idx++];
   if (st.type === "gate"){ showReadyGate(); return; }
+  if (st.type === "fig8"){
+    startFig8("main", player.semState, st.loops || 3, st.holdMs || 3900);
+    if (showEffective()){ $("nowSemChar").textContent = "⚑"; $("nowSemCode").textContent = st.label; }
+    else { $("nowSemChar").textContent = ""; $("nowSemCode").textContent = ""; }
+    player.timer = setTimeout(playSemStep, st.holdMs || 3900);
+    return;
+  }
+  if (st.type === "cross"){
+    /* Vắt chéo cờ trên đầu: tay trái sang chéo lên-phải (225°),
+       tay phải sang chéo lên-trái (−225°) — hai cờ bắt chéo
+       thành hình X trên đầu. Không dùng cặp vị trí Semaphore
+       vì assignArms luôn gán mỗi vị trí về đúng phía tay. */
+    animateFigureTo("main", player.semState, 225, -225, st.holdMs || 900, 0);
+    if (showEffective()){ $("nowSemChar").textContent = "⚑"; $("nowSemCode").textContent = st.label; }
+    else { $("nowSemChar").textContent = ""; $("nowSemCode").textContent = ""; }
+    player.timer = setTimeout(playSemStep, st.holdMs || 900);
+    return;
+  }
   const hold = st.holdMs || parseFloat($("semRange").value) * 1000;
   /* Ký tự trùng với ký tự ngay trước (cùng cặp vị trí, không qua nhịp nghỉ giữa từ):
      CHỈ gấp khuỷu 1 tay di chuyển (tay còn lại giữ thẳng làm mốc) rồi mở ra trong ~45% thời gian giữ chữ, phần còn lại giữ thẳng. */
@@ -2430,6 +2507,6 @@ renderHistory();
 
 
   <script src="app-config.js?v=29"></script>
-<script type="module" src="auth-layer.js?v=57"></script>
+<script type="module" src="auth-layer.js?v=58"></script>
 </body>
 </html>
