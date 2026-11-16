@@ -3007,7 +3007,7 @@ const CIPHER_REF = [
   ["so", "Em cầm bát ăn cơm", "24, 22, 8, 13", "CAMR", "CẢM", "M", 8, "“Em” chỉ M; “bát” là tám"],
   ["so", "Anh thất tình", "13, 1, 20, 25", "THAF", "THÀ", "N", 7, "“Anh” chỉ N; “thất” là bảy"],
   ["so", "Anh có ba màu", "24, 15, 8, 1, 18", "DUNGX", "DŨNG", "N", 8, "“Anh” chỉ N; “ba màu” chỉ số 8"],
-  ["so", "Nguyên tử lượng của cac bon", "21, 24, 23, 16, 15", "LONGF", "LỒNG", "C", 12, "Cacbon có nguyên tử lượng 12"],
+  ["so", "Nguyên tử lượng của cac bon", "21, 24, 23, 16, 15", "LONGF", "Lòng", "C", 12, "Cacbon có nguyên tử lượng 12"],
   ["so", "Huyền tuổi đôi mươi", "18, 18, 15, 3, 20", "DDAOF", "ĐẠO", "F", 20, "“Huyền” (dấu huyền) chỉ F; “đôi mươi” là 20"],
   ["so", "Hóa trị của I ốt", "21, 26, 1, 11", "CHIS", "CHÍ", "I", 1, "I ốt (ký hiệu I) có hóa trị 1"],
   ["so", "Em thích bảy sắc cầu vòng", "2, 9, 9, 3, 4", "HOOIJ", "HỘI", "M", 7, "“Em” chỉ M; cầu vồng có bảy sắc"],
@@ -3193,14 +3193,27 @@ function cipherKeyAnswer(item) {
   }
   return "";
 }
+function alignMatches(a, b) {
+  /* Số phần tử khớp khi căn chỉnh hai dãy (LCS): một phần tử
+     sai/thiếu/thừa chỉ ảnh hưởng chính nó, không kéo sai cả
+     phần sau — chấm theo số ký tự nhận diện đúng. Dùng cho cả
+     dãy chữ (string) và dãy tiếng (array). */
+  const n = a.length, m = b.length;
+  if (!n || !m) return 0;
+  let prev = new Array(m + 1).fill(0);
+  for (let i = 1; i <= n; i++) {
+    const cur = [0];
+    for (let j = 1; j <= m; j++) cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], cur[j - 1]);
+    prev = cur;
+  }
+  return prev[m];
+}
 function kyTuFrac(input, conv) {
   const a = String(input || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   const b = String(conv || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (!b) return 0;
   if (a === b) return 1;
-  let same = 0; const n = Math.min(a.length, b.length);
-  for (let i = 0; i < n; i++) if (a[i] === b[i]) same++;
-  return same / Math.max(a.length, b.length);
+  return alignMatches(a, b) / b.length;
 }
 function bachVanFrac(input, item) {
   if (cipherAnswerOk(input, item)) return 1;
@@ -3209,9 +3222,7 @@ function bachVanFrac(input, item) {
   if (!/^[A-Z0-9 ]+$/.test(cand)) cand = convertText(cand).toUpperCase();
   const w = cand.split(/\s+/).filter(Boolean);
   if (!convWords.length || !w.length) return 0;
-  let same = 0; const n = Math.min(w.length, convWords.length);
-  for (let i = 0; i < n; i++) if (w[i] === convWords[i]) same++;
-  return same / Math.max(w.length, convWords.length);
+  return alignMatches(w, convWords) / convWords.length;
 }
 /* --- Công cụ hỗ trợ giải mật thư thay thế (thuần, có kiểm chứng) --- */
 function toolCaesarDecode(text, k) { return String(text || "").toUpperCase().replace(/[A-Z]/g, (c) => String.fromCharCode(65 + ((c.charCodeAt(0) - 65 + k) % 26))); }
@@ -3429,12 +3440,13 @@ function openCipherModule() {
       <button type="button" data-t="tabn">Số thay chữ</button>
     </div>
     <div data-t="panec">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span>Độ dịch khi giải:</span>
-        <button type="button" data-t="shm" style="width:36px;height:36px;border-radius:9px;border:1.5px solid #bbb;background:#fff;cursor:pointer;font-size:17px">−</button>
-        <b data-t="shv" style="font-size:18px;min-width:28px;text-align:center">0</b>
-        <button type="button" data-t="shp" style="width:36px;height:36px;border-radius:9px;border:1.5px solid #bbb;background:#fff;cursor:pointer;font-size:17px">+</button>
-        <span style="color:#666;font-size:12.5px">chữ thật = chữ mật dịch tới bấy nhiêu ô</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span>Chữ</span>
+        <input type="text" data-t="cm" value="A" maxlength="1" list="ttAZ" autocomplete="off" style="width:54px;padding:7px;border:1.5px solid #bbb;border-radius:8px;font-size:15px;text-transform:uppercase;text-align:center">
+        <span>= Chữ</span>
+        <input type="text" data-t="cp" value="A" maxlength="1" list="ttAZ" autocomplete="off" style="width:54px;padding:7px;border:1.5px solid #bbb;border-radius:8px;font-size:15px;text-transform:uppercase;text-align:center">
+        <datalist id="ttAZ">${"ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((c) => `<option value="${c}">`).join("")}</datalist>
+        <span style="color:#666;font-size:12.5px">Chọn hoặc gõ một cặp: chữ trong mật thư = chữ thật nó thay thế — công cụ tự dựng cả bảng theo cặp đó</span>
       </div>
       <div data-t="cmap" style="font-family:monospace;font-size:12.5px;line-height:1.5;margin:8px 0;word-break:break-all"></div>
       <textarea data-t="cin" rows="2" placeholder="Dán / gõ mật thư (chữ) vào đây…" style="width:100%;padding:8px;border:1.5px solid #bbb;border-radius:9px;font-size:14.5px"></textarea>
@@ -3457,9 +3469,13 @@ function openCipherModule() {
   fab.addEventListener("click", () => { tool.style.display = tool.style.display === "none" ? "block" : "none"; });
   tool.querySelector('[data-t="close"]').addEventListener("click", () => { tool.style.display = "none"; });
   const q = (s) => tool.querySelector(`[data-t="${s}"]`);
-  let shift = 0;
+  const pairShift = () => {
+    const c = (q("cm").value || "A").toUpperCase().replace(/[^A-Z]/g, "").charAt(0) || "A";
+    const p = (q("cp").value || "A").toUpperCase().replace(/[^A-Z]/g, "").charAt(0) || "A";
+    return ((p.charCodeAt(0) - c.charCodeAt(0)) % 26 + 26) % 26;
+  };
   const paintC = () => {
-    q("shv").textContent = shift;
+    const shift = pairShift();
     const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     let bot = "";
     for (let i = 0; i < 26; i++) bot += String.fromCharCode(65 + ((i + shift) % 26));
@@ -3473,8 +3489,8 @@ function openCipherModule() {
     q("nmap").innerHTML = parts.join(" · ");
     q("nout").textContent = toolSoDecode(q("nin").value, L, v) || "…";
   };
-  q("shm").addEventListener("click", () => { shift = (shift + 25) % 26; paintC(); });
-  q("shp").addEventListener("click", () => { shift = (shift + 1) % 26; paintC(); });
+  q("cm").addEventListener("input", paintC);
+  q("cp").addEventListener("input", paintC);
   q("cin").addEventListener("input", paintC);
   q("al").addEventListener("change", paintN);
   q("av").addEventListener("input", paintN);
