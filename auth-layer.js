@@ -125,11 +125,19 @@ const overlay = document.createElement("div");
 overlay.id = "tt-overlay";
 overlay.innerHTML = `
 <div id="tt-card">
-  <h1>🚩 Truyền tin</h1>
+  <h1>🚩 Chỉ huy Đội</h1>
   <div class="tt-sub">Luyện truyền tin Morse &amp; Semaphore — bản có tài khoản, đăng nhập để luyện tập</div>
   <div id="tt-view"></div>
 </div>`;
 document.body.appendChild(overlay);
+/* Bản có tài khoản: ẩn bảng "Lịch sử kiểm tra (lưu trên máy này)"
+   của phần lõi — bảng đó liệt kê mọi bài làm trên máy, lẫn cả bài
+   của tài khoản khác khi nhiều người dùng chung một máy. Lịch sử
+   chuẩn xem ở nút 🕘 Lịch sử, theo đúng tài khoản đang đăng nhập. */
+try {
+  const hlEl = document.getElementById("historyList");
+  if (hlEl) { const hp = hlEl.closest(".panel"); if (hp) hp.style.display = "none"; }
+} catch (e) {}
 const view = $("tt-view");
 
 function viewHTML(html) { view.innerHTML = html; }
@@ -243,8 +251,8 @@ async function handleAuthUser(user) {
   authOutcome = true;
   clearTimeout(bootTimer);
   try {
-    if (!user) { currentUser = null; if (!accessGranted) showAuthForms(); return; }
-    currentUser = user;
+    if (!user) { currentUser = null; window.__ttMyUid = ""; if (!accessGranted) showAuthForms(); return; }
+    currentUser = user; window.__ttMyUid = user.uid;
     if (accessGranted) return;
     showLoading("Đang kiểm tra tài khoản…");
     await resolveAccess(user);
@@ -731,27 +739,41 @@ function entryHash(e) {
   return "h" + h + "_" + s.length;
 }
 let syncing = false;
+const syncFailed = new Set(); /* hash các bài lỗi đồng bộ trong phiên này: bỏ qua để không chặn các bài sau, phiên sau thử lại */
+/* Bài làm này có phải của TÀI KHOẢN ĐANG ĐĂNG NHẬP không?
+   Bài mới luôn được đóng dấu uid của người làm ngay lúc nộp bài.
+   Bài cũ (trước v49) chưa có dấu: chỉ nhận là của mình khi tên
+   trên bài khớp đúng họ tên trong hồ sơ — nhờ vậy máy dùng chung
+   không bao giờ đẩy bài của tài khoản này sang tài khoản khác. */
+function histMine(e) {
+  if (!e || !currentUser) return false;
+  if (e.uid) return e.uid === currentUser.uid;
+  const nm = (myProfile && myProfile.name) || "";
+  return !!nm && (e.name || "") === nm;
+}
 async function syncHistory() {
   if (syncing || !currentUser || !db) return;
   syncing = true;
   try {
-    let arr = [];
-    try { arr = JSON.parse(localStorage.getItem("ltmt_history") || "[]"); } catch (e) { arr = []; }
-    if (!Array.isArray(arr) || !arr.length) return;
+    const arr = loadLocalHist();
+    if (!arr.length) return;
     const done = new Set(JSON.parse(localStorage.getItem("tt_synced") || "[]"));
     let added = 0;
     for (const entry of arr) {
+      if (!histMine(entry)) continue; /* chỉ đồng bộ bài của chính tài khoản đang đăng nhập */
       const key = entryHash(entry);
-      if (done.has(key)) continue;
-      if (added >= 10) break;
-      const meta = metaFor(entry);
-      await addDoc(collection(db, "history"), {
-        uid: currentUser.uid, username: myProfile.username || "", entry, at: serverTimestamp(),
-        kindLabel: meta.kindLabel, speedLabel: meta.speedLabel, dname: displayName(myProfile)
-      });
-      done.add(key); added++;
+      if (done.has(key) || syncFailed.has(key)) continue;
+      if (added >= 50) break;
+      try {
+        const meta = metaFor(entry);
+        await addDoc(collection(db, "history"), {
+          uid: currentUser.uid, username: myProfile.username || "", entry, at: serverTimestamp(),
+          kindLabel: meta.kindLabel, speedLabel: meta.speedLabel, dname: displayName(myProfile)
+        });
+        done.add(key); added++;
+        localStorage.setItem("tt_synced", JSON.stringify([...done].slice(-400))); /* lưu tiến độ ngay từng bài, đóng tab giữa chừng không mất */
+      } catch (e) { syncFailed.add(key); } /* 1 bài lỗi không chặn các bài còn lại */
     }
-    if (added) localStorage.setItem("tt_synced", JSON.stringify([...done].slice(-400)));
   } catch (e) { /* đồng bộ hỏng không được làm gián đoạn luyện tập */ }
   syncing = false;
 }
@@ -794,15 +816,24 @@ function histTableHTML(rows, firstColLabel, nameOf) {
 async function openMyHistory() {
   const body = openPanel("🕘 Lịch sử làm bài", true);
   body.innerHTML = "<p>Đang tải lịch sử…</p>";
-  let rows = [];
+  let rows = [], serverOk = true;
+  const serverKeys = new Set();
   try {
     const snap = await getDocs(query(collection(db, "history"), where("uid", "==", currentUser.uid)));
-    snap.forEach((d) => { const h = d.data(); rows.push({ entry: h.entry || {}, kindLabel: h.kindLabel || "", speedLabel: h.speedLabel || "", at: (h.at && h.at.seconds) || 0 }); });
-  } catch (e) { /* mất mạng thì xem bản lưu trên máy */ }
-  if (!rows.length) rows = loadLocalHist().map((e) => ({ entry: e, kindLabel: "", speedLabel: "", at: 0 }));
+    snap.forEach((d) => { const h = d.data(); const e = h.entry || {}; serverKeys.add(entryHash(e)); rows.push({ entry: e, kindLabel: h.kindLabel || "", speedLabel: h.speedLabel || "", at: (h.at && h.at.seconds) || 0 }); });
+  } catch (e) { serverOk = false; /* mất mạng / chưa đọc được máy chủ thì xem các bài của chính mình lưu trên máy */ }
+  /* Bổ sung các bài của CHÍNH tài khoản này còn lưu trên máy mà
+     máy chủ chưa có. Bản cũ lấy toàn bộ lịch sử trên máy nên học
+     sinh thấy cả bài của người khác dùng chung máy — đã bỏ. */
+  for (const e of loadLocalHist()) {
+    if (!histMine(e) || serverKeys.has(entryHash(e))) continue;
+    rows.push({ entry: e, kindLabel: "", speedLabel: "", at: 0 });
+  }
   rows.sort((a, b) => b.at - a.at);
   body.innerHTML = histTableHTML(rows, "Họ tên", (r) => (r.entry && r.entry.name) || displayName(myProfile))
-    + `<p class="tt-note">Lịch sử được lưu theo tài khoản trên máy chủ: nộp bài xong là lưu, đăng nhập máy khác vẫn xem lại được.</p>`;
+    + `<p class="tt-note">${serverOk
+      ? "Lịch sử được lưu theo tài khoản trên máy chủ: nộp bài xong là lưu, đăng nhập máy khác vẫn xem lại được. Mỗi tài khoản chỉ thấy bài làm của chính mình."
+      : "Chưa đọc được lịch sử trên máy chủ (mất mạng hoặc máy chủ chưa sẵn sàng) — đang hiện các bài của chính em đã lưu trên máy này."}</p>`;
 }
 async function openSchoolPanel() {
   const body = openPanel("🏫 Học sinh trường của thầy/cô", true);
@@ -902,8 +933,8 @@ function notifyAdminNewRegistration(info) {
     const cfg = await emailCfg();
     if (!emailReady(cfg)) return;
     sendMailViaScript(cfg.adminEmail,
-      "✉ Truyền tin: có đăng ký mới chờ duyệt — " + (info.username || ""),
-      "Có một tài khoản mới vừa đăng ký ứng dụng Truyền tin và đang chờ thầy duyệt.\n\n" +
+      "✉ Chỉ huy Đội: có đăng ký mới chờ duyệt — " + (info.username || ""),
+      "Có một tài khoản mới vừa đăng ký ứng dụng Chỉ huy Đội và đang chờ thầy duyệt.\n\n" +
       "• Tên đăng nhập: " + (info.username || "") + "\n" +
       "• Họ và tên: " + (info.name || "") + "\n" +
       "• Lớp: " + (info.className || "") + "\n" +
@@ -917,11 +948,11 @@ function notifyUserApproved(m, reopened) {
     const cfg = await emailCfg();
     if (!emailReady(cfg)) return;
     sendMailViaScript(m.email,
-      reopened ? "✅ Tài khoản Truyền tin đã được mở lại — " + (m.username || "") : "✅ Tài khoản Truyền tin đã được duyệt — " + (m.username || ""),
+      reopened ? "✅ Tài khoản Chỉ huy Đội đã được mở lại — " + (m.username || "") : "✅ Tài khoản Chỉ huy Đội đã được duyệt — " + (m.username || ""),
       "Chào " + (m.name || "em") + ",\n\n" +
       (reopened
-        ? "Tài khoản ứng dụng Truyền tin của em đã được thầy MỞ LẠI và dùng được ngay.\n\n"
-        : "Tài khoản ứng dụng Truyền tin của em đã được thầy duyệt và dùng được ngay.\n\n") +
+        ? "Tài khoản ứng dụng Chỉ huy Đội của em đã được thầy MỞ LẠI và dùng được ngay.\n\n"
+        : "Tài khoản ứng dụng Chỉ huy Đội của em đã được thầy duyệt và dùng được ngay.\n\n") +
       "• Tên đăng nhập: " + (m.username || "") + "\n" +
       "• Họ và tên: " + (m.name || "") + "\n" +
       "• Lớp: " + (m.className || "—") + "\n" +
@@ -940,9 +971,9 @@ function notifyUserRegistered(info) {
     const cfg = await emailCfg();
     if (!emailReady(cfg)) return;
     sendMailViaScript(info.email,
-      "✉ Truyền tin: đã nhận đăng ký — " + (info.username || ""),
+      "✉ Chỉ huy Đội: đã nhận đăng ký — " + (info.username || ""),
       "Chào " + (info.name || "em") + ",\n\n" +
-      "Hệ thống đã nhận đăng ký tài khoản ứng dụng Truyền tin của em.\n\n" +
+      "Hệ thống đã nhận đăng ký tài khoản ứng dụng Chỉ huy Đội của em.\n\n" +
       "• Tên đăng nhập: " + (info.username || "") + "\n" +
       "• Họ và tên: " + (info.name || "") + "\n" +
       "• Lớp: " + (info.className || "—") + "\n\n" +
@@ -1402,8 +1433,8 @@ function renderAdminList(body, members, schools, adminsSet) {
     if (!emailReady(cfg)) { emMsg.textContent = "Chưa đủ cấu hình — cần Email của thầy, Địa chỉ Web App và Mã bí mật. Thầy điền rồi bấm Lưu trước."; return; }
     emMsg.textContent = "Đang gửi thư thử…";
     const okSend = await sendMailViaScript(cfg.adminEmail,
-      "✉ Truyền tin: thư gửi thử",
-      "Đây là thư gửi thử từ panel quản trị ứng dụng Truyền tin, gửi qua Apps Script bằng chính Gmail của thầy.\n\nNếu thầy nhận được thư này thì cấu hình gửi email đã đúng.");
+      "✉ Chỉ huy Đội: thư gửi thử",
+      "Đây là thư gửi thử từ panel quản trị ứng dụng Chỉ huy Đội, gửi qua Apps Script bằng chính Gmail của thầy.\n\nNếu thầy nhận được thư này thì cấu hình gửi email đã đúng.");
     emMsg.textContent = okSend ? "Đã gửi yêu cầu gửi thư ✔ — thầy kiểm tra hộp thư " + cfg.adminEmail + " sau ít phút (kể cả mục Spam). Không thấy thư thì kiểm tra lại URL, mã bí mật và quyền triển khai của script." : "Không gửi được yêu cầu — kiểm tra lại địa chỉ Web App.";
   });
 }
@@ -1684,6 +1715,7 @@ function modSaveHistory(kind, correct, total, msg, durSec) {
   try {
     const arr = loadLocalHist();
     arr.push({
+      uid: currentUser ? currentUser.uid : "",
       name: (myProfile && myProfile.name) || "", cls: (myProfile && myProfile.className) || "",
       date: new Date().toLocaleString("vi-VN"), kind,
       score: Math.round((correct / total) * 100) / 10, correct, total, plays: 1, msg, dur: durSec
@@ -2353,7 +2385,7 @@ async function openTrailQuiz() {
       let right = 0;
       items.forEach((it, i) => { if (picked[i] === it.ci) right++; });
       const dur = Math.round((Date.now() - startedAt) / 1000);
-      modSaveHistory("kt-kien-thuc-dau-duong", right, n, `Kiến thức dấu đường — đúng ${right}/${n} câu`, dur);
+      modSaveHistory("kt-kien-thuc-dau-duong", right, n, `Kiến thức chung — đúng ${right}/${n} câu`, dur);
       stage.innerHTML = `
         <div style="background:#fff;color:#000;border:1px solid #d8cfc0;border-radius:12px;padding:16px">
           <b style="font-size:18px">Kết quả: đúng ${right}/${n} câu — điểm ${Math.round(right / n * 100) / 10}/10</b>
