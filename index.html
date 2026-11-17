@@ -1880,13 +1880,24 @@ function morseGapMs(units, unit){
   if (units <= 3) return unit * g[2];
   return unit * g[3];
 }
+/* v69 (thầy dặn 17/11): khoảng ngắt TRONG ký tự ngay sau
+   ÂM TÈ phải NGHE ngắn bằng sau âm tích. Về mili-giây, các
+   bản trước đã đặt hai khoảng ngắt BẰNG NHAU (đo bản phát
+   thật: lặng 75 ms sau tích và 75 ms sau tè ở Còi lá), nhưng
+   tai nghe sau một tiếng dài bị "che" (forward masking) nên
+   cảm thấy khoảng lặng sau tè DÀI hơn — người thổi thật
+   cũng tự cắt ngắn hơn sau tè (đo file Còi lá của thầy:
+   trung vị lặng sau tè 58 ms so với 72 ms sau tích). Vì vậy
+   ngắt bậc 1 ngay sau âm tè được rút còn 85% để hai khoảng
+   ngắt NGHE đều nhau; ngắt sau âm tích giữ nguyên. */
+const DASH_GAP_TRIM = 0.85;
 function playLetterTone(code, wpm, lampEl, done){
   audioInit();
   if (!whistleBuf && !playLetterTone._wg){ playLetterTone._wg = true; whenWhistleReady(() => playLetterTone(code, wpm, lampEl, done)); return; }
   playLetterTone._wg = false;
   const unit = 1200 / wpm;
   const seq = [];
-  [...code].forEach((el, i) => { seq.push({on:true, ms: el === "." ? unit : 3*unit, dash: el !== "."}); if (i < code.length-1) seq.push({on:false, ms: morseGapMs(1, unit)}); });
+  [...code].forEach((el, i) => { seq.push({on:true, ms: el === "." ? unit : 3*unit, dash: el !== "."}); if (i < code.length-1) seq.push({on:false, ms: morseGapMs(1, unit) * (el === "." ? 1 : DASH_GAP_TRIM)}); });
   let i = 0;
   (function next(){
     if (i >= seq.length){ beep(false); setLamp(lampEl, false); if (done) done(); return; }
@@ -2032,22 +2043,30 @@ function playMorseStep(){
   const ev = player.events[player.idx++];
   if (ev.gate){ showReadyGate(); return; }
   const unit = 1200 / parseFloat($("wpmRange").value);
+  let waitMs;
   if (ev.on){
     const isDash = ev.dash || ev.units === 3;
     beep(true, isDash); setLamp($("lamp"), true);
+    player.prevOnDash = !!isDash || !!ev.longBlast;
     if (showEffective()){ $("nowChar").textContent = ev.ch; $("nowCode").textContent = disp(ev.code); }
     else { $("nowChar").textContent = ""; $("nowCode").textContent = ""; }
     setProgress(ev.charNo, player.total);
+    waitMs = ev.longBlast ? Math.max(900, 4 * unit) : ev.units * unit;
   } else {
     setLamp($("lamp"), false, false);
     /* Ngắt TRONG ký tự (bậc 1) và giữa các lần NW/AR (bậc 2):
        cắt lưỡi trên cùng MỘT hơi thổi liên tục. Ngắt GIỮA
        ký tự / giữa từ (bậc 3, 7): tắt hẳn, ký tự sau mở hơi
-       mới — đúng cách người thổi trong file chuẩn. */
-    if (ev.units <= 2) toneArticulate(morseGapMs(ev.units, unit));
+       mới — đúng cách người thổi trong file chuẩn.
+       Riêng ngắt bậc 1 NGAY SAU ÂM TÈ: rút ngắn còn
+       DASH_GAP_TRIM (85%) — xem chú thích ở morseGapMs. */
+    let gapMs = morseGapMs(ev.units, unit);
+    if (ev.units <= 1 && player.prevOnDash) gapMs *= DASH_GAP_TRIM;
+    if (ev.units <= 2) toneArticulate(gapMs);
     else beep(false);
+    waitMs = gapMs;
   }
-  player.timer = setTimeout(playMorseStep, ev.longBlast ? Math.max(900, 4 * unit) : (ev.on ? ev.units * unit : morseGapMs(ev.units, unit)));
+  player.timer = setTimeout(playMorseStep, waitMs);
 }
 function playSemStep(){
   if (!player.playing || player.paused) return;
@@ -2723,7 +2742,7 @@ renderHistory();
 
 
   <script src="app-config.js?v=29"></script>
-<script src="knot-images.js?v=68"></script>
-<script type="module" src="auth-layer.js?v=68"></script>
+<script src="knot-images.js?v=69"></script>
+<script type="module" src="auth-layer.js?v=69"></script>
 </body>
 </html>
