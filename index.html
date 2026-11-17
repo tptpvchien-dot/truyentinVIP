@@ -1780,49 +1780,84 @@ function audioInit(){
   } catch(e){ AC = null; }
 }
 function baseFreq(isDash){ return aidPitch ? (isDash ? AID_DASH : AID_DOT) : whistleF; }
-function beep(on, isDash){
+/* ============================================================
+   CƠ CHẾ THỔI LIÊN TỤC (v64 — theo đúng cách người thổi):
+   trong MỘT ký tự, còi thổi MỘT HƠI liền mạch: nguồn âm
+   chạy liên tục từ tiếng đầu tới tiếng cuối của ký tự,
+   giữa các tiếng chỉ "cắt lưỡi" bằng một nhát cắt (dip):
+   gain hạ xuống 0 trong 4 ms, giữ im lặng, nâng lại trong
+   4 ms — tất cả lên lịch trên ĐỒNG HỒ ÂM THANH nên chính
+   xác tuyệt đối, không lệ thuộc hẹn giờ JavaScript. Nhờ
+   vậy các tiếng trong ký tự LIÊN TỤC như người thổi (hết
+   cảm giác mỗi tiếng là một lần thổi rời, ngắt quãng) và
+   mọi khoảng ngắt dài bằng nhau tuyệt đối dù là .., .-,
+   -. hay --. Phần im lặng tuyệt đối của nhát cắt = khoảng
+   nghỉ − 8 ms, khớp số đo file chuẩn (Còi tròn: nghỉ
+   94 ms thì im lặng ~87 ms; Còi lá: 58 ms thì ~50 ms).
+   Hết ký tự mới tắt hẳn (nhả tiếng theo profile của loại
+   còi) và ký tự sau mở bằng một hơi mới, đúng như file.
+   ============================================================ */
+let toneRun = false;
+function toneStart(isDash){
   if (!AC) return;
   if (AC.state === "suspended") AC.resume();
   if (!whistleBuf || !sampleGain) { loadWhistleSample(); return; }
+  lastWasDash = !!isDash;
+  if (toneRun && curSrc){
+    /* Đang trong một hơi liên tục: tiếng sau nối ngay trên
+       cùng nguồn âm (không thổi lại từ đầu, không lặp lại
+       đoạn mở đầu của mẫu) — chỉ đổi tốc độ phát mẫu khi
+       công tắc hỗ trợ bước đầu yêu cầu. */
+    try { curSrc.playbackRate.setTargetAtTime(baseFreq(isDash) / whistleProfile().ref, AC.currentTime, 0.005); } catch(e){}
+    return;
+  }
   const t = AC.currentTime;
   const g = sampleGain.gain;
-  if (on){
-    lastWasDash = !!isDash;
-    if (curSrc){ try { curSrc.stop(t); } catch(e){} curSrc = null; }
-    if (tailSrc){ try { tailSrc.stop(t); } catch(e){} tailSrc = null; }
-    const src = AC.createBufferSource();
-    src.buffer = whistleBuf;
-    src.loop = true; src.loopStart = whistleProfile().loop[0]; src.loopEnd = whistleProfile().loop[1];
-    src.playbackRate.value = baseFreq(isDash) / whistleProfile().ref;
-    src.connect(sampleGain);
-    g.cancelScheduledValues(t);
-    /* Neo gain từ ĐÚNG 0 (không đọc g.value — tránh lệch nhịp
-       tự động hoá của trình duyệt) để tiếng nào cũng bắt đầu
-       từ cùng một mức im lặng. */
-    g.setValueAtTime(0, t);
-    g.linearRampToValueAtTime(SAMPLE_GAIN, t + 0.002);
-    src.start(t);
-    curSrc = src;
-  } else {
-    /* Ngắt tiếng: MỘT release duy nhất 6 ms cho cả tích lẫn
-       te (trước đây tích 5 ms / te 8 ms làm khoảng nghỉ NGHE
-       ĐƯỢC khác nhau tuỳ tiếng đứng trước — thầy bắt lỗi
-       nghỉ giữa -- / .. khác với -.). Nguồn âm dừng ĐÚNG lúc
-       gain về 0, không chừa đuôi 30 ms như trước (đuôi đó tràn
-       sang tiếng sau ở tốc độ nhanh, làm nghỉ bị "lấp" không
-       đều). Nhờ vậy mọi khoảng nghỉ trong cùng ký tự đều dài
-       bằng nhau tuyệt đối. */
-    /* Nhả tiếng theo đúng file chuẩn của loại còi đang chọn
-       (Còi lá 6 ms, Còi tròn 14 ms như đo trong file của nó);
-       vẫn là MỘT mức chung cho cả tích lẫn te để khoảng nghỉ
-       nghe được bằng nhau tuyệt đối. */
-    const rel = whistleProfile().rel;
-    g.cancelScheduledValues(t);
-    g.setValueAtTime(g.value, t);
-    g.linearRampToValueAtTime(0, t + rel);
-    if (curSrc){ const s = curSrc; curSrc = null; tailSrc = s; try { s.stop(t + rel); } catch(e){} }
-  }
+  if (curSrc){ try { curSrc.stop(t); } catch(e){} curSrc = null; }
+  if (tailSrc){ try { tailSrc.stop(t); } catch(e){} tailSrc = null; }
+  const src = AC.createBufferSource();
+  src.buffer = whistleBuf;
+  src.loop = true; src.loopStart = whistleProfile().loop[0]; src.loopEnd = whistleProfile().loop[1];
+  src.playbackRate.value = baseFreq(isDash) / whistleProfile().ref;
+  src.connect(sampleGain);
+  g.cancelScheduledValues(t);
+  /* Neo gain từ ĐÚNG 0 để hơi mới nào cũng bắt đầu từ cùng
+     một mức im lặng. */
+  g.setValueAtTime(0, t);
+  g.linearRampToValueAtTime(SAMPLE_GAIN, t + 0.002);
+  src.start(t);
+  curSrc = src;
+  toneRun = true;
 }
+function toneArticulate(gapMs){
+  if (!AC || !sampleGain || !toneRun) return;
+  const t = AC.currentTime;
+  const g = sampleGain.gain;
+  const fall = 0.004, rise = 0.004;
+  const holdEnd = t + Math.max(fall, gapMs / 1000 - rise);
+  g.cancelScheduledValues(t);
+  g.setValueAtTime(SAMPLE_GAIN, t);
+  g.linearRampToValueAtTime(0, t + fall);
+  g.setValueAtTime(0, holdEnd);
+  g.linearRampToValueAtTime(SAMPLE_GAIN, holdEnd + rise);
+}
+function toneStop(){
+  if (!AC || !sampleGain) return;
+  const t = AC.currentTime;
+  const g = sampleGain.gain;
+  /* Nhả tiếng theo đúng file chuẩn của loại còi đang chọn
+     (Còi lá 6 ms, Còi tròn 14 ms như đo trong file của nó);
+     vẫn là MỘT mức chung cho cả tích lẫn te. Nguồn âm dừng
+     ĐÚNG lúc gain về 0, không chừa đuôi 30 ms như các bản
+     rất cũ (đuôi tràn sang tiếng sau làm nghỉ bị lấp). */
+  const rel = whistleProfile().rel;
+  g.cancelScheduledValues(t);
+  g.setValueAtTime(g.value, t);
+  g.linearRampToValueAtTime(0, t + rel);
+  if (curSrc){ const s = curSrc; curSrc = null; tailSrc = s; try { s.stop(t + rel); } catch(e){} }
+  toneRun = false;
+}
+function beep(on, isDash){ if (on) toneStart(isDash); else toneStop(); }
 function setLamp(lampEl, on){
   lampEl.classList.toggle("on", !!on);
   lampEl.classList.remove("dash");
@@ -1856,7 +1891,10 @@ function playLetterTone(code, wpm, lampEl, done){
   (function next(){
     if (i >= seq.length){ beep(false); setLamp(lampEl, false); if (done) done(); return; }
     const s = seq[i++];
-    beep(s.on, s.dash); setLamp(lampEl, s.on);
+    /* Trong một chữ: thổi liên tục một hơi, giữa các tiếng
+       chỉ cắt lưỡi (toneArticulate) — hết chữ mới tắt hẳn. */
+    if (s.on) beep(true, s.dash); else toneArticulate(s.ms);
+    setLamp(lampEl, s.on);
     setTimeout(next, s.ms);
   })();
 }
@@ -2000,7 +2038,15 @@ function playMorseStep(){
     if (showEffective()){ $("nowChar").textContent = ev.ch; $("nowCode").textContent = disp(ev.code); }
     else { $("nowChar").textContent = ""; $("nowCode").textContent = ""; }
     setProgress(ev.charNo, player.total);
-  } else { signalOff(); }
+  } else {
+    setLamp($("lamp"), false, false);
+    /* Ngắt TRONG ký tự (bậc 1) và giữa các lần NW/AR (bậc 2):
+       cắt lưỡi trên cùng MỘT hơi thổi liên tục. Ngắt GIỮA
+       ký tự / giữa từ (bậc 3, 7): tắt hẳn, ký tự sau mở hơi
+       mới — đúng cách người thổi trong file chuẩn. */
+    if (ev.units <= 2) toneArticulate(morseGapMs(ev.units, unit));
+    else beep(false);
+  }
   player.timer = setTimeout(playMorseStep, ev.longBlast ? Math.max(900, 4 * unit) : (ev.on ? ev.units * unit : morseGapMs(ev.units, unit)));
 }
 function playSemStep(){
@@ -2677,6 +2723,6 @@ renderHistory();
 
 
   <script src="app-config.js?v=29"></script>
-<script type="module" src="auth-layer.js?v=63"></script>
+<script type="module" src="auth-layer.js?v=64"></script>
 </body>
 </html>
