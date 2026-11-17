@@ -1617,6 +1617,21 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
   tr.querySelector('[data-a="edit"]').addEventListener("click", () => { showBlock("edit"); renderQuizSetPicker(); });
   detail.querySelector('[data-ed="hide"]').addEventListener("click", () => { detail.style.display = "none"; });
   detail.querySelector('[data-ed="reset"]').addEventListener("click", () => { tr.querySelector('[data-a="reset"]').click(); });
+  /* Đồng bộ ô ngày hết hạn với ô "Hạn vĩnh viễn" (v76): trước
+     đây hai ô độc lập — tài khoản đang vĩnh viễn thì ô "Hạn
+     vĩnh viễn" được tích sẵn, thầy chọn ngày mới nhưng ô tích
+     vẫn còn nên khi lưu, ngày bị bỏ qua và hạn vẫn là vĩnh
+     viễn. Nay: chọn ngày thì tự bỏ tích "vĩnh viễn"; tích
+     "vĩnh viễn" thì ô ngày mờ đi để thấy rõ trạng thái. */
+  const expDateEl = detail.querySelector('[data-ed="expdate"]');
+  const expForeverEl = detail.querySelector('[data-ed="expforever"]');
+  if (expDateEl && expForeverEl) {
+    const syncExp = () => { expDateEl.disabled = expForeverEl.checked; expDateEl.style.opacity = expForeverEl.checked ? "0.45" : ""; };
+    expDateEl.addEventListener("change", () => { if (expDateEl.value) expForeverEl.checked = false; syncExp(); });
+    expDateEl.addEventListener("input", () => { if (expDateEl.value) expForeverEl.checked = false; syncExp(); });
+    expForeverEl.addEventListener("change", syncExp);
+    syncExp();
+  }
   detail.querySelector('[data-ed="save"]').addEventListener("click", () => {
     const q = (s) => detail.querySelector(s);
     const msg = q('[data-ed="msg"]');
@@ -1653,7 +1668,11 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
     const roleEl = q('[data-ed="role"]');
     if (roleEl) data.role = roleEl.value;
     if (q('[data-ed="expforever"]').checked) data.expiry = null;
-    else { const dv = q('[data-ed="expdate"]').value; if (dv) data.expiry = dv; }
+    else {
+      const dv = q('[data-ed="expdate"]').value;
+      if (!dv) { msg.textContent = "Thầy chưa chọn ngày hết hạn — chọn ngày ở ô “Hạn dùng đến ngày”, hoặc tích lại ô “Hạn vĩnh viễn” rồi bấm lưu."; return; }
+      data.expiry = dv;
+    }
     upd(data);
   });
   tr.querySelector('[data-a="del"]').addEventListener("click", async () => {
