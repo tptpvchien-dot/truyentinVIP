@@ -73,6 +73,14 @@ style.textContent = `
 .tq-img{max-width:100%;max-height:300px;display:block;margin:8px auto;border-radius:8px;background:#fff}
 .tq-vid{width:100%;max-width:480px;aspect-ratio:16/9;display:block;margin:8px auto;border:0;border-radius:8px;background:#000}
 .tq-aud{width:100%;max-width:420px;display:block;margin:8px auto}
+.tt-edsec{background:#fff;border:1px solid #e3d9c6;border-radius:10px;padding:10px 12px;margin-top:10px}
+.tt-edsec-t{font-weight:700;font-size:13.5px;margin-bottom:8px;color:#5b4a2f}
+.tt-edgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 12px}
+.tt-chips{display:flex;gap:8px;flex-wrap:wrap}
+.tt-chip{display:inline-flex;align-items:center;gap:6px;background:#f7f2e7;border:1.5px solid #ddd0b8;border-radius:999px;padding:5px 12px 5px 9px;cursor:pointer;font-size:13.5px}
+.tt-chip input{width:16px;height:16px;margin:0}
+.tt-chip:has(input:checked){background:#e3f2e6;border-color:#1d9d55;font-weight:600}
+.tt-accrow{display:flex;justify-content:space-between;gap:6px 14px;padding:6px 0;border-top:1px solid #eee;font-size:13.5px;flex-wrap:wrap}
 .tt-opt:hover{border-color:#0b5cad}
 .tt-opt.ok{background:#e2f4e5;border-color:#1d9d55}
 .tt-opt.bad{background:#fdecea;border-color:#c0392b}
@@ -249,6 +257,65 @@ function addDaysStr(base, days) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
 function isExpired(p) { return p && p.expiry && p.expiry < todayStr(); }
+/* ---- Lịch sử TRUY CẬP / đăng nhập (v77) ----
+   Mỗi lần một tài khoản đăng nhập thành công và được mở
+   cổng vào ứng dụng, hệ thống ghi 1 lượt vào collection
+   "accessLog" (giờ, tên thiết bị, địa chỉ IP) — mỗi phiên
+   trình duyệt chỉ ghi 1 lượt. Quản trị xem lại trong panel
+   thành viên (nút "Truy cập"), lọc theo ngày/tuần/tháng và
+   xoá được toàn bộ. Địa chỉ IP lấy qua dịch vụ tra IP công
+   cộng (trang tĩnh không tự thấy được IP người dùng); tra
+   không được thì lượt vẫn ghi, IP để trống. */
+function fmtDateTime(ts) { const d = new Date(ts); const p = (n) => String(n).padStart(2, "0"); return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} · ${p(d.getHours())}:${p(d.getMinutes())}`; }
+function accInPeriod(ts, period, now) {
+  if (!ts) return false;
+  const d = new Date(ts), n = new Date(now);
+  if (period === "day") return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+  if (period === "month") return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth();
+  if (period === "week") { const back = (n.getDay() + 6) % 7; const monday = new Date(n.getFullYear(), n.getMonth(), n.getDate() - back).getTime(); return ts >= monday && ts <= now; }
+  return true;
+}
+async function parseDeviceName() {
+  const ua = navigator.userAgent || "";
+  let os = "Không rõ hệ điều hành";
+  if (/Android/.test(ua)) os = "Android";
+  else if (/iPhone|iPad|iPod/.test(ua)) os = "iOS";
+  else if (/Windows/.test(ua)) os = "Windows";
+  else if (/Macintosh|Mac OS/.test(ua)) os = "macOS";
+  else if (/Linux/.test(ua)) os = "Linux";
+  let br = "Trình duyệt khác";
+  if (/Edg\//.test(ua)) br = "Edge";
+  else if (/OPR\/|Opera/.test(ua)) br = "Opera";
+  else if (/CocCoc\//.test(ua)) br = "Cốc Cốc";
+  else if (/Firefox\//.test(ua)) br = "Firefox";
+  else if (/Chrome\//.test(ua)) br = "Chrome";
+  else if (/Safari\//.test(ua)) br = "Safari";
+  let model = "";
+  if (/iPhone/.test(ua)) model = "iPhone";
+  else if (/iPad/.test(ua)) model = "iPad";
+  else if (/Android/.test(ua)) { const mm = ua.match(/Android[^;]*;\s*([^;)]+)/); if (mm) model = mm[1].split(" Build")[0].trim(); if (model.length < 3) model = ""; }
+  if (!model && navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+    try { const h = await navigator.userAgentData.getHighEntropyValues(["model"]); if (h && h.model) model = String(h.model); } catch (e) {}
+  }
+  return (model ? model + " · " : "") + br + " trên " + os;
+}
+async function recordAccess() {
+  try {
+    if (!currentUser || !myProfile) return;
+    if (sessionStorage.getItem("tt_acc_v77")) return;
+    sessionStorage.setItem("tt_acc_v77", "1");
+    const device = await parseDeviceName();
+    let ip = "";
+    try {
+      const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 2500);
+      const r = await fetch("https://api.ipify.org?format=json", { signal: ctl.signal });
+      clearTimeout(to);
+      const j = await r.json();
+      if (j && j.ip) ip = String(j.ip);
+    } catch (e) { ip = ""; }
+    await addDoc(collection(db, "accessLog"), { uid: currentUser.uid, username: myProfile.username || "", ts: Date.now(), device, ip, at: serverTimestamp() });
+  } catch (e) { /* ghi nhật ký truy cập lỗi thì bỏ qua — tuyệt đối không chặn đăng nhập */ }
+}
 
 async function handleAuthUser(user) {
   authOutcome = true;
@@ -500,6 +567,7 @@ function grantAccess() {
   syncHistory();
   setInterval(syncHistory, 20000);
   startHistWatch();
+  recordAccess();
 }
 
 /* Dòng phụ dưới tên người dùng: HS -> "Lớp 6A6, trường X";
@@ -1520,6 +1588,7 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
       <button data-a="toggle">${m.status === "active" ? "Khoá" : "Mở"}</button>
       <button data-a="exp">Hạn</button>
       <button data-a="hist">Lịch sử</button>
+      <button data-a="access">Truy cập</button>
       <button data-a="delhist" class="danger">Xoá lịch sử</button>
       <button data-a="reset">Đặt lại MK</button>
       <button data-a="del" class="danger">Xoá</button>
@@ -1539,29 +1608,43 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
     </div>
     <div data-block="edit" style="display:none">
       <b>Sửa thông tin của ${esc(m.username || "")} — tất cả các trường</b>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:8px">
+      <div class="tt-edsec">
+        <div class="tt-edsec-t">👤 Thông tin chung</div>
+        <div class="tt-edgrid">
         <div class="tt-field" style="margin:0"><label>Họ và tên</label><input data-ed="name" value="${esc(m.name || "")}"></div>
         <div class="tt-field" style="margin:0"><label>Biệt danh (chỉ quản trị đặt — người dùng không tự sửa được)</label><input data-ed="nick" value="${esc(m.nickname || "")}"></div>
         <div class="tt-field" style="margin:0"><label>Email (nhận thư duyệt tài khoản)</label><input data-ed="email" type="email" value="${esc(m.email || "")}"></div>
         ${role === "GV" ? "" : `<div class="tt-field" style="margin:0"><label>Lớp</label><input data-ed="cls" value="${esc(m.className || "")}"></div>`}
         ${role === "QT" ? `<div class="tt-field" style="margin:0"><label>Vai trò</label><input value="Quản trị" disabled></div>` : `<div class="tt-field" style="margin:0"><label>Vai trò</label><select data-ed="role" style="width:100%;padding:8px;border:1.5px solid #ccd;border-radius:8px"><option value="HS"${role === "HS" ? " selected" : ""}>HS</option><option value="GV"${role === "GV" ? " selected" : ""}>GV</option></select></div>`}
         <div class="tt-field" style="margin:0"><label>Trường</label><select data-ed="school" style="width:100%;padding:8px;border:1.5px solid #ccd;border-radius:8px"><option value="">— Chưa gán —</option>${schools.map((s) => `<option value="${s.id}"${m.schoolId === s.id ? " selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div>
-        <div class="tt-field" style="margin:0"><label>Hạn dùng đến ngày</label><input data-ed="expdate" type="date" value="${m.expiry || ""}"></div>
-        <div class="tt-field" style="margin:0"><label>Quyền và hạn dùng</label><div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:7px">
-          <label style="cursor:pointer"><input type="checkbox" data-ed="ai" ${m.aiEnabled ? "checked" : ""}> AI</label>
-          <label style="cursor:pointer"><input type="checkbox" data-ed="shared" ${m.useSharedKeys ? "checked" : ""}> Key chung</label>
-          <label style="cursor:pointer"><input type="checkbox" data-ed="claude" ${m.useClaudeBank ? "checked" : ""}> Kho Muse</label>
-          <label style="cursor:pointer"><input type="checkbox" data-ed="expforever" ${!m.expiry ? "checked" : ""}> Hạn vĩnh viễn</label>
-        </div></div>
-        <div class="tt-field" style="margin:0"><label>Phân quyền chức năng (được quyền nào thì thấy menu của chức năng đó)</label><div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:7px">
-          <label style="cursor:pointer"><input type="checkbox" data-ed="fmorse" ${m.featMorse !== false ? "checked" : ""}> Morse</label>
-          <label style="cursor:pointer"><input type="checkbox" data-ed="fsem" ${m.featSemaphore !== false ? "checked" : ""}> Semaphore</label>
-          <label style="cursor:pointer"><input type="checkbox" data-ed="ftrail" ${m.featTrail === true ? "checked" : ""}> Dấu đi đường</label>
-          <label style="cursor:pointer"><input type="checkbox" data-ed="fcipher" ${m.featCipher === true ? "checked" : ""}> Mật thư</label>
-          <label style="cursor:pointer"><input type="checkbox" data-ed="fknot" ${m.featKnot === true ? "checked" : ""}> Nút dây</label>
-          <label style="cursor:pointer"><input type="checkbox" data-ed="fquiz" ${(m.featQuiz === true || (m.featQuiz === undefined && m.featTrail === true)) ? "checked" : ""}> Trắc nghiệm kiến thức chung</label>
-        </div></div>
-        <div class="tt-field" style="margin:0" data-ed="quizsetsfield"><label>Bộ đề thi trắc nghiệm (chọn 1 hoặc nhiều bộ — chỉ dùng khi đã tích quyền Trắc nghiệm ở trên)</label><div data-ed="quizsets" style="display:flex;gap:10px;flex-wrap:wrap;padding-top:7px">Đang đọc các bộ đề…</div></div>
+        </div>
+      </div>
+      <div class="tt-edsec">
+        <div class="tt-edsec-t">⏳ Hạn dùng</div>
+        <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+          <div class="tt-field" style="margin:0;min-width:190px"><label>Hạn dùng đến ngày</label><input data-ed="expdate" type="date" value="${m.expiry || ""}"></div>
+          <label class="tt-chip" style="margin-bottom:2px"><input type="checkbox" data-ed="expforever" ${!m.expiry ? "checked" : ""}> Hạn vĩnh viễn</label>
+        </div>
+      </div>
+      <div class="tt-edsec">
+        <div class="tt-edsec-t">🤖 Quyền AI & kho dữ liệu</div>
+        <div class="tt-chips">
+          <label class="tt-chip"><input type="checkbox" data-ed="ai" ${m.aiEnabled ? "checked" : ""}> AI</label>
+          <label class="tt-chip"><input type="checkbox" data-ed="shared" ${m.useSharedKeys ? "checked" : ""}> Key chung</label>
+          <label class="tt-chip"><input type="checkbox" data-ed="claude" ${m.useClaudeBank ? "checked" : ""}> Kho Muse</label>
+        </div>
+      </div>
+      <div class="tt-edsec">
+        <div class="tt-edsec-t">🧩 Phân quyền chức năng <span style="font-weight:400;color:#777;font-size:12.5px">(được quyền nào thì thấy menu của chức năng đó)</span></div>
+        <div class="tt-chips">
+          <label class="tt-chip"><input type="checkbox" data-ed="fmorse" ${m.featMorse !== false ? "checked" : ""}> Morse</label>
+          <label class="tt-chip"><input type="checkbox" data-ed="fsem" ${m.featSemaphore !== false ? "checked" : ""}> Semaphore</label>
+          <label class="tt-chip"><input type="checkbox" data-ed="ftrail" ${m.featTrail === true ? "checked" : ""}> Dấu đi đường</label>
+          <label class="tt-chip"><input type="checkbox" data-ed="fcipher" ${m.featCipher === true ? "checked" : ""}> Mật thư</label>
+          <label class="tt-chip"><input type="checkbox" data-ed="fknot" ${m.featKnot === true ? "checked" : ""}> Nút dây</label>
+          <label class="tt-chip"><input type="checkbox" data-ed="fquiz" ${(m.featQuiz === true || (m.featQuiz === undefined && m.featTrail === true)) ? "checked" : ""}> Trắc nghiệm kiến thức chung</label>
+        </div>
+        <div class="tt-field" style="margin:10px 0 0" data-ed="quizsetsfield"><label>Bộ đề thi trắc nghiệm (chọn 1 hoặc nhiều bộ — chỉ dùng khi đã tích quyền Trắc nghiệm ở trên)</label><div data-ed="quizsets" style="display:flex;gap:10px;flex-wrap:wrap;padding-top:7px">Đang đọc các bộ đề…</div></div>
       </div>
       <p class="tt-note" style="margin:8px 0 0">Bảng này hiện TẤT CẢ các trường cùng lúc — sửa xong bấm Lưu một lần. Trạng thái tài khoản dùng nút <b>Mở/Khoá</b> ở hàng (bấm Mở là thư duyệt gửi ngay cho người dùng). <b>Mật khẩu</b> không sửa trực tiếp tại đây được — Google không cho trang web đổi mật khẩu của tài khoản khác; thầy dùng nút <b>Đặt lại mật khẩu…</b> bên dưới (hướng dẫn 3 bước).</p>
       <div class="tt-acts" style="margin-top:8px">
@@ -1574,6 +1657,7 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
     <div data-block="hist" style="display:none"><div class="tt-histbox"></div></div>
     <div data-block="delhist" style="display:none"><div class="tt-histbox"></div></div>
     <div data-block="reset" style="display:none"><div class="tt-histbox"></div></div>
+    <div data-block="access" style="display:none"><div class="tt-histbox"></div></div>
   </td>`;
   const showBlock = (name) => {
     detail.style.display = "";
@@ -1721,6 +1805,45 @@ function memberRows(members, schools, adminsSet, m, schoolName) {
     } catch (e) { box.innerHTML = esc(errText(e.code)); }
   };
   tr.querySelector('[data-a="hist"]').addEventListener("click", () => { showBlock("hist"); loadHistBox(); });
+  /* Lịch sử TRUY CẬP (đăng nhập) của tài khoản (v77): lọc
+     theo Tất cả / Hôm nay / Tuần này / Tháng này; mỗi lượt
+     gồm thời gian, thiết bị và địa chỉ IP; quản trị xoá
+     được toàn bộ lịch sử truy cập của tài khoản này. */
+  let accessItems = null;
+  const loadAccessBox = async (period) => {
+    const box = detail.querySelector('[data-block="access"] .tt-histbox');
+    if (!box) return;
+    if (accessItems === null) {
+      box.innerHTML = "Đang tải lịch sử truy cập…";
+      try {
+        const snap = await getDocs(query(collection(db, "accessLog"), where("uid", "==", m.uid)));
+        accessItems = [];
+        snap.forEach((d) => { const x = d.data() || {}; accessItems.push({ id: d.id, ts: x.ts || 0, device: x.device || "", ip: x.ip || "" }); });
+        accessItems.sort((a, b) => b.ts - a.ts);
+      } catch (e) { box.innerHTML = "<div class='tt-hist'>Chưa đọc được lịch sử truy cập. Nếu thầy chưa dán rules bản v77 thì cần cập nhật rules trước (file firestore.rules trong gói v77).</div>"; return; }
+    }
+    const now = Date.now();
+    const counts = { all: accessItems.length, day: 0, week: 0, month: 0 };
+    accessItems.forEach((it) => { if (accInPeriod(it.ts, "day", now)) counts.day++; if (accInPeriod(it.ts, "week", now)) counts.week++; if (accInPeriod(it.ts, "month", now)) counts.month++; });
+    const shown = period === "all" ? accessItems : accessItems.filter((it) => accInPeriod(it.ts, period, now));
+    const chip = (p, label, n) => `<button data-accf="${p}" style="border:1.5px solid ${period === p ? "#0b5cad" : "#ddd0b8"};background:${period === p ? "#e8f1fa" : "#fff"};border-radius:999px;padding:4px 12px;cursor:pointer;font-weight:${period === p ? "700" : "400"}">${label} (${n})</button>`;
+    box.innerHTML = `
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0 8px"><b>🕘 Lịch sử truy cập của ${esc(m.username || "")}:</b> ${chip("all", "Tất cả", counts.all)} ${chip("day", "Hôm nay", counts.day)} ${chip("week", "Tuần này", counts.week)} ${chip("month", "Tháng này", counts.month)}</div>
+      ${accessItems.length ? `<div class="tt-acts" style="margin:0 0 6px"><button data-accdel="1" class="danger">🗑 Xoá toàn bộ lịch sử truy cập</button></div>` : ""}
+      ${shown.length ? shown.slice(0, 100).map((it) => `<div class="tt-accrow"><span>🗓 ${esc(fmtDateTime(it.ts))}</span><span>📱 ${esc(it.device || "Không rõ thiết bị")}</span><span>🌐 IP: ${esc(it.ip || "—")}</span></div>`).join("") + (shown.length > 100 ? `<div class="tt-hist">… và ${shown.length - 100} lượt cũ hơn (chỉ hiện 100 lượt gần nhất).</div>` : "") : `<div class="tt-hist">${accessItems.length ? "Không có lượt truy cập nào trong khoảng này." : "Chưa có lượt truy cập nào được ghi. Lịch sử truy cập chỉ bắt đầu ghi từ khi ứng dụng chạy bản v77 (mỗi lần tài khoản đăng nhập thành công, hệ thống ghi 1 lượt trong phiên đó)."}</div>`}`;
+    box.querySelectorAll("[data-accf]").forEach((b) => b.addEventListener("click", () => loadAccessBox(b.dataset.accf)));
+    const delBtn = box.querySelector("[data-accdel]");
+    if (delBtn) delBtn.addEventListener("click", async () => {
+      if (!confirm("Xoá TOÀN BỘ lịch sử truy cập của " + m.username + "? Xoá xong không lấy lại được.")) return;
+      delBtn.disabled = true; delBtn.textContent = "Đang xoá…";
+      try {
+        for (let i = 0; i < accessItems.length; i += 20) await Promise.all(accessItems.slice(i, i + 20).map((it) => deleteDoc(doc(db, "accessLog", it.id))));
+        accessItems = [];
+        loadAccessBox("all");
+      } catch (e) { alert(errText(e.code)); delBtn.disabled = false; }
+    });
+  };
+  tr.querySelector('[data-a="access"]').addEventListener("click", () => { showBlock("access"); loadAccessBox("all"); });
   tr.querySelector('[data-a="delhist"]').addEventListener("click", async () => {
     showBlock("delhist");
     const box = detail.querySelector('[data-block="delhist"] .tt-histbox');
