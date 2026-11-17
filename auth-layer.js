@@ -3064,7 +3064,7 @@ async function openTrailQuiz() {
         else msgEl.innerHTML = `<span style="color:#1d9d55"><b>Đọc được ${parsed.length} câu hợp lệ.</b></span>`;
         if (res.warnings.length) msgEl.innerHTML += `<div style="color:#b26a00;margin-top:4px">${res.warnings.slice(0, 6).map((w) => "• " + esc(w)).join("<br>")}${res.warnings.length > 6 ? "<br>• … và " + (res.warnings.length - 6) + " cảnh báo nữa" : ""}</div>`;
         if (parsed.length) {
-          prevEl.innerHTML = `<div style="margin-top:8px"><b>Xem trước 3 câu đầu:</b>${parsed.slice(0, 3).map((q, i) => `<div style="background:#fff;border:1px solid #e3d9c6;border-radius:8px;padding:8px 10px;margin-top:6px;color:#000"><b>Câu ${i + 1}:</b> ${tqHtml(q.q, q.imgs)}<br>${q.opts.map((o, j) => (j === q.correct ? `<b style="color:#1d9d55">${LETTERS[j]}. ${tqHtml(o, q.imgs)} ✓</b>` : `${LETTERS[j]}. ${tqHtml(o, q.imgs)}`)).join("<br>")}</div>`).join("")}
+          prevEl.innerHTML = `<div style="margin-top:8px"><b>Xem trước toàn bộ đề (${parsed.length} câu):</b><div style="max-height:65vh;overflow-y:auto;padding-right:4px">${parsed.map((q, i) => `<div style="background:#fff;border:1px solid #e3d9c6;border-radius:8px;padding:8px 10px;margin-top:6px;color:#000"><b>Câu ${i + 1}:</b> ${tqHtml(q.q, q.imgs)}<br>${q.opts.map((o, j) => (j === q.correct ? `<b style="color:#1d9d55">${LETTERS[j]}. ${tqHtml(o, q.imgs)} ✓</b>` : `${LETTERS[j]}. ${tqHtml(o, q.imgs)}`)).join("<br>")}</div>`).join("")}</div>
           <button type="button" class="tt-btn" id="tqSave" style="margin-top:10px">💾 Lưu ${parsed.length} câu vào bộ đang chọn</button></div>`;
           prevEl.querySelector("#tqSave").addEventListener("click", async () => {
             const btn = prevEl.querySelector("#tqSave");
