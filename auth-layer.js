@@ -71,6 +71,8 @@ style.textContent = `
 .tt-modbar button.on{background:#0b5cad;color:#fff}
 .tt-opt{display:block;width:100%;text-align:left;padding:11px 13px;margin:7px 0;border:1.5px solid #c3d2e4;border-radius:10px;background:#f8fbff;font-size:15px;cursor:pointer}
 .tq-img{max-width:100%;max-height:300px;display:block;margin:8px auto;border-radius:8px;background:#fff}
+.tq-vid{width:100%;max-width:480px;aspect-ratio:16/9;display:block;margin:8px auto;border:0;border-radius:8px;background:#000}
+.tq-aud{width:100%;max-width:420px;display:block;margin:8px auto}
 .tt-opt:hover{border-color:#0b5cad}
 .tt-opt.ok{background:#e2f4e5;border-color:#1d9d55}
 .tt-opt.bad{background:#fdecea;border-color:#c0392b}
@@ -2701,9 +2703,14 @@ function openKnotDoc() {
    TRẮC NGHIỆM KIẾN THỨC CHUNG — ngân hàng câu hỏi trắc nghiệm
    (Firestore: collection "trailQuiz", mỗi câu thuộc một BỘ ĐỀ
    qua trường setId; collection "trailQuizSets" lưu các bộ đề).
-   Chỉ QUẢN TRỊ mới nhập được ngân hàng, từ file .docx theo
+   Chỉ QUẢN TRỊ mới nhập được ngân hàng: (1) từ file .docx theo
    định dạng: mỗi câu bắt đầu bằng "Câu N:", các phương án ghi
-   "A. ...", "B. ..." — phương án ĐÚNG được IN ĐẬM trong file.
+   "A. ...", "B. ..." — phương án ĐÚNG được IN ĐẬM trong file
+   (hình vẽ trong file được giữ nguyên, v72; xem trước toàn
+   bộ đề, v73); (2) NHẬP TAY từng câu (v74): gõ trực tiếp
+   trong panel, chèn được hình/video/âm thanh vào câu hỏi và
+   từng phương án (file từ máy hoặc dán link; thẻ [[IMGn]] /
+   [[VIDn]] / [[AUDn]] + mảng imgs/vids/auds trên doc câu).
    Học sinh Luyện tập từng câu (báo đúng/sai ngay) hoặc Kiểm
    tra: chọn ngẫu nhiên tối đa 50 câu trong ngân hàng, xáo trộn
    thứ tự phương án (mỗi lần làm lại khác), đếm ngược 30 phút,
@@ -2745,7 +2752,7 @@ function tqStopTimer() { if (tqTimerId) { clearInterval(tqTimerId); tqTimerId = 
 function tqMakeItems(bank, n) {
   return modShuffle(bank).slice(0, n).map((q) => {
     const order = modShuffle(q.opts.map((_, i) => i));
-    return { q: q.q, opts: order.map((i) => q.opts[i]), ci: order.indexOf(q.correct), imgs: q.imgs || [] };
+    return { q: q.q, opts: order.map((i) => q.opts[i]), ci: order.indexOf(q.correct), imgs: q.imgs || [], vids: q.vids || [], auds: q.auds || [] };
   });
 }
 /* --- Đọc file .docx: tách đoạn -> dòng, đo tỉ lệ chữ in đậm --- */
@@ -2845,11 +2852,62 @@ function parseQuizDocxXml(xml, imgMap) {
   return { questions, warnings };
 }
 /* Hiển thị nội dung câu hỏi/phương án: chữ được escape như
-   cũ, thẻ [[IMGn]] biến thành HÌNH THẬT lấy từ mảng imgs
-   của câu (hình giữ nguyên từ file đề, theo yêu cầu của
-   thầy 17/11 — không chuyển thành mô tả bằng chữ). */
-function tqHtml(text, imgs) {
-  return esc(text).replace(/\[\[IMG(\d+)\]\]/g, (_, i) => (imgs && imgs[+i]) ? `<img class="tq-img" src="${imgs[+i]}" alt="Hình trong đề thi">` : "");
+   cũ, các thẻ đa phương tiện biến thành nội dung thật lấy
+   từ chính câu hỏi (q.imgs / q.vids / q.auds): [[IMGn]] ->
+   hình, [[VIDn]] -> video, [[AUDn]] -> âm thanh. Hình giữ
+   nguyên từ file đề (v72) hoặc do thầy chèn khi nhập tay
+   (v74) — không chuyển thành mô tả bằng chữ. */
+function tqHtml(text, q) {
+  const media = q || {};
+  return esc(text)
+    .replace(/\[\[IMG(\d+)\]\]/g, (_, i) => (media.imgs && media.imgs[+i]) ? `<img class="tq-img" src="${esc(media.imgs[+i])}" alt="Hình trong đề thi">` : "")
+    .replace(/\[\[VID(\d+)\]\]/g, (_, i) => tqVidHtml(media.vids && media.vids[+i]))
+    .replace(/\[\[AUD(\d+)\]\]/g, (_, i) => tqAudHtml(media.auds && media.auds[+i]));
+}
+function tqVidHtml(src) {
+  if (!src) return "";
+  const u = esc(src);
+  if (u.includes("youtube.com/embed/") || u.includes("drive.google.com/file/")) return `<iframe class="tq-vid" src="${u}" allowfullscreen loading="lazy" title="Video trong đề thi"></iframe>`;
+  return `<video class="tq-vid" src="${u}" controls preload="metadata"></video>`;
+}
+function tqAudHtml(src) {
+  if (!src) return "";
+  const u = esc(src);
+  if (u.includes("drive.google.com/file/")) return `<iframe class="tq-aud" style="height:80px;border:0" src="${u}" loading="lazy" title="Âm thanh trong đề thi"></iframe>`;
+  return `<audio class="tq-aud" src="${u}" controls preload="metadata"></audio>`;
+}
+/* Chuẩn hoá link đa phương tiện thầy dán vào: video
+   YouTube -> link nhúng embed, file Google Drive -> link
+   preview (để phát được ngay trong bài). Không phải link
+   http(s) thì trả về null. */
+function tqNormalizeMediaUrl(kind, url) {
+  const u = String(url || "").trim();
+  if (!/^https?:\/\//i.test(u)) return null;
+  if (kind === "vid") {
+    const yt = u.match(/(?:youtube\.com\/watch\?[^#]*v=|youtu\.be\/)([\w-]{6,})/);
+    if (yt) return "https://www.youtube.com/embed/" + yt[1];
+  }
+  if (kind === "vid" || kind === "aud") {
+    const dr = u.match(/drive\.google\.com\/file\/d\/([\w-]+)/);
+    if (dr) return "https://drive.google.com/file/d/" + dr[1] + "/preview";
+  }
+  return u;
+}
+/* Chốt đa phương tiện khi lưu câu nhập tay: quét câu hỏi
+   rồi các phương án theo thứ tự, chỉ giữ nội dung còn thẻ
+   tham chiếu tới, đánh lại số thẻ cho khớp mảng mới (nội
+   dung thầy đã xoá thẻ trong ô nhập sẽ tự rơi ra). */
+function tqFinalizeMedia(qText, optTexts, media) {
+  const srcM = { IMG: (media && media.imgs) || [], VID: (media && media.vids) || [], AUD: (media && media.auds) || [] };
+  const out = { IMG: [], VID: [], AUD: [] };
+  const remap = { IMG: {}, VID: {}, AUD: {} };
+  const conv = (txt) => String(txt || "").replace(/\[\[(IMG|VID|AUD)(\d+)\]\]/g, (m, k, n) => {
+    const uri = srcM[k][+n];
+    if (!uri) return "";
+    if (remap[k][n] === undefined) { remap[k][n] = out[k].length; out[k].push(uri); }
+    return "[[" + k + remap[k][n] + "]]";
+  });
+  return { q: conv(qText), opts: (optTexts || []).map(conv), imgs: out.IMG, vids: out.VID, auds: out.AUD };
 }
 /* Nén hình trước khi lưu Firestore (mỗi tài liệu tối đa
    1 MB): hình nhỏ giữ nguyên; hình lớn thu về tối đa
@@ -2947,6 +3005,35 @@ async function openTrailQuiz() {
       <input type="file" id="tqFile" accept=".docx" style="margin:8px 0">
       <div id="tqImportMsg"></div>
       <div id="tqPreview"></div>
+      <div style="margin-top:12px;border-top:1.5px dashed #d8c9a8;padding-top:10px">
+        <b>✍️ Nhập câu hỏi thủ công — chèn được hình, video, âm thanh</b>
+        <p class="tt-note" style="margin:6px 0">Gõ câu hỏi và từng phương án vào các ô dưới. Muốn chèn đa phương tiện vào ô nào, bấm nút 🖼 (hình) / 🎬 (video) / 🔊 (âm thanh) ngay dưới ô đó (với phương án: các nút nhỏ bên phải ô) rồi chọn file từ máy hoặc dán đường link — nội dung chèn nằm đúng vị trí con trỏ trong ô. Đánh dấu phương án đúng bằng nút tròn ở đầu phương án. Câu hỏi lưu vào <b>bộ đề đang chọn</b> ở ô phía trên. Video dài/nặng nên dán link YouTube hoặc Google Drive; file video/âm thanh tải thẳng chỉ nhận file nhỏ (dưới ~500 KB) vì mỗi câu lưu trên Firestore tối đa 1 MB.</p>
+        <label style="font-size:13px;font-weight:600">Nội dung câu hỏi:</label>
+        <textarea id="tqEdQ" rows="3" placeholder="Gõ nội dung câu hỏi vào đây…" style="width:100%;box-sizing:border-box;padding:8px;border:1.5px solid #ccd;border-radius:8px;margin-top:4px"></textarea>
+        <div style="display:flex;gap:6px;margin:4px 0 2px">
+          <button type="button" class="tt-btn tq-ed-mb" data-kind="img" style="width:auto;margin:0;padding:5px 10px">🖼 Hình</button>
+          <button type="button" class="tt-btn tq-ed-mb" data-kind="vid" style="width:auto;margin:0;padding:5px 10px">🎬 Video</button>
+          <button type="button" class="tt-btn tq-ed-mb" data-kind="aud" style="width:auto;margin:0;padding:5px 10px">🔊 Âm thanh</button>
+        </div>
+        <div id="tqEdOpts"></div>
+        <button type="button" class="tt-btn" id="tqEdAddOpt" style="width:auto;margin:8px 0;padding:6px 12px;background:#e8f1fa;color:#0b5cad">＋ Thêm phương án</button>
+        <div id="tqEdIns" style="display:none;background:#fff;border:1.5px solid #b08968;border-radius:10px;padding:10px;margin:8px 0">
+          <b id="tqEdInsTitle">Chèn đa phương tiện</b>
+          <div style="margin:8px 0"><input type="file" id="tqEdFile" style="max-width:100%"></div>
+          <input type="url" id="tqEdUrl" placeholder="…hoặc dán link (YouTube, Google Drive, file mp4/mp3 trên mạng)" style="width:100%;box-sizing:border-box;padding:8px;border:1.5px solid #ccd;border-radius:8px">
+          <div id="tqEdInsMsg" style="margin-top:6px"></div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button type="button" class="tt-btn" id="tqEdInsGo" style="width:auto;margin:0;padding:6px 14px">Chèn vào ô đang chọn</button>
+            <button type="button" class="tt-btn" id="tqEdInsCancel" style="width:auto;margin:0;padding:6px 14px;background:#eee;color:#333">Huỷ</button>
+          </div>
+        </div>
+        <div id="tqEdPrev"></div>
+        <div id="tqEdMsg" style="margin-top:6px"></div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button type="button" class="tt-btn" id="tqEdSave" style="width:auto;margin:0;padding:8px 16px">💾 Lưu câu hỏi vào bộ đang chọn</button>
+          <button type="button" class="tt-btn" id="tqEdClear" style="width:auto;margin:0;padding:8px 16px;background:#eee;color:#333">🧹 Xoá trắng</button>
+        </div>
+      </div>
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
         <button type="button" class="tt-btn" id="tqMoveUnset" style="width:auto;background:#e8f1fa;color:#0b5cad">↪ Chuyển câu chưa xếp bộ vào bộ đang chọn</button>
         <button type="button" class="tt-btn" id="tqWipe" style="width:auto;background:#fdecea;color:#c0392b;border-color:#e5b4ae">🗑 Xoá toàn bộ ngân hàng</button>
@@ -3064,7 +3151,7 @@ async function openTrailQuiz() {
         else msgEl.innerHTML = `<span style="color:#1d9d55"><b>Đọc được ${parsed.length} câu hợp lệ.</b></span>`;
         if (res.warnings.length) msgEl.innerHTML += `<div style="color:#b26a00;margin-top:4px">${res.warnings.slice(0, 6).map((w) => "• " + esc(w)).join("<br>")}${res.warnings.length > 6 ? "<br>• … và " + (res.warnings.length - 6) + " cảnh báo nữa" : ""}</div>`;
         if (parsed.length) {
-          prevEl.innerHTML = `<div style="margin-top:8px"><b>Xem trước toàn bộ đề (${parsed.length} câu):</b><div style="max-height:65vh;overflow-y:auto;padding-right:4px">${parsed.map((q, i) => `<div style="background:#fff;border:1px solid #e3d9c6;border-radius:8px;padding:8px 10px;margin-top:6px;color:#000"><b>Câu ${i + 1}:</b> ${tqHtml(q.q, q.imgs)}<br>${q.opts.map((o, j) => (j === q.correct ? `<b style="color:#1d9d55">${LETTERS[j]}. ${tqHtml(o, q.imgs)} ✓</b>` : `${LETTERS[j]}. ${tqHtml(o, q.imgs)}`)).join("<br>")}</div>`).join("")}</div>
+          prevEl.innerHTML = `<div style="margin-top:8px"><b>Xem trước toàn bộ đề (${parsed.length} câu):</b><div style="max-height:65vh;overflow-y:auto;padding-right:4px">${parsed.map((q, i) => `<div style="background:#fff;border:1px solid #e3d9c6;border-radius:8px;padding:8px 10px;margin-top:6px;color:#000"><b>Câu ${i + 1}:</b> ${tqHtml(q.q, q)}<br>${q.opts.map((o, j) => (j === q.correct ? `<b style="color:#1d9d55">${LETTERS[j]}. ${tqHtml(o, q)} ✓</b>` : `${LETTERS[j]}. ${tqHtml(o, q)}`)).join("<br>")}</div>`).join("")}</div>
           <button type="button" class="tt-btn" id="tqSave" style="margin-top:10px">💾 Lưu ${parsed.length} câu vào bộ đang chọn</button></div>`;
           prevEl.querySelector("#tqSave").addEventListener("click", async () => {
             const btn = prevEl.querySelector("#tqSave");
@@ -3092,6 +3179,153 @@ async function openTrailQuiz() {
         msgEl.innerHTML = `<span style="color:#c0392b">${esc(e && e.message || String(e))}</span>`;
       }
     });
+    /* --- Nhập câu hỏi THỦ CÔNG + chèn đa phương tiện (v74) --- */
+    const edQ = body.querySelector("#tqEdQ");
+    if (edQ) {
+      const edOptsBox = body.querySelector("#tqEdOpts");
+      const edPrev = body.querySelector("#tqEdPrev");
+      const edMsg = body.querySelector("#tqEdMsg");
+      const edIns = body.querySelector("#tqEdIns");
+      const edFile = body.querySelector("#tqEdFile");
+      const edUrl = body.querySelector("#tqEdUrl");
+      const edInsMsg = body.querySelector("#tqEdInsMsg");
+      const ED_KIND = { img: { arr: "imgs", tok: "IMG", label: "hình ảnh", accept: "image/*" }, vid: { arr: "vids", tok: "VID", label: "video", accept: "video/*" }, aud: { arr: "auds", tok: "AUD", label: "âm thanh", accept: "audio/*" } };
+      let edMedia = { imgs: [], vids: [], auds: [] };
+      let edTarget = null;
+      const edRows = () => [...edOptsBox.querySelectorAll(".tq-ed-row")];
+      const edRowTa = (row) => row.querySelector("textarea");
+      function edPaintLetters() {
+        const rows = edRows();
+        rows.forEach((row, i) => {
+          row.querySelector(".tq-ed-letter").innerHTML = `<b>${LETTERS[i]}.</b>`;
+          row.querySelector(".tq-ed-del").disabled = rows.length <= 2;
+        });
+        body.querySelector("#tqEdAddOpt").disabled = rows.length >= 6;
+      }
+      function edPreview() {
+        const rows = edRows();
+        const ci = rows.findIndex((r) => r.querySelector('input[type="radio"]').checked);
+        const q = { q: edQ.value, opts: rows.map((r) => edRowTa(r).value), imgs: edMedia.imgs, vids: edMedia.vids, auds: edMedia.auds };
+        if (!q.q.trim() && !q.opts.some((o) => o.trim())) { edPrev.innerHTML = ""; return; }
+        edPrev.innerHTML = `<div style="background:#fff;border:1px solid #e3d9c6;border-radius:8px;padding:8px 10px;margin-top:8px;color:#000"><b>Xem trước câu đang nhập:</b><br><b>${tqHtml(q.q, q)}</b><br>${q.opts.map((o, j) => (j === ci ? `<b style="color:#1d9d55">${LETTERS[j]}. ${tqHtml(o, q)} ✓</b>` : `${LETTERS[j]}. ${tqHtml(o, q)}`)).join("<br>")}</div>`;
+      }
+      function edAddOpt(text) {
+        const row = document.createElement("div");
+        row.className = "tq-ed-row";
+        row.style.cssText = "display:flex;gap:6px;align-items:flex-start;margin-top:6px";
+        row.innerHTML = `
+          <input type="radio" name="tqEdCorrect" style="margin-top:10px" title="Đánh dấu phương án đúng">
+          <span class="tq-ed-letter" style="margin-top:7px;min-width:20px"></span>
+          <textarea rows="2" placeholder="Gõ phương án…" style="flex:1;box-sizing:border-box;padding:8px;border:1.5px solid #ccd;border-radius:8px"></textarea>
+          <span style="display:flex;flex-direction:column;gap:3px">
+            <button type="button" class="tt-btn" data-mb="img" style="width:auto;margin:0;padding:3px 8px" title="Chèn hình vào phương án này">🖼</button>
+            <button type="button" class="tt-btn" data-mb="vid" style="width:auto;margin:0;padding:3px 8px" title="Chèn video vào phương án này">🎬</button>
+            <button type="button" class="tt-btn" data-mb="aud" style="width:auto;margin:0;padding:3px 8px" title="Chèn âm thanh vào phương án này">🔊</button>
+            <button type="button" class="tt-btn tq-ed-del" style="width:auto;margin:0;padding:3px 8px;background:#fdecea;color:#c0392b" title="Xoá phương án này">✕</button>
+          </span>`;
+        const ta = row.querySelector("textarea");
+        if (text) ta.value = text;
+        ta.addEventListener("input", edPreview);
+        row.querySelectorAll("[data-mb]").forEach((b) => b.addEventListener("click", () => edOpenInsert(ta, b.dataset.mb)));
+        row.querySelector(".tq-ed-del").addEventListener("click", () => { row.remove(); edPaintLetters(); edPreview(); });
+        row.querySelector('input[type="radio"]').addEventListener("change", edPreview);
+        edOptsBox.appendChild(row);
+        edPaintLetters();
+        return row;
+      }
+      function edOpenInsert(ta, kind) {
+        edTarget = { ta, kind };
+        edIns.style.display = "block";
+        body.querySelector("#tqEdInsTitle").textContent = `Chèn ${ED_KIND[kind].label} vào ${ta === edQ ? "câu hỏi" : "phương án"}`;
+        edFile.value = ""; edUrl.value = ""; edInsMsg.innerHTML = "";
+        edFile.accept = ED_KIND[kind].accept;
+        edIns.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+      function edDoInsert(src) {
+        const K = ED_KIND[edTarget.kind];
+        edMedia[K.arr].push(src);
+        const token = `[[${K.tok}${edMedia[K.arr].length - 1}]]`;
+        const ta = edTarget.ta;
+        const s = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+        const e = ta.selectionEnd != null ? ta.selectionEnd : ta.value.length;
+        ta.value = ta.value.slice(0, s) + token + ta.value.slice(e);
+        edIns.style.display = "none";
+        ta.focus();
+        try { ta.selectionStart = ta.selectionEnd = s + token.length; } catch (err) {}
+        edPreview();
+      }
+      body.querySelectorAll(".tq-ed-mb").forEach((b) => b.addEventListener("click", () => edOpenInsert(edQ, b.dataset.kind)));
+      edQ.addEventListener("input", edPreview);
+      body.querySelector("#tqEdAddOpt").addEventListener("click", () => { edAddOpt(""); edPreview(); });
+      body.querySelector("#tqEdInsCancel").addEventListener("click", () => { edIns.style.display = "none"; });
+      body.querySelector("#tqEdInsGo").addEventListener("click", () => {
+        if (!edTarget) return;
+        const kind = edTarget.kind;
+        const f = edFile.files && edFile.files[0];
+        if (f) {
+          const rd = new FileReader();
+          rd.onload = async () => {
+            let uri = String(rd.result || "");
+            if (kind === "img") uri = await tqShrinkImage(uri, f.type || "image/png");
+            else if (uri.length > 700000) { edInsMsg.innerHTML = `<span style="color:#c0392b">File ${ED_KIND[kind].label} quá lớn (${Math.round(f.size / 1024)} KB) — file tải thẳng chỉ nhận dưới ~500 KB vì mỗi câu lưu trên Firestore tối đa 1 MB. Thầy hãy tải file lên YouTube/Google Drive rồi dán link vào ô link.</span>`; return; }
+            edDoInsert(uri);
+          };
+          rd.onerror = () => { edInsMsg.innerHTML = `<span style="color:#c0392b">Không đọc được file đã chọn.</span>`; };
+          rd.readAsDataURL(f);
+          return;
+        }
+        const u = tqNormalizeMediaUrl(kind, edUrl.value);
+        if (!u) { edInsMsg.innerHTML = `<span style="color:#c0392b">Thầy chọn một file từ máy, hoặc dán đường link bắt đầu bằng http:// hay https://.</span>`; return; }
+        edDoInsert(u);
+      });
+      function edReset() {
+        edQ.value = ""; edMedia = { imgs: [], vids: [], auds: [] };
+        edOptsBox.innerHTML = "";
+        for (let i = 0; i < 4; i++) edAddOpt("");
+        const rows = edRows();
+        if (rows[0]) rows[0].querySelector('input[type="radio"]').checked = true;
+        edIns.style.display = "none";
+        edPreview();
+      }
+      body.querySelector("#tqEdClear").addEventListener("click", () => { edReset(); edMsg.innerHTML = ""; });
+      body.querySelector("#tqEdSave").addEventListener("click", async () => {
+        const btn = body.querySelector("#tqEdSave");
+        const rows = edRows();
+        const ci0 = rows.findIndex((r) => r.querySelector('input[type="radio"]').checked);
+        const fin = tqFinalizeMedia(edQ.value, rows.map((r) => edRowTa(r).value), edMedia);
+        const hasText = (s) => s.replace(/\[\[(IMG|VID|AUD)\d+\]\]/g, "").trim().length > 0;
+        const hasMedia = (s) => /\[\[(IMG|VID|AUD)\d+\]\]/.test(s);
+        const kept = fin.opts.map((o, j) => ({ o, j })).filter(({ o }) => hasText(o) || hasMedia(o));
+        const fail = (m) => { edMsg.innerHTML = `<span style="color:#c0392b">${m}</span>`; };
+        if (!hasText(fin.q) && !hasMedia(fin.q)) return fail("Câu hỏi đang trống — thầy gõ nội dung hoặc chèn hình/video/âm thanh vào câu hỏi.");
+        if (kept.length < 2) return fail("Cần ít nhất 2 phương án có nội dung.");
+        const ci = kept.findIndex(({ j }) => j === ci0);
+        if (ci < 0) return fail("Thầy đánh dấu phương án đúng bằng nút tròn ở đầu phương án (phương án đúng đang trống).");
+        const totalMedia = [...fin.imgs, ...fin.vids, ...fin.auds].reduce((a, s) => a + (String(s).startsWith("data:") ? String(s).length : 0), 0);
+        if (totalMedia > 900000) return fail("Tổng dung lượng file đa phương tiện trong câu này quá lớn (trên ~900 KB) — Firestore chỉ chứa được 1 MB mỗi câu. Thầy thay file nặng bằng link YouTube/Google Drive.");
+        const sel = body.querySelector("#tqSetSel");
+        const targetSet = sel ? sel.value : "";
+        const docData = { q: fin.q, opts: kept.map(({ o }) => o), correct: ci, setId: targetSet, ts: Date.now() };
+        if (fin.imgs.length) docData.imgs = fin.imgs;
+        if (fin.vids.length) docData.vids = fin.vids;
+        if (fin.auds.length) docData.auds = fin.auds;
+        btn.disabled = true; btn.textContent = "Đang lưu…";
+        try {
+          await addDoc(collection(db, "trailQuiz"), docData);
+          tqBank = null;
+          bankAll = await tqLoadBank(true);
+          bank = allowed === null ? bankAll : bankAll.filter((q) => allowed.includes(q.setId || ""));
+          paintBankInfo(); paintSetsBox();
+          edMsg.innerHTML = `<span style="color:#1d9d55"><b>Đã lưu câu hỏi vào ${targetSet ? `bộ <b>${esc(tqSetName(sets, targetSet))}</b>` : "ngân hàng (chưa xếp bộ)"}.</b> Ngân hàng hiện có ${bankAll.length} câu — thầy nhập tiếp câu khác nếu muốn.</span>`;
+          edReset();
+          showStage(currentMode);
+        } catch (e) {
+          edMsg.innerHTML = `<span style="color:#c0392b">Lưu không thành công (${esc(e && e.message || e)}). Nếu báo lỗi quyền (permission), thầy cần dán rules bản v47 trước.</span>`;
+        }
+        btn.disabled = false; btn.textContent = "💾 Lưu câu hỏi vào bộ đang chọn";
+      });
+      edReset();
+    }
     let wipeArmed = false;
     body.querySelector("#tqWipe").addEventListener("click", async () => {
       const btn = body.querySelector("#tqWipe");
@@ -3130,7 +3364,7 @@ async function openTrailQuiz() {
       stage.innerHTML = `
         <div style="background:#fff;color:#000;border:1px solid #d8cfc0;border-radius:12px;padding:14px">
           <div style="display:flex;justify-content:space-between;gap:8px"><b>🖊️ Luyện tập</b><span data-role="score">Đã làm: ${done} · Đúng: ${right}</span></div>
-          <p style="font-size:17px;margin:12px 0"><b>${tqHtml(item.q, item.imgs)}</b></p>
+          <p style="font-size:17px;margin:12px 0"><b>${tqHtml(item.q, item)}</b></p>
           <div data-role="opts" style="display:grid;gap:8px"></div>
           <div data-role="fb" style="margin-top:10px;min-height:24px"></div>
         </div>`;
@@ -3138,7 +3372,7 @@ async function openTrailQuiz() {
       item.opts.forEach((o, j) => {
         const b = document.createElement("button");
         b.type = "button"; b.className = "tt-opt"; b.style.cssText = "background:#fff;color:#000;text-align:left";
-        b.innerHTML = `<b>${LETTERS[j]}.</b> ${tqHtml(o, item.imgs)}`;
+        b.innerHTML = `<b>${LETTERS[j]}.</b> ${tqHtml(o, item)}`;
         b.addEventListener("click", () => {
           if (locked) return; locked = true; done++;
           const ok = j === item.ci; if (ok) right++;
@@ -3146,7 +3380,7 @@ async function openTrailQuiz() {
           [...box.children].forEach((c, k) => { c.disabled = true; if (k === item.ci) { c.style.background = "#d8f3dc"; c.style.borderColor = "#1d9d55"; } else if (k === j) { c.style.background = "#fdecea"; c.style.borderColor = "#c0392b"; } });
           stage.querySelector('[data-role="fb"]').innerHTML = ok
             ? `<span style="color:#1d9d55"><b>Đúng rồi!</b></span> <button type="button" class="tt-btn" data-role="next">Câu tiếp theo →</button>`
-            : `<span style="color:#c0392b"><b>Chưa đúng.</b></span> Đáp án đúng: <b>${LETTERS[item.ci]}. ${tqHtml(item.opts[item.ci], item.imgs)}</b> <button type="button" class="tt-btn" data-role="next">Câu tiếp theo →</button>`;
+            : `<span style="color:#c0392b"><b>Chưa đúng.</b></span> Đáp án đúng: <b>${LETTERS[item.ci]}. ${tqHtml(item.opts[item.ci], item)}</b> <button type="button" class="tt-btn" data-role="next">Câu tiếp theo →</button>`;
           stage.querySelector('[data-role="next"]').addEventListener("click", draw);
         });
         box.appendChild(b);
@@ -3205,14 +3439,14 @@ async function openTrailQuiz() {
     function renderQ() {
       const it = items[idx];
       qhead.textContent = `Câu ${idx + 1}/${n}`;
-      qtext.innerHTML = `<b>${tqHtml(it.q, it.imgs)}</b>`;
+      qtext.innerHTML = `<b>${tqHtml(it.q, it)}</b>`;
       qw.innerHTML = "";
       qopts.innerHTML = "";
       it.opts.forEach((o, j) => {
         const b = document.createElement("button");
         b.type = "button"; b.className = "tt-opt";
         b.style.cssText = "text-align:left;background:" + (picked[idx] === j ? "#bfe3ff" : "#fff") + ";color:#000";
-        b.innerHTML = `<b>${LETTERS[j]}.</b> ${tqHtml(o, it.imgs)}`;
+        b.innerHTML = `<b>${LETTERS[j]}.</b> ${tqHtml(o, it)}`;
         b.addEventListener("click", () => { picked[idx] = j; renderQ(); });
         qopts.appendChild(b);
       });
@@ -3258,11 +3492,11 @@ async function openTrailQuiz() {
           <p style="margin:6px 0">Thời gian làm bài: ${Math.floor(dur / 60)} phút ${dur % 60} giây. Kết quả đã lưu vào Lịch sử.</p>
           <div style="display:grid;gap:8px;margin-top:10px">
           ${items.map((it, i) => `<div style="border:1px solid #e3d9c6;border-radius:8px;padding:8px 10px">
-            <b>Câu ${i + 1}:</b> ${tqHtml(it.q, it.imgs)}<br>
+            <b>Câu ${i + 1}:</b> ${tqHtml(it.q, it)}<br>
             ${it.opts.map((o, j) => {
-              if (j === it.ci) return `<span style="color:#1d9d55"><b>${LETTERS[j]}. ${tqHtml(o, it.imgs)} ✓ (đáp án đúng)</b></span>`;
-              if (j === picked[i]) return `<span style="color:#c0392b">${LETTERS[j]}. ${tqHtml(o, it.imgs)} ✗ (em chọn)</span>`;
-              return `${LETTERS[j]}. ${tqHtml(o, it.imgs)}`;
+              if (j === it.ci) return `<span style="color:#1d9d55"><b>${LETTERS[j]}. ${tqHtml(o, it)} ✓ (đáp án đúng)</b></span>`;
+              if (j === picked[i]) return `<span style="color:#c0392b">${LETTERS[j]}. ${tqHtml(o, it)} ✗ (em chọn)</span>`;
+              return `${LETTERS[j]}. ${tqHtml(o, it)}`;
             }).join("<br>")}
             ${picked[i] < 0 ? `<br><span style="color:#b26a00">Chưa trả lời</span>` : ""}
           </div>`).join("")}
