@@ -70,6 +70,7 @@ style.textContent = `
 .tt-modbar button{flex:1;padding:9px;border-radius:9px;border:1.5px solid #0b5cad;background:#fff;color:#0b5cad;font-weight:600;cursor:pointer;min-width:110px}
 .tt-modbar button.on{background:#0b5cad;color:#fff}
 .tt-opt{display:block;width:100%;text-align:left;padding:11px 13px;margin:7px 0;border:1.5px solid #c3d2e4;border-radius:10px;background:#f8fbff;font-size:15px;cursor:pointer}
+.tq-img{max-width:100%;max-height:300px;display:block;margin:8px auto;border-radius:8px;background:#fff}
 .tt-opt:hover{border-color:#0b5cad}
 .tt-opt.ok{background:#e2f4e5;border-color:#1d9d55}
 .tt-opt.bad{background:#fdecea;border-color:#c0392b}
@@ -2744,7 +2745,7 @@ function tqStopTimer() { if (tqTimerId) { clearInterval(tqTimerId); tqTimerId = 
 function tqMakeItems(bank, n) {
   return modShuffle(bank).slice(0, n).map((q) => {
     const order = modShuffle(q.opts.map((_, i) => i));
-    return { q: q.q, opts: order.map((i) => q.opts[i]), ci: order.indexOf(q.correct) };
+    return { q: q.q, opts: order.map((i) => q.opts[i]), ci: order.indexOf(q.correct), imgs: q.imgs || [] };
   });
 }
 /* --- Đọc file .docx: tách đoạn -> dòng, đo tỉ lệ chữ in đậm --- */
@@ -2762,11 +2763,24 @@ function tqDocxLines(xml) {
       const parts = r.split(/<w:br\s*\/?>/);
       parts.forEach((part, pi) => {
         if (pi > 0) segs.push({ t: "", b: 0, n: 0 });
-        const ts = part.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g) || [];
-        for (const t of ts) {
-          const txt = tqXmlUnescape(t.replace(/<[^>]+>/g, ""));
-          const cur = segs[segs.length - 1];
-          cur.t += txt; cur.n += txt.length; if (bold) cur.b += txt.length;
+        const cur = segs[segs.length - 1];
+        /* Đi theo đúng thứ tự trong run: chữ <w:t> và HÌNH VẼ
+           (<a:blip r:embed> trong <w:drawing>, hoặc
+           <v:imagedata r:id> kiểu VML cũ). Hình được chèn thẻ
+           giữ chỗ [[IMG:rId]] vào đúng vị trí của nó trong
+           dòng — giữ nguyên hình trong câu hỏi/phương án như
+           yêu cầu của thầy (17/11), không chuyển thành chữ.
+           Thẻ giữ chỗ KHÔNG tính vào độ dài chữ để khỏi làm
+           loãng tỉ lệ in đậm của phương án chứa hình. */
+        const tokRe = /<w:t[^>]*>([\s\S]*?)<\/w:t>|<a:blip[^>]*?r:embed="([^"]+)"|<v:imagedata[^>]*?r:id="([^"]+)"/g;
+        let m;
+        while ((m = tokRe.exec(part))) {
+          if (m[1] !== undefined) {
+            const txt = tqXmlUnescape(m[1].replace(/<[^>]+>/g, ""));
+            cur.t += txt; cur.n += txt.length; if (bold) cur.b += txt.length;
+          } else {
+            cur.t += "[[IMG:" + (m[2] || m[3]) + "]]";
+          }
         }
       });
     }
@@ -2774,21 +2788,43 @@ function tqDocxLines(xml) {
   }
   return lines;
 }
-function parseQuizDocxXml(xml) {
+function parseQuizDocxXml(xml, imgMap) {
   const lines = tqDocxLines(xml);
   const questions = [], warnings = [];
   let cur = null;
   const pushCur = () => {
     if (!cur) return;
+    /* Gắn hình vào câu: thay thẻ [[IMG:rId]] bằng thẻ theo vị
+       trí [[IMG0]], [[IMG1]]… và gom dữ liệu hình (data URI,
+       lấy từ imgMap theo rId) vào mảng imgs của câu. Hình nào
+       không đọc được thì bỏ thẻ và ghi cảnh báo. */
+    const imgs = [];
+    const resolve = (txt) => txt.replace(/\[\[IMG:([^\]]+)\]\]/g, (_, rid) => {
+      const uri = imgMap && imgMap[rid];
+      if (!uri) { warnings.push("Một hình ảnh trong đề không đọc được nên đã bỏ qua."); return ""; }
+      let ix = imgs.indexOf(uri);
+      if (ix < 0) { imgs.push(uri); ix = imgs.length - 1; }
+      return "[[IMG" + ix + "]]";
+    });
+    cur.q = resolve(cur.q);
+    cur.opts = cur.opts.map(resolve);
     if (cur.opts.length === 0) { if (cur.fromCau) warnings.push("Bỏ câu “" + cur.q.slice(0, 40) + "…” — không có phương án nào."); }
     else if (!cur.q) warnings.push("Bỏ một câu trống nội dung.");
     else if (cur.opts.length < 2) warnings.push("Bỏ câu “" + cur.q.slice(0, 40) + "…” — có ít hơn 2 phương án.");
     else if (cur.correct < 0) warnings.push("Bỏ câu “" + cur.q.slice(0, 40) + "…” — chưa thấy phương án nào được in đậm.");
-    else questions.push({ q: cur.q, opts: cur.opts, correct: cur.correct });
+    else questions.push({ q: cur.q, opts: cur.opts, correct: cur.correct, imgs });
     cur = null;
   };
   for (const ln of lines) {
     const t = ln.text;
+    if (/^(\[\[IMG:[^\]]+\]\]\s*)+$/.test(t)) {
+      /* Dòng chỉ có hình (hình đứng riêng một đoạn trong đề):
+         gắn vào phương án cuối nếu câu đã có phương án, chưa
+         có thì gắn vào nội dung câu hỏi. Hình ở đầu trang
+         (logo trường…) chưa thuộc câu nào thì bỏ qua. */
+      if (cur) { if (cur.opts.length) cur.opts[cur.opts.length - 1] = (cur.opts[cur.opts.length - 1] + " " + t).trim(); else cur.q = (cur.q + " " + t).trim(); }
+      continue;
+    }
     const qm = t.match(/^câu\s*\d+\s*[:.)]?\s*(.*)$/i);
     const om = t.match(/^([A-F])\s*[.)]\s*(.+)$/);
     if (qm) { pushCur(); cur = { q: qm[1].trim(), opts: [], correct: -1, fromCau: true }; continue; }
@@ -2807,6 +2843,69 @@ function parseQuizDocxXml(xml) {
   }
   pushCur();
   return { questions, warnings };
+}
+/* Hiển thị nội dung câu hỏi/phương án: chữ được escape như
+   cũ, thẻ [[IMGn]] biến thành HÌNH THẬT lấy từ mảng imgs
+   của câu (hình giữ nguyên từ file đề, theo yêu cầu của
+   thầy 17/11 — không chuyển thành mô tả bằng chữ). */
+function tqHtml(text, imgs) {
+  return esc(text).replace(/\[\[IMG(\d+)\]\]/g, (_, i) => (imgs && imgs[+i]) ? `<img class="tq-img" src="${imgs[+i]}" alt="Hình trong đề thi">` : "");
+}
+/* Nén hình trước khi lưu Firestore (mỗi tài liệu tối đa
+   1 MB): hình nhỏ giữ nguyên; hình lớn thu về tối đa
+   1000 px — ưu tiên PNG cho nét vẽ sắc, còn nặng thì JPEG. */
+function tqShrinkImage(dataURI, mime) {
+  return new Promise((resolve) => {
+    if (mime === "image/svg+xml" || dataURI.length <= 240000) return resolve(dataURI);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, 1000 / Math.max(img.width || 1, img.height || 1));
+        const cv = document.createElement("canvas");
+        cv.width = Math.max(1, Math.round(img.width * scale));
+        cv.height = Math.max(1, Math.round(img.height * scale));
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        let out = mime === "image/png" ? cv.toDataURL("image/png") : "";
+        if (!out || out.length > 240000) out = cv.toDataURL("image/jpeg", 0.85);
+        resolve(out.length < dataURI.length ? out : dataURI);
+      } catch (e) { resolve(dataURI); }
+    };
+    img.onerror = () => resolve(dataURI);
+    img.src = dataURI;
+  });
+}
+/* Đọc toàn bộ hình nhúng trong file .docx: tra quan hệ
+   rId -> file media trong word/_rels/document.xml.rels,
+   trả về bản đồ rId -> data URI (đã nén). Lỗi đọc hình
+   không được làm hỏng việc đọc chữ của đề. */
+async function tqExtractImages(zip) {
+  const map = {};
+  try {
+    const relsFile = zip.file("word/_rels/document.xml.rels");
+    if (!relsFile) return map;
+    const rels = await relsFile.async("string");
+    const tags = rels.match(/<Relationship[^>]*>/g) || [];
+    const jobs = [];
+    for (const tag of tags) {
+      const idM = tag.match(/Id="([^"]+)"/), tgM = tag.match(/Target="([^"]+)"/);
+      if (!idM || !tgM) continue;
+      const target = tgM[1].replace(/^\//, "");
+      if (!target.includes("media/")) continue;
+      const path = target.startsWith("word/") ? target : "word/" + target;
+      const entry = zip.file(path);
+      if (!entry) continue;
+      const rid = idM[1];
+      jobs.push((async () => {
+        const ext = (path.split(".").pop() || "").toLowerCase();
+        const mime = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", bmp: "image/bmp", webp: "image/webp", svg: "image/svg+xml" }[ext];
+        if (!mime) return; /* emf/wmf… trình duyệt không hiển thị được */
+        const b64 = await entry.async("base64");
+        map[rid] = await tqShrinkImage("data:" + mime + ";base64," + b64, mime);
+      })());
+    }
+    await Promise.all(jobs);
+  } catch (e) {}
+  return map;
 }
 function tqLoadJSZip() {
   return new Promise((resolve, reject) => {
@@ -2836,7 +2935,7 @@ async function openTrailQuiz() {
     </div>
     ${myIsAdmin ? `<div style="border:1.5px dashed #b08968;border-radius:12px;padding:10px 12px;margin:10px 0;background:#fffaf0">
       <b>🛠 Quản trị — bộ đề thi & nhập ngân hàng câu hỏi từ file .docx</b>
-      <p class="tt-note" style="margin:6px 0">Định dạng file: mỗi câu bắt đầu bằng “Câu 1:”, các phương án ghi “A. …”, “B. …”, “C. …”, “D. …” và <b>phương án đúng phải IN ĐẬM</b> (bôi đen đáp án đúng rồi bấm Ctrl+B trong Word). Câu nào không có phương án in đậm sẽ bị bỏ qua và báo lại ở bước xem trước. File sẽ được nhập vào <b>bộ đề đang chọn</b> ở ô dưới.</p>
+      <p class="tt-note" style="margin:6px 0">Định dạng file: mỗi câu bắt đầu bằng “Câu 1:”, các phương án ghi “A. …”, “B. …”, “C. …”, “D. …” và <b>phương án đúng phải IN ĐẬM</b> (bôi đen đáp án đúng rồi bấm Ctrl+B trong Word). Câu nào không có phương án in đậm sẽ bị bỏ qua và báo lại ở bước xem trước. File sẽ được nhập vào <b>bộ đề đang chọn</b> ở ô dưới. <b>Hình vẽ trong đề được giữ nguyên</b>: hình nằm trong câu hỏi hay trong phương án nào sẽ hiện đúng ở đó khi học sinh làm bài (hình quá lớn sẽ tự thu nhỏ lại cho nhẹ).</p>
       <div id="tqBankInfo">Đang đọc ngân hàng…</div>
       <div id="tqSetsBox" style="margin-top:8px">Đang đọc các bộ đề…</div>
       <div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
@@ -2958,13 +3057,14 @@ async function openTrailQuiz() {
         const docFile = zip.file("word/document.xml");
         if (!docFile) throw new Error("File không đúng định dạng .docx (không thấy nội dung Word bên trong).");
         const xml = await docFile.async("string");
-        const res = parseQuizDocxXml(xml);
+        const imgMap = await tqExtractImages(zip);
+        const res = parseQuizDocxXml(xml, imgMap);
         parsed = res.questions;
         if (!parsed.length) { msgEl.innerHTML = `<span style="color:#c0392b">Không đọc được câu hợp lệ nào.</span>`; }
         else msgEl.innerHTML = `<span style="color:#1d9d55"><b>Đọc được ${parsed.length} câu hợp lệ.</b></span>`;
         if (res.warnings.length) msgEl.innerHTML += `<div style="color:#b26a00;margin-top:4px">${res.warnings.slice(0, 6).map((w) => "• " + esc(w)).join("<br>")}${res.warnings.length > 6 ? "<br>• … và " + (res.warnings.length - 6) + " cảnh báo nữa" : ""}</div>`;
         if (parsed.length) {
-          prevEl.innerHTML = `<div style="margin-top:8px"><b>Xem trước 3 câu đầu:</b>${parsed.slice(0, 3).map((q, i) => `<div style="background:#fff;border:1px solid #e3d9c6;border-radius:8px;padding:8px 10px;margin-top:6px;color:#000"><b>Câu ${i + 1}:</b> ${esc(q.q)}<br>${q.opts.map((o, j) => (j === q.correct ? `<b style="color:#1d9d55">${LETTERS[j]}. ${esc(o)} ✓</b>` : `${LETTERS[j]}. ${esc(o)}`)).join("<br>")}</div>`).join("")}
+          prevEl.innerHTML = `<div style="margin-top:8px"><b>Xem trước 3 câu đầu:</b>${parsed.slice(0, 3).map((q, i) => `<div style="background:#fff;border:1px solid #e3d9c6;border-radius:8px;padding:8px 10px;margin-top:6px;color:#000"><b>Câu ${i + 1}:</b> ${tqHtml(q.q, q.imgs)}<br>${q.opts.map((o, j) => (j === q.correct ? `<b style="color:#1d9d55">${LETTERS[j]}. ${tqHtml(o, q.imgs)} ✓</b>` : `${LETTERS[j]}. ${tqHtml(o, q.imgs)}`)).join("<br>")}</div>`).join("")}
           <button type="button" class="tt-btn" id="tqSave" style="margin-top:10px">💾 Lưu ${parsed.length} câu vào bộ đang chọn</button></div>`;
           prevEl.querySelector("#tqSave").addEventListener("click", async () => {
             const btn = prevEl.querySelector("#tqSave");
@@ -2973,7 +3073,7 @@ async function openTrailQuiz() {
             const targetSet = sel ? sel.value : "";
             try {
               for (let i = 0; i < parsed.length; i += 20) {
-                await Promise.all(parsed.slice(i, i + 20).map((q) => addDoc(collection(db, "trailQuiz"), { q: q.q, opts: q.opts, correct: q.correct, setId: targetSet, ts: Date.now() })));
+                await Promise.all(parsed.slice(i, i + 20).map((q) => addDoc(collection(db, "trailQuiz"), Object.assign({ q: q.q, opts: q.opts, correct: q.correct, setId: targetSet, ts: Date.now() }, q.imgs && q.imgs.length ? { imgs: q.imgs } : {}))));
               }
               tqBank = null;
               bankAll = await tqLoadBank(true);
@@ -3030,7 +3130,7 @@ async function openTrailQuiz() {
       stage.innerHTML = `
         <div style="background:#fff;color:#000;border:1px solid #d8cfc0;border-radius:12px;padding:14px">
           <div style="display:flex;justify-content:space-between;gap:8px"><b>🖊️ Luyện tập</b><span data-role="score">Đã làm: ${done} · Đúng: ${right}</span></div>
-          <p style="font-size:17px;margin:12px 0"><b>${esc(item.q)}</b></p>
+          <p style="font-size:17px;margin:12px 0"><b>${tqHtml(item.q, item.imgs)}</b></p>
           <div data-role="opts" style="display:grid;gap:8px"></div>
           <div data-role="fb" style="margin-top:10px;min-height:24px"></div>
         </div>`;
@@ -3038,7 +3138,7 @@ async function openTrailQuiz() {
       item.opts.forEach((o, j) => {
         const b = document.createElement("button");
         b.type = "button"; b.className = "tt-opt"; b.style.cssText = "background:#fff;color:#000;text-align:left";
-        b.innerHTML = `<b>${LETTERS[j]}.</b> ${esc(o)}`;
+        b.innerHTML = `<b>${LETTERS[j]}.</b> ${tqHtml(o, item.imgs)}`;
         b.addEventListener("click", () => {
           if (locked) return; locked = true; done++;
           const ok = j === item.ci; if (ok) right++;
@@ -3046,7 +3146,7 @@ async function openTrailQuiz() {
           [...box.children].forEach((c, k) => { c.disabled = true; if (k === item.ci) { c.style.background = "#d8f3dc"; c.style.borderColor = "#1d9d55"; } else if (k === j) { c.style.background = "#fdecea"; c.style.borderColor = "#c0392b"; } });
           stage.querySelector('[data-role="fb"]').innerHTML = ok
             ? `<span style="color:#1d9d55"><b>Đúng rồi!</b></span> <button type="button" class="tt-btn" data-role="next">Câu tiếp theo →</button>`
-            : `<span style="color:#c0392b"><b>Chưa đúng.</b></span> Đáp án đúng: <b>${LETTERS[item.ci]}. ${esc(item.opts[item.ci])}</b> <button type="button" class="tt-btn" data-role="next">Câu tiếp theo →</button>`;
+            : `<span style="color:#c0392b"><b>Chưa đúng.</b></span> Đáp án đúng: <b>${LETTERS[item.ci]}. ${tqHtml(item.opts[item.ci], item.imgs)}</b> <button type="button" class="tt-btn" data-role="next">Câu tiếp theo →</button>`;
           stage.querySelector('[data-role="next"]').addEventListener("click", draw);
         });
         box.appendChild(b);
@@ -3105,14 +3205,14 @@ async function openTrailQuiz() {
     function renderQ() {
       const it = items[idx];
       qhead.textContent = `Câu ${idx + 1}/${n}`;
-      qtext.innerHTML = `<b>${esc(it.q)}</b>`;
+      qtext.innerHTML = `<b>${tqHtml(it.q, it.imgs)}</b>`;
       qw.innerHTML = "";
       qopts.innerHTML = "";
       it.opts.forEach((o, j) => {
         const b = document.createElement("button");
         b.type = "button"; b.className = "tt-opt";
         b.style.cssText = "text-align:left;background:" + (picked[idx] === j ? "#bfe3ff" : "#fff") + ";color:#000";
-        b.innerHTML = `<b>${LETTERS[j]}.</b> ${esc(o)}`;
+        b.innerHTML = `<b>${LETTERS[j]}.</b> ${tqHtml(o, it.imgs)}`;
         b.addEventListener("click", () => { picked[idx] = j; renderQ(); });
         qopts.appendChild(b);
       });
@@ -3158,11 +3258,11 @@ async function openTrailQuiz() {
           <p style="margin:6px 0">Thời gian làm bài: ${Math.floor(dur / 60)} phút ${dur % 60} giây. Kết quả đã lưu vào Lịch sử.</p>
           <div style="display:grid;gap:8px;margin-top:10px">
           ${items.map((it, i) => `<div style="border:1px solid #e3d9c6;border-radius:8px;padding:8px 10px">
-            <b>Câu ${i + 1}:</b> ${esc(it.q)}<br>
+            <b>Câu ${i + 1}:</b> ${tqHtml(it.q, it.imgs)}<br>
             ${it.opts.map((o, j) => {
-              if (j === it.ci) return `<span style="color:#1d9d55"><b>${LETTERS[j]}. ${esc(o)} ✓ (đáp án đúng)</b></span>`;
-              if (j === picked[i]) return `<span style="color:#c0392b">${LETTERS[j]}. ${esc(o)} ✗ (em chọn)</span>`;
-              return `${LETTERS[j]}. ${esc(o)}`;
+              if (j === it.ci) return `<span style="color:#1d9d55"><b>${LETTERS[j]}. ${tqHtml(o, it.imgs)} ✓ (đáp án đúng)</b></span>`;
+              if (j === picked[i]) return `<span style="color:#c0392b">${LETTERS[j]}. ${tqHtml(o, it.imgs)} ✗ (em chọn)</span>`;
+              return `${LETTERS[j]}. ${tqHtml(o, it.imgs)}`;
             }).join("<br>")}
             ${picked[i] < 0 ? `<br><span style="color:#b26a00">Chưa trả lời</span>` : ""}
           </div>`).join("")}
