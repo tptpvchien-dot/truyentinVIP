@@ -1998,156 +1998,562 @@ function openTrailDoc() {
 
 /* ============================================================
    MODULE NÚT DÂY — chức năng riêng, được phân quyền riêng
-   (featKnot). 23 nút dây cơ bản theo poster "Các nút dây cơ
-   bản" thầy gửi 17/11/2026 (bản PDF 23 nút là bản đầy đủ;
-   poster JPG 18 nút nằm trọn trong đó) + tài liệu nghiên cứu
-   ~/workspace/your_files/tai-lieu-nghien-cuu-nut-day.md.
-   Hình vẽ là SƠ ĐỒ nét dây vẽ lại theo poster (điểm đan
-   trên/dưới thể hiện bằng khoảng ngắt kem) — chờ thầy đối
-   chiếu và sửa như đã làm với dấu đi đường.
+   (featKnot). 35 nút dây cơ bản, thông dụng: 23 nút theo
+   poster "Các nút dây cơ bản" thầy gửi 17/11/2026 (bản PDF
+   23 nút là bản đầy đủ) + 12 nút cơ bản phổ biến bổ sung.
+   Hình minh họa LẤY NGUYÊN TỪ TÀI LIỆU CHUẨN (cắt trực tiếp
+   từ poster của thầy và các tài liệu hướng đạo/quân đội
+   quốc tế), nạp từ file knot-images.js (window.KNOT_IMG) —
+   theo yêu cầu của thầy ở bản v68: không vẽ lại vì dễ làm
+   sai nút dây chuẩn. Chi tiết nguồn hình và nội dung từng
+   nút: ~/workspace/your_files/tai-lieu-nghien-cuu-nut-day.md.
    ============================================================ */
-function knotSVG(inner) {
-  return `<svg viewBox="0 0 120 90" style="width:100%;max-width:230px;height:auto;display:block;margin:0 auto" role="img" aria-label="Hình nút dây"><rect x="2" y="2" width="116" height="86" rx="10" fill="#f4ecd9"/>${inner}</svg>`;
+
+function knotDraw(k, small) {
+  const src = (window.KNOT_IMG || {})[k.id] || "";
+  const mh = small ? 170 : 300;
+  return `<div style="background:#f4ecd9;border-radius:10px;padding:6px;text-align:center"><img src="${src}" alt="${esc(k.name)}" style="max-width:100%;max-height:${mh}px;width:auto;height:auto;display:block;margin:0 auto"></div>`;
 }
-function kRope(d, w) {
-  return `<path d="${d}" fill="none" stroke="${TR_STICK}" stroke-width="${w || 5}" stroke-linecap="round"/>`;
-}
-function kGap(x, y) {
-  return `<circle cx="${x}" cy="${y}" r="4.6" fill="#f4ecd9"/>`;
-}
-function kWood(x, y, w, h) {
-  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="#c9a06a" stroke="${TR_STICK}" stroke-width="2"/>`;
-}
+
 const KNOT_GROUPS = [
-  { key: "chan", label: "Nhóm nút chặn đầu dây" },
-  { key: "noi", label: "Nhóm nút nối dây" },
-  { key: "buoc", label: "Nhóm nút buộc – vòng dây" },
-  { key: "treo", label: "Nhóm nút treo vật – thâu ngắn dây" },
-  { key: "tt", label: "Nhóm nút ứng dụng – trang trí" }
+ {
+  "key": "chan",
+  "label": "Nhóm nút chặn – đầu dây"
+ },
+ {
+  "key": "noi",
+  "label": "Nhóm nút nối dây"
+ },
+ {
+  "key": "buoc",
+  "label": "Nhóm nút buộc – vòng dây"
+ },
+ {
+  "key": "treo",
+  "label": "Nhóm nút treo vật – thâu ngắn dây"
+ },
+ {
+  "key": "rap",
+  "label": "Nhóm nút ráp cây"
+ },
+ {
+  "key": "tt",
+  "label": "Nhóm nút ứng dụng – trang trí"
+ }
 ];
+
 const KNOTS = [
-  { no: 1, id: "chiudon", grp: "chan", name: "Nút chịu đơn", alias: "Overhand knot",
-    use: "Chặn đầu dây, không cho đầu dây tuột qua lỗ nhỏ",
-    uses: "Nút chặn cơ bản nhất: giữ đầu dây không tuột qua lỗ, làm điểm tựa để kéo vật; là thành phần của nhiều nút khác.",
-    steps: ["Tạo một vòng nhỏ ở đầu dây.", "Luồn đầu dây qua vòng.", "Kéo hai phía siết chặt."],
-    note: "Siết mạnh rồi rất khó tháo — chỉ dùng khi không cần tháo thường xuyên.",
-    draw: () => knotSVG(kRope("M14 72 C28 68 38 62 46 54") + kRope("M46 54 C38 42 44 27 58 25 C72 23 81 35 75 46 C69 56 55 60 46 54") + kGap(57, 45) + kRope("M57 45 C70 39 86 35 102 36")) },
-  { no: 2, id: "chiukep", grp: "chan", name: "Nút chịu kép", alias: "Double overhand knot",
-    use: "Chặn đầu dây, nút to và chắc hơn nút chịu đơn",
-    uses: "Như nút chịu đơn nhưng nút to, chắc hơn: chặn đầu dây chịu lực lớn hơn, làm nấc bám trên dây (dây kéo nước giếng, dây đu).",
-    steps: ["Tạo một vòng ở đầu dây.", "Luồn đầu dây qua vòng hai lần (quấn hai vòng).", "Kéo hai phía siết chặt."],
-    draw: () => knotSVG(kRope("M14 74 C28 70 38 64 46 56") + kRope("M46 56 C38 46 40 32 50 24 C60 15 76 16 82 27 C88 38 80 50 68 52 C58 54 48 60 46 56") + `<circle cx="54" cy="57" r="5.5" fill="none" stroke="${TR_STICK}" stroke-width="4"/>` + kRope("M71 57 C82 61 93 64 104 64")) },
-  { no: 3, id: "so8", grp: "chan", name: "Nút số 8", alias: "Figure-eight knot",
-    use: "Chặn đầu dây, dễ tháo sau khi chịu lực",
-    uses: "Nút chặn an toàn của leo núi và dây thừng: nút to, đối xứng, chịu lực xong vẫn dễ tháo (khác nút chịu đơn hay kẹt).",
-    steps: ["Gập đầu dây thành một vòng.", "Đưa đầu dây vòng ra sau thân dây rồi luồn xuống qua vòng, vẽ thành hình số 8.", "Kéo hai phía siết chặt."],
-    draw: () => knotSVG(kRope("M26 78 C38 68 48 60 54 50") + kRope("M54 50 C44 42 42 27 54 20 C66 13 80 22 78 35 C76 46 65 51 57 49") + kGap(56, 49) + kRope("M57 49 C68 55 82 65 92 76")) },
-  { no: 4, id: "det", grp: "noi", name: "Nút dẹt", alias: "Reef knot / Square knot",
-    use: "Nối hai đầu dây cùng cỡ; khóa kết thúc băng cứu thương",
-    uses: "Nối hai đầu dây có tiết diện bằng nhau; cột kiện hàng, gói quà; khóa kết thúc băng cứu thương (băng tam giác), thắt khăn quàng.",
-    steps: ["Đặt đầu dây phải lên trên đầu dây trái, luồn ra sau rồi đưa lên (nửa nút thứ nhất).", "Đặt đầu dây trái lên trên đầu dây phải — nửa nút thứ hai ngược chiều nửa đầu.", "Kéo bốn đầu dây siết chặt; hai đầu thừa nằm cùng phía với thân dây của chính nó."],
-    note: "Thắt sai chiều nửa nút thứ hai sẽ thành nút bò (hai đầu chỉa như sừng bò) — kém chắc, khó tháo. Không dùng nối dây chịu lực lớn hay khác cỡ.",
-    draw: () => knotSVG(kRope("M8 34 C30 32 48 35 56 45 C48 55 30 58 8 56") + kGap(60, 45) + kRope("M112 34 C90 32 72 35 64 45 C72 55 90 58 112 56")) },
-  { no: 5, id: "thodet", grp: "noi", name: "Nút thợ dệt", alias: "Sheet bend",
-    use: "Nối hai đầu dây khác cỡ (tiết diện không bằng nhau)",
-    uses: "Nối hai dây có tiết diện không bằng nhau — điểm khác nút dẹt; cũng dùng nối dây vào góc lưới, góc buồm/vải.",
-    steps: ["Gập đầu dây to (dây chính) thành một vòng.", "Luồn đầu dây nhỏ từ dưới lên qua vòng.", "Đưa đầu dây nhỏ vòng ra sau cả hai nhánh của vòng.", "Luồn đầu dây nhỏ xuống dưới chính nó rồi kéo siết."],
-    draw: () => knotSVG(kRope("M12 28 C32 24 46 28 50 38 C46 48 32 52 12 48") + kRope("M106 18 C86 26 68 32 54 37") + kGap(50, 42) + kRope("M54 37 C58 46 68 51 82 53 C90 57 97 61 104 66")) },
-  { no: 6, id: "noichicau", grp: "noi", name: "Nút nối chỉ câu", alias: "Fisherman's knot",
-    use: "Nối hai sợi dây trơn, nhỏ như chỉ câu",
-    uses: "Nối dây câu cá, dây cước và các dây trơn, nhỏ, hơi cứng — những dây mà nút dẹt hay tuột; hai nút chịu đơn trượt lại khít nhau rất chắc.",
-    steps: ["Đặt hai đầu dây song song ngược chiều, chồng lên nhau một đoạn.", "Mỗi đầu dây thắt một nút chịu đơn ôm lấy thân dây kia.", "Kéo hai thân dây cho hai nút trượt lại chạm khít nhau."],
-    draw: () => knotSVG(kRope("M8 34 H76") + kRope("M112 54 H44") + `<circle cx="68" cy="39" r="6.5" fill="none" stroke="${TR_STICK}" stroke-width="4.5"/>` + `<circle cx="52" cy="49" r="6.5" fill="none" stroke="${TR_STICK}" stroke-width="4.5"/>`) },
-  { no: 7, id: "daubo", grp: "noi", name: "Nút đầu bò", alias: "",
-    use: "Nối hai đầu dây, mặt nút đan phẳng xen kẽ",
-    uses: "Nối hai đầu dây vừa và lớn; hai dây đan xen thành mặt nút phẳng, đối xứng, không cộm, các đầu dây ra ở hai phía.",
-    steps: ["Gập đầu dây thứ nhất thành một vòng.", "Luồn đầu dây thứ hai qua vòng, đan vòng quanh hai nhánh của vòng theo chiều ngược lại.", "Siết đều bốn đầu — mặt nút đan phẳng, xen kẽ."],
-    note: "Đừng nhầm với nút bò — đó là nút dẹt thắt sai (hai đầu chỉa như sừng bò). Nút đầu bò trong poster là nút nối riêng, mặt đan phẳng.",
-    draw: () => knotSVG(kRope("M8 31 C26 29 40 32 49 40") + kRope("M8 59 C26 61 40 58 49 50") + kRope("M112 31 C94 29 80 32 71 40") + kRope("M112 59 C94 61 80 58 71 50") + kRope("M49 40 C56 45 64 45 71 50", 4.5) + kGap(60, 45) + kRope("M49 50 C56 45 64 45 71 40", 4.5)) },
-  { no: 8, id: "carrick", grp: "noi", name: "Nút Carrick", alias: "Carrick bend",
-    use: "Nối hai dây lớn, dễ tháo sau khi chịu lực",
-    uses: "Nối thừng, cáp lớn: chịu lực tốt mà vẫn dễ mở sau khi chịu lực; mặt nút đan vuông như tấm thảm nên cũng dùng trang trí.",
-    steps: ["Dây thứ nhất tạo một vòng tròn.", "Dây thứ hai luồn đan xen qua vòng theo đúng quy tắc trên – dưới luân phiên, tạo hình đan vuông.", "Siết từ từ, đều cả bốn đầu dây."],
-    draw: () => knotSVG(kRope("M60 10 C74 10 82 24 82 38 C82 52 74 62 60 62 C46 62 38 52 38 38 C38 24 46 10 60 10") + kGap(43, 27) + kGap(77, 27) + kRope("M14 44 C14 33 28 27 44 28 C52 27 68 27 76 28 C92 27 106 33 106 44 C106 55 92 61 76 60 C68 61 52 61 44 60 C28 61 14 55 14 44") + kRope("M45 61 C53 64 67 64 75 61", 5) + kRope("M44 60 C37 67 29 72 20 77", 4.5) + kRope("M76 60 C83 67 91 72 100 77", 4.5)) },
-  { no: 9, id: "ghedon", grp: "buoc", name: "Nút ghế đơn", alias: "Bowline",
-    use: "Tạo vòng cố định không siết — nút cứu hộ",
-    uses: "“Vua của các nút dây”: tạo vòng cố định quanh người hay vật mà vòng không chạy, không siết; dùng cứu hộ (làm ghế ngồi đưa người lên xuống), buộc vòng vào cọc, neo thuyền.",
-    steps: ["Tạo một vòng nhỏ trên thân dây.", "Đưa đầu dây từ dưới lên qua vòng nhỏ.", "Đưa đầu dây vòng ra sau thân dây chính.", "Luồn đầu dây từ trên xuống lại qua vòng nhỏ.", "Giữ vòng lớn, kéo thân dây chính siết chặt."],
-    draw: () => knotSVG(kRope("M60 14 C75 14 84 25 84 38 C84 53 73 62 60 62 C47 62 36 53 36 38 C36 25 45 14 60 14") + kRope("M49 59 C53 66 67 66 71 59", 4) + kRope("M57 62 C56 70 55 77 55 85") + kRope("M64 61 C68 68 73 74 81 79")) },
-  { no: 10, id: "thonglongdon", grp: "buoc", name: "Nút thòng lọng đơn", alias: "Overhand noose",
-    use: "Tạo vòng siết được để treo, móc đồ vật",
-    uses: "Thuộc nhóm buộc và treo: treo, móc đồ vật (treo màn, mùng…), bắt súc vật; kéo thân dây là vòng siết chặt vào vật.",
-    steps: ["Đưa dây phải qua và đặt trên dây trái, tạo thành một vòng tròn.", "Gập một phần đầu dây trái đưa vào vòng tròn theo hướng từ trước ra sau.", "Kéo dây phải và phần gập của đầu dây trái — được nút thòng lọng."],
-    draw: () => knotSVG(kRope("M45 6 C44 16 44 26 45 34") + `<circle cx="47" cy="40" r="5.5" fill="none" stroke="${TR_STICK}" stroke-width="4.5"/>` + kRope("M50 43 C66 46 77 55 74 66 C71 78 55 83 45 75 C36 68 38 53 48 47") + kRope("M51 37 C62 31 76 27 90 26")) },
-  { no: 11, id: "thuyenchai", grp: "buoc", name: "Nút thuyền chài", alias: "Clove hitch",
-    use: "Buộc dây vào cọc; mở đầu và kết thúc các nút ráp cây",
-    uses: "Cột đầu dây vào cọc hay cây; cột thuyền vào cọc ven bờ; căn lều; là nút bắt đầu và kết thúc của các nút ráp (ghép) cây chữ thập, chữ nhân.",
-    steps: ["Quấn dây qua cọc tạo vòng chéo thứ nhất.", "Quấn vòng thứ hai bắt chéo vòng đầu (thành hình chữ X trên cọc).", "Luồn đầu dây xuống dưới đoạn chéo của vòng thứ hai và kéo siết."],
-    draw: () => knotSVG(kWood(6, 30, 108, 10) + kRope("M42 16 C50 26 56 38 60 52") + kRope("M78 16 C70 26 64 38 60 52") + kRope("M60 52 C58 62 58 71 60 81") + kRope("M63 49 C74 55 88 58 102 58")) },
-  { no: 12, id: "sonca", grp: "buoc", name: "Nút sơn ca", alias: "Lark's head / Cow hitch",
-    use: "Buộc, treo dây vào xà ngang, cọc hoặc vòng",
-    uses: "Treo một vật lên xà ngang; làm xích đu, kéo treo bó củi, dựng cột cờ, buộc dây vào móc hay vòng; thắt nhanh, tháo dễ. Có biến thể sơn ca kép cho chắc hơn.",
-    steps: ["Gập đôi dây thành một vòng, đặt vòng qua xà/cọc/vòng treo.", "Luồn cả hai đầu dây qua vòng gập.", "Kéo hai đầu dây siết chặt."],
-    draw: () => knotSVG(kWood(6, 24, 108, 9) + kRope("M45 6 C44 16 45 26 48 34 C51 42 55 45 60 45 C65 45 69 42 72 34 C75 26 76 16 75 6") + kRope("M48 33 C54 39 66 39 72 33", 4.5) + kRope("M54 40 C53 52 53 64 54 80") + kRope("M66 40 C67 52 67 64 66 80")) },
-  { no: 13, id: "mochim", grp: "buoc", name: "Nút mỏ chim", alias: "",
-    use: "Máng một đầu dây vào móc, tạo vòng treo nhanh",
-    uses: "Máng (treo) một đầu dây vào một cái móc — tạo sẵn một vòng treo hình giọt nước ở đầu hoặc giữa dây, cổ vòng quấn hai vòng rất chắc.",
-    steps: ["Gập đôi một đoạn dây tạo vòng treo.", "Quấn phần gập quanh cổ vòng hai vòng để tạo cổ nút.", "Siết chặt — được vòng treo hình giọt nước để máng vào móc."],
-    note: "Tài liệu GĐPT còn ghi một công dụng khác: nối thật nhanh hai đầu dây mềm (rất chắc nhưng khó tháo).",
-    draw: () => knotSVG(kRope("M54 6 V20") + kRope("M66 6 V20") + kRope("M47 23 C54 19 66 19 73 23", 4.5) + kRope("M47 29 C54 25 66 25 73 29", 4.5) + kRope("M52 29 C41 42 38 60 47 71 C53 79 67 79 73 71 C82 60 79 42 68 29")) },
-  { no: 14, id: "chay", grp: "buoc", name: "Nút chạy", alias: "Taut-line hitch",
-    use: "Tăng, giảm độ căng của dây lều (nút trượt dọc theo dây)",
-    uses: "Nút chủ lực khi dựng lều: cụm nút trượt dọc theo dây chính để căng hay chùng dây lều, dây phơi; thả tay ra là tự hãm. Có chạy đơn và chạy kép; càng nhiều vòng càng hãm chắc, tối đa khoảng 10 vòng.",
-    steps: ["Đưa đầu dây vòng quanh dây chính (hoặc cọc), quấn hai vòng liên tiếp về phía trong.", "Quấn thêm một vòng khóa ở phía ngoài rồi đưa đầu dây ra.", "Trượt cả cụm nút dọc theo dây để tăng – giảm độ căng."],
-    draw: () => knotSVG(kRope("M14 78 C38 60 70 36 104 13") + kRope("M37 60 C43 49 54 42 63 44", 4.5) + kRope("M34 53 C40 42 51 35 60 37", 4.5) + kRope("M43 64 C48 53 59 46 68 48", 4.5) + kRope("M42 61 C34 67 28 74 27 83")) },
-  { no: 15, id: "cotco", grp: "buoc", name: "Nút cột cờ", alias: "",
-    use: "Buộc cờ vào dây kéo cờ trên cột cờ",
-    uses: "Thắt ngay trên dây kéo cờ: phần giữa nút ôm chặt dây kéo, hai mắt vòng ở hai đầu nút dùng móc vào hai góc (khuyết) của lá cờ, kéo lên không tuột.",
-    steps: ["Trên dây kéo cờ, tạo hai vòng tròn liên tiếp.", "Lật hai vòng chồng lên nhau và đan xen vào nhau.", "Kéo hai phía cho nút ôm chặt dây kéo — được hai mắt vòng hai bên để móc góc cờ."],
-    draw: () => knotSVG(kRope("M29 45 C18 38 9 40 9 46 C9 52 18 55 29 48") + kRope("M91 45 C102 38 111 40 111 46 C111 52 102 55 91 48") + kRope("M29 39 C42 32 54 45 67 39 C79 33 86 36 91 41") + kRope("M29 51 C42 58 54 45 67 51 C79 57 86 54 91 49") + kGap(60, 45) + kRope("M52 53 C50 63 49 71 50 81") + kRope("M70 53 C72 63 73 71 72 81")) },
-  { no: 16, id: "motvong2khoa", grp: "buoc", name: "Nút 1 vòng 2 khóa", alias: "Round turn & two half hitches",
-    use: "Buộc dây vào cọc khi chịu lực lớn, neo thuyền",
-    uses: "Vòng quấn quanh cọc chịu lực chính, hai khóa giữ đầu dây: buộc dây vào cọc/vòng khi kéo nặng — neo thuyền, buộc dây chịu tải; chắc hơn thuyền chài khi tải lớn, cọc trơn.",
-    steps: ["Quấn dây một vòng trọn quanh cọc (vòng này chịu lực chính).", "Luồn đầu dây quanh thân dây chính, thắt khóa thứ nhất.", "Thắt tiếp khóa thứ hai sát khóa đầu, kéo siết cả hai khóa."],
-    draw: () => knotSVG(kWood(15, 6, 12, 78) + kRope("M48 32 C39 27 31 26 26 29") + kRope("M26 29 C33 33 33 43 26 47") + kRope("M26 47 C33 45 41 41 47 38") + `<circle cx="54" cy="37" r="6.5" fill="none" stroke="${TR_STICK}" stroke-width="4.5"/>` + `<circle cx="68" cy="37" r="6.5" fill="none" stroke="${TR_STICK}" stroke-width="4.5"/>` + kRope("M74 35 C86 33 98 33 111 34") + kRope("M60 43 C62 51 64 57 68 62")) },
-  { no: 17, id: "treoden", grp: "treo", name: "Nút treo đèn", alias: "",
-    use: "Treo đèn bão, đèn dầu khi cắm trại",
-    uses: "Mắt nút ôm chắc cổ đèn, phía trên có vòng treo để móc đèn lên cành cây hay xà lều; cũng áp dụng cho chai lọ có cổ.",
-    steps: ["Tạo hai vòng tròn liên tiếp trên dây.", "Lật vòng sau chồng lên vòng trước và đan xen vào nhau.", "Đặt cổ đèn vào giữa mắt nút, siết đều các phía; vòng phía trên để móc treo."],
-    note: "Cùng họ kỹ thuật với nút thắt cổ chai (hai vòng đan xen tạo mắt ôm cổ vật).",
-    draw: () => knotSVG(kRope("M60 5 C66 5 69 11 68 17 C67 23 62 26 60 26 C58 26 53 23 52 17 C51 11 54 5 60 5") + kRope("M46 33 C54 27 66 27 74 33 C80 39 78 49 70 53 C62 57 50 55 45 49 C40 43 40 37 46 33") + kRope("M50 35 C56 43 64 43 70 35", 4) + kRope("M50 47 C56 39 64 39 70 47", 4) + kRope("M45 43 C35 39 27 43 28 50 C29 57 38 59 45 53", 4) + kRope("M75 43 C85 39 93 43 92 50 C91 57 82 59 75 53", 4) + kRope("M53 55 C51 65 50 73 51 83") + kRope("M67 55 C69 65 70 73 69 83")) },
-  { no: 18, id: "treothung", grp: "treo", name: "Nút treo thùng", alias: "Barrel hitch",
-    use: "Làm quai treo, xách thùng nước",
-    uses: "Ôm chắc thân thùng tròn không có quai: dây vòng dưới đáy, quấn ngang bụng thùng, hai đầu nối thành vòng treo — treo/xách thùng, xô nước ở giếng và ở trại.",
-    steps: ["Luồn dây vòng dưới đáy thùng, đưa hai đầu lên hai bên thành thùng.", "Quấn một vòng ngang quanh bụng thùng và khóa chéo để thùng không lật.", "Nối hai đầu dây trên miệng thùng thành vòng treo."],
-    draw: () => knotSVG(kWood(28, 7, 64, 7) + kRope("M47 14 C51 5 69 5 73 14") + `<path d="M38 33 C34 47 34 61 40 73 C44 81 52 83 60 83 C68 83 76 81 80 73 C86 61 86 47 82 33 C74 27 46 27 38 33 Z" fill="#dcbd8f" stroke="${TR_STICK}" stroke-width="2.5"/>` + `<path d="M35 47 C47 53 73 53 85 47" fill="none" stroke="${TR_STICK}" stroke-width="2"/>` + `<path d="M37 65 C48 71 72 71 83 65" fill="none" stroke="${TR_STICK}" stroke-width="2"/>` + kRope("M47 14 C45 24 44 28 45 34 C43 50 43 64 46 79") + kRope("M73 14 C75 24 76 28 75 34 C77 50 77 64 74 79") + kRope("M33 55 C46 62 74 62 87 55")) },
-  { no: 19, id: "thatcochai", grp: "treo", name: "Nút thắt cổ chai", alias: "Jug sling / Bottle sling",
-    use: "Thắt cổ chai làm quai xách, treo chai",
-    uses: "Mắt nút ôm khít cổ chai, phần dây phía trên thành hai quai: biến chai thành bình có quai để xách, treo chai lên cọc, mang nước khi đi trại.",
-    steps: ["Tạo hai vòng tròn liên tiếp trên dây.", "Lật vòng sau chồng lên vòng trước, đan xen vào nhau.", "Mở mắt nút đặt trùm qua miệng chai xuống cổ chai.", "Siết đều các phía cho mắt nút ôm khít cổ chai; phần dây phía trên thành quai xách."],
-    note: "Cùng họ kỹ thuật với nút treo đèn (hai vòng đan xen tạo mắt ôm cổ vật).",
-    draw: () => knotSVG(kRope("M50 40 C42 31 39 20 45 13 C51 7 59 13 57 23 C56 30 53 36 50 40") + kRope("M70 40 C78 31 81 20 75 13 C69 7 61 13 63 23 C64 30 67 36 70 40") + kRope("M47 41 C54 35 66 35 73 41 C79 47 76 55 68 58 C60 61 50 59 46 53 C42 48 42 44 47 41") + kRope("M50 43 C56 50 64 50 70 43", 4) + `<path d="M53 84 V68 C53 62 55 59 57 57 H63 C65 59 67 62 67 68 V84" fill="none" stroke="#9aa3ab" stroke-width="2.5"/>` + kRope("M54 59 C52 66 52 72 53 80", 4) + kRope("M66 59 C68 66 68 72 67 80", 4)) },
-  { no: 20, id: "chancho", grp: "treo", name: "Nút chân chó", alias: "Sheepshank",
-    use: "Thâu ngắn một sợi dây tạm thời mà không cắt dây",
-    uses: "Rút ngắn đoạn dây chùng cho vừa dùng mà không phải cắt; cách ly đoạn dây bị sờn ở giữa (đoạn sờn nằm trong phần thâu, không chịu lực). Phải giữ sức căng hai đầu, hết căng nút dễ bung.",
-    steps: ["Gập đoạn dây cần thâu ngắn thành hai vòng (hai tai) ở hai đầu đoạn.", "Mỗi đầu dây thắt một nút nửa ôm qua vòng gập gần nhất.", "Kéo hai đầu dây cho nút ôm chặt các vòng gập."],
-    draw: () => knotSVG(kRope("M6 28 C16 24 26 24 34 27") + kRope("M34 27 C29 39 31 53 41 57 C51 59 57 47 53 32 C51 26 42 23 34 27") + kRope("M31 23 C36 29 46 29 51 24", 4) + kRope("M53 30 C59 26 65 26 70 29") + kRope("M70 29 C65 41 67 53 77 57 C87 59 93 47 89 32 C87 26 78 24 70 29") + kRope("M67 24 C72 30 82 30 87 25", 4) + kRope("M89 31 C98 27 106 27 114 29")) },
-  { no: 21, id: "xichdu", grp: "tt", name: "Nút xích đu", alias: "",
-    use: "Buộc ván ghế xích đu vào dây treo",
-    uses: "Buộc ván ngồi vào hai dây treo của xích đu (và các ghế treo ở trại): các vòng quấn ôm chặt ván, giữ ván không lật, không trượt; hai đầu dây lên buộc vào xà hay cành cây.",
-    steps: ["Đặt ván ghế ngang, quấn dây ba vòng quanh ván ở mỗi đầu ván.", "Khóa các vòng quấn bằng một vòng ngang để vòng không xô lệch.", "Đưa hai đầu dây lên buộc vào xà/cành cây, chỉnh hai bên cho ván cân bằng."],
-    draw: () => knotSVG(kWood(10, 10, 100, 8) + kRope("M36 18 C35 28 35 36 36 46") + kRope("M84 18 C85 28 85 36 84 46") + kWood(20, 52, 80, 10) + kRope("M30 48 C28 56 28 62 30 68", 4.5) + kRope("M38 48 C36 56 36 62 38 68", 4.5) + kRope("M46 48 C44 56 44 62 46 68", 4.5) + kRope("M74 48 C72 56 72 62 74 68", 4.5) + kRope("M82 48 C80 56 80 62 82 68", 4.5) + kRope("M90 48 C88 56 88 62 90 68", 4.5) + kRope("M34 68 C33 73 33 77 34 82", 4) + kRope("M86 68 C87 73 87 77 86 82", 4)) },
-  { no: 22, id: "cucao", grp: "tt", name: "Nút cúc áo", alias: "Button knot",
-    use: "Làm cúc, nút chặn trang trí ở đầu dây",
-    uses: "Làm cúc áo bằng dây; nút chặn trang trí to và đẹp ở đầu dây — trang trí dây đeo, móc khóa, đầu dây trang trí trại.",
-    steps: ["Tạo một vòng ở đầu dây.", "Luồn đầu dây đan xen trên – dưới quanh vòng theo đường đan của mặt cúc, đi đủ một vòng đan.", "Siết từ từ, đều tay — được cúc tròn nổi trên dây."],
-    draw: () => knotSVG(kRope("M60 6 C67 6 70 12 69 19 C68 25 63 28 60 28 C57 28 52 25 51 19 C50 12 53 6 60 6") + `<circle cx="60" cy="41" r="10.5" fill="none" stroke="${TR_STICK}" stroke-width="4.5"/>` + kRope("M53 35 C58 41 62 41 67 47", 4) + kRope("M67 35 C62 41 58 41 53 47", 4) + kRope("M55 51 C54 61 53 71 54 83") + kRope("M65 51 C66 61 67 71 66 83")) },
-  { no: 23, id: "hoa3canh", grp: "tt", name: "Nút hoa 3 cánh", alias: "",
-    use: "Nút trang trí hình hoa ba cánh trên dây",
-    uses: "Nút trang trí truyền thống: trang trí đầu dây, làm móc khóa, dây đeo, điểm nhấn trên dây trang trí trại.",
-    steps: ["Gập dây tạo ba vòng (ba cánh): một vòng giữa, hai vòng hai bên.", "Đan xen các vòng vào nhau quanh tâm hoa.", "Siết đều từng cánh — được hoa ba cánh trên thân dây."],
-    draw: () => knotSVG(kRope("M52 40 C41 27 27 25 22 33 C16 42 25 53 39 53 C46 53 50 47 52 40") + kRope("M68 40 C79 27 93 25 98 33 C104 42 95 53 81 53 C74 53 70 47 68 40") + `<circle cx="60" cy="42" r="5" fill="none" stroke="${TR_STICK}" stroke-width="4"/>` + kRope("M60 47 C52 52 49 60 54 65 C59 70 66 67 67 59 C68 53 65 49 60 47", 4) + kRope("M57 53 C56 63 56 73 57 84") + kRope("M63 53 C64 63 64 73 63 84")) }
+ {
+  "no": 1,
+  "id": "chiudon",
+  "grp": "chan",
+  "name": "Nút chịu đơn",
+  "alias": "Overhand knot",
+  "use": "Chặn đầu dây, không cho đầu dây tuột qua lỗ nhỏ",
+  "uses": "Nút chặn cơ bản nhất: giữ đầu dây không tuột qua lỗ, làm điểm tựa để kéo vật; là thành phần của nhiều nút khác.",
+  "steps": [
+   "Tạo một vòng nhỏ ở đầu dây.",
+   "Luồn đầu dây qua vòng.",
+   "Kéo hai phía siết chặt."
+  ],
+  "note": "Siết mạnh rồi rất khó tháo — chỉ dùng khi không cần tháo thường xuyên."
+ },
+ {
+  "no": 2,
+  "id": "chiukep",
+  "grp": "chan",
+  "name": "Nút chịu kép",
+  "alias": "Double overhand knot",
+  "use": "Chặn đầu dây, nút to và chắc hơn nút chịu đơn",
+  "uses": "Như nút chịu đơn nhưng nút to, chắc hơn: chặn đầu dây chịu lực lớn hơn, làm nấc bám trên dây (dây kéo nước giếng, dây đu).",
+  "steps": [
+   "Tạo một vòng ở đầu dây.",
+   "Luồn đầu dây qua vòng hai lần (quấn hai vòng).",
+   "Kéo hai phía siết chặt."
+  ]
+ },
+ {
+  "no": 3,
+  "id": "so8",
+  "grp": "chan",
+  "name": "Nút số 8",
+  "alias": "Figure-eight knot",
+  "use": "Chặn đầu dây, dễ tháo sau khi chịu lực",
+  "uses": "Nút chặn an toàn của leo núi và dây thừng: nút to, đối xứng, chịu lực xong vẫn dễ tháo (khác nút chịu đơn hay kẹt).",
+  "steps": [
+   "Gập đầu dây thành một vòng.",
+   "Đưa đầu dây vòng ra sau thân dây rồi luồn xuống qua vòng, vẽ thành hình số 8.",
+   "Kéo hai phía siết chặt."
+  ]
+ },
+ {
+  "no": 4,
+  "id": "vanday",
+  "grp": "chan",
+  "name": "Nút vấn đầu dây",
+  "alias": "Common whipping",
+  "use": "Quấn giữ đầu dây thừng chống xơ, tuột chỉ",
+  "uses": "Dùng chỉ hoặc dây nhỏ quấn chặt nhiều vòng quanh đầu dây thừng, giấu mối bằng vòng gập kéo ngầm — đầu dây không xơ, không tuột thớ. Kỹ năng đầu dây cơ bản cho mọi loại dây trại.",
+  "steps": [
+   "Đặt một vòng gập của chỉ dọc theo đầu dây, đầu gập hướng ra phía đầu dây.",
+   "Quấn chỉ quanh cả thân dây và vòng gập, từ trong ra phía đầu dây, 8–10 vòng thật chặt.",
+   "Luồn đầu chỉ qua vòng gập, rồi kéo đầu chỉ phía trong cho vòng gập rút ngầm, giấu mối vào giữa các vòng quấn.",
+   "Cắt sát hai đầu chỉ thừa."
+  ]
+ },
+ {
+  "no": 5,
+  "id": "det",
+  "grp": "noi",
+  "name": "Nút dẹt",
+  "alias": "Reef knot / Square knot",
+  "use": "Nối hai đầu dây cùng cỡ; khóa kết thúc băng cứu thương",
+  "uses": "Nối hai đầu dây có tiết diện bằng nhau; cột kiện hàng, gói quà; khóa kết thúc băng cứu thương (băng tam giác), thắt khăn quàng.",
+  "steps": [
+   "Đặt đầu dây phải lên trên đầu dây trái, luồn ra sau rồi đưa lên (nửa nút thứ nhất).",
+   "Đặt đầu dây trái lên trên đầu dây phải — nửa nút thứ hai ngược chiều nửa đầu.",
+   "Kéo bốn đầu dây siết chặt; hai đầu thừa nằm cùng phía với thân dây của chính nó."
+  ],
+  "note": "Thắt sai chiều nửa nút thứ hai sẽ thành nút bò (hai đầu chỉa như sừng bò) — kém chắc, khó tháo. Không dùng nối dây chịu lực lớn hay khác cỡ."
+ },
+ {
+  "no": 6,
+  "id": "thodet",
+  "grp": "noi",
+  "name": "Nút thợ dệt",
+  "alias": "Sheet bend",
+  "use": "Nối hai đầu dây khác cỡ (tiết diện không bằng nhau)",
+  "uses": "Nối hai dây có tiết diện không bằng nhau — điểm khác nút dẹt; cũng dùng nối dây vào góc lưới, góc buồm/vải.",
+  "steps": [
+   "Gập đầu dây to (dây chính) thành một vòng.",
+   "Luồn đầu dây nhỏ từ dưới lên qua vòng.",
+   "Đưa đầu dây nhỏ vòng ra sau cả hai nhánh của vòng.",
+   "Luồn đầu dây nhỏ xuống dưới chính nó rồi kéo siết."
+  ]
+ },
+ {
+  "no": 7,
+  "id": "noichicau",
+  "grp": "noi",
+  "name": "Nút nối chỉ câu",
+  "alias": "Fisherman's knot",
+  "use": "Nối hai sợi dây trơn, nhỏ như chỉ câu",
+  "uses": "Nối dây câu cá, dây cước và các dây trơn, nhỏ, hơi cứng — những dây mà nút dẹt hay tuột; hai nút chịu đơn trượt lại khít nhau rất chắc.",
+  "steps": [
+   "Đặt hai đầu dây song song ngược chiều, chồng lên nhau một đoạn.",
+   "Mỗi đầu dây thắt một nút chịu đơn ôm lấy thân dây kia.",
+   "Kéo hai thân dây cho hai nút trượt lại chạm khít nhau."
+  ]
+ },
+ {
+  "no": 8,
+  "id": "daubo",
+  "grp": "noi",
+  "name": "Nút đầu bò",
+  "alias": "",
+  "use": "Nối hai đầu dây, mặt nút đan phẳng xen kẽ",
+  "uses": "Nối hai đầu dây vừa và lớn; hai dây đan xen thành mặt nút phẳng, đối xứng, không cộm, các đầu dây ra ở hai phía.",
+  "steps": [
+   "Gập đầu dây thứ nhất thành một vòng.",
+   "Luồn đầu dây thứ hai qua vòng, đan vòng quanh hai nhánh của vòng theo chiều ngược lại.",
+   "Siết đều bốn đầu — mặt nút đan phẳng, xen kẽ."
+  ],
+  "note": "Đừng nhầm với nút bò — đó là nút dẹt thắt sai (hai đầu chỉa như sừng bò). Nút đầu bò trong poster là nút nối riêng, mặt đan phẳng."
+ },
+ {
+  "no": 9,
+  "id": "carrick",
+  "grp": "noi",
+  "name": "Nút Carrick",
+  "alias": "Carrick bend",
+  "use": "Nối hai dây lớn, dễ tháo sau khi chịu lực",
+  "uses": "Nối thừng, cáp lớn: chịu lực tốt mà vẫn dễ mở sau khi chịu lực; mặt nút đan vuông như tấm thảm nên cũng dùng trang trí.",
+  "steps": [
+   "Dây thứ nhất tạo một vòng tròn.",
+   "Dây thứ hai luồn đan xen qua vòng theo đúng quy tắc trên – dưới luân phiên, tạo hình đan vuông.",
+   "Siết từ từ, đều cả bốn đầu dây."
+  ]
+ },
+ {
+  "no": 10,
+  "id": "nutno",
+  "grp": "noi",
+  "name": "Nút nơ",
+  "alias": "Slipped reef knot",
+  "use": "Cột dây giày, gói quà; kéo đầu thừa là tháo ngay",
+  "uses": "Bản tháo nhanh của nút dẹt: nửa nút thứ hai thắt bằng tai gập nên chỉ cần kéo một đầu thừa là bung cả nút. Cột dây giày, buộc miệng túi, gói quà, buộc tạm cần tháo nhanh.",
+  "steps": [
+   "Thắt một nửa nút đơn bằng hai đầu dây.",
+   "Gập một đầu dây thành tai (vòng gập).",
+   "Thắt nửa nút thứ hai ngược chiều nửa nút đầu, dùng tai gập và đầu dây còn lại (đầu này cũng gập thành tai).",
+   "Siết hai tai cho cân đối; muốn tháo chỉ cần kéo một đầu thừa."
+  ],
+  "note": "Hai tai phải cân nhau và nửa nút sau ngược chiều nửa nút trước, nếu không thành nút bò đội tai — dễ tuột lệch."
+ },
+ {
+  "no": 11,
+  "id": "ghedon",
+  "grp": "buoc",
+  "name": "Nút ghế đơn",
+  "alias": "Bowline",
+  "use": "Tạo vòng cố định không siết — nút cứu hộ",
+  "uses": "“Vua của các nút dây”: tạo vòng cố định quanh người hay vật mà vòng không chạy, không siết; dùng cứu hộ (làm ghế ngồi đưa người lên xuống), buộc vòng vào cọc, neo thuyền.",
+  "steps": [
+   "Tạo một vòng nhỏ trên thân dây.",
+   "Đưa đầu dây từ dưới lên qua vòng nhỏ.",
+   "Đưa đầu dây vòng ra sau thân dây chính.",
+   "Luồn đầu dây từ trên xuống lại qua vòng nhỏ.",
+   "Giữ vòng lớn, kéo thân dây chính siết chặt."
+  ]
+ },
+ {
+  "no": 12,
+  "id": "ghekep",
+  "grp": "buoc",
+  "name": "Nút ghế kép",
+  "alias": "Bowline on a bight",
+  "use": "Tạo hai vòng cố định cùng lúc; cứu hộ hai vòng, treo vật hai điểm",
+  "uses": "Thắt bằng đoạn dây gập đôi nên cho hai vòng cố định cùng lúc. Cứu hộ: một vòng qua hai đùi, một vòng qua nách để kéo người. Treo vật bằng hai điểm cho cân bằng.",
+  "steps": [
+   "Gập đôi dây, chừa đoạn gập đủ dài để làm hai vòng.",
+   "Thắt nút ghế đơn bằng cả đoạn dây đôi (coi đoạn gập như một đầu dây).",
+   "Lật vòng gập nhỏ qua khỏi thân nút rồi kéo xuống, ôm lấy hai vòng lớn.",
+   "Siết chặt; chỉnh to nhỏ từng vòng trước khi siết hẳn."
+  ]
+ },
+ {
+  "no": 13,
+  "id": "thonglongdon",
+  "grp": "buoc",
+  "name": "Nút thòng lọng đơn",
+  "alias": "Overhand noose",
+  "use": "Tạo vòng siết được để treo, móc đồ vật",
+  "uses": "Thuộc nhóm buộc và treo: treo, móc đồ vật (treo màn, mùng…), bắt súc vật; kéo thân dây là vòng siết chặt vào vật.",
+  "steps": [
+   "Đưa dây phải qua và đặt trên dây trái, tạo thành một vòng tròn.",
+   "Gập một phần đầu dây trái đưa vào vòng tròn theo hướng từ trước ra sau.",
+   "Kéo dây phải và phần gập của đầu dây trái — được nút thòng lọng."
+  ]
+ },
+ {
+  "no": 14,
+  "id": "thonglongkep",
+  "grp": "buoc",
+  "name": "Nút thòng lọng kép",
+  "alias": "Poacher's knot",
+  "use": "Tạo vòng siết trượt chắc hơn thòng lọng đơn; treo vật nặng, giữ súc vật",
+  "uses": "Nút thắt quanh thân dây là nút chịu kép nên ma sát lớn: vòng siết giữ chắc, khó tự tuột hơn thòng lọng đơn. Treo vật nặng, buộc giữ súc vật, làm vòng bẫy trong trò chơi lớn.",
+  "steps": [
+   "Gập đầu dây thành một vòng (bight) đặt song song với thân dây.",
+   "Dùng đầu dây thắt nút chịu kép (quấn hai vòng) quanh thân dây.",
+   "Kéo đầu dây cho nút trượt sát lại thành vòng siết.",
+   "Kéo thân dây để thu nhỏ vòng; kéo đầu dây để nới vòng."
+  ]
+ },
+ {
+  "no": 15,
+  "id": "thuyenchai",
+  "grp": "buoc",
+  "name": "Nút thuyền chài",
+  "alias": "Clove hitch",
+  "use": "Buộc dây vào cọc; mở đầu và kết thúc các nút ráp cây",
+  "uses": "Cột đầu dây vào cọc hay cây; cột thuyền vào cọc ven bờ; căn lều; là nút bắt đầu và kết thúc của các nút ráp (ghép) cây chữ thập, chữ nhân.",
+  "steps": [
+   "Quấn dây qua cọc tạo vòng chéo thứ nhất.",
+   "Quấn vòng thứ hai bắt chéo vòng đầu (thành hình chữ X trên cọc).",
+   "Luồn đầu dây xuống dưới đoạn chéo của vòng thứ hai và kéo siết."
+  ]
+ },
+ {
+  "no": 16,
+  "id": "sonca",
+  "grp": "buoc",
+  "name": "Nút sơn ca",
+  "alias": "Lark's head / Cow hitch",
+  "use": "Buộc, treo dây vào xà ngang, cọc hoặc vòng",
+  "uses": "Treo một vật lên xà ngang; làm xích đu, kéo treo bó củi, dựng cột cờ, buộc dây vào móc hay vòng; thắt nhanh, tháo dễ. Có biến thể sơn ca kép cho chắc hơn.",
+  "steps": [
+   "Gập đôi dây thành một vòng, đặt vòng qua xà/cọc/vòng treo.",
+   "Luồn cả hai đầu dây qua vòng gập.",
+   "Kéo hai đầu dây siết chặt."
+  ]
+ },
+ {
+  "no": 17,
+  "id": "mochim",
+  "grp": "buoc",
+  "name": "Nút mỏ chim",
+  "alias": "",
+  "use": "Máng một đầu dây vào móc, tạo vòng treo nhanh",
+  "uses": "Máng (treo) một đầu dây vào một cái móc — tạo sẵn một vòng treo hình giọt nước ở đầu hoặc giữa dây, cổ vòng quấn hai vòng rất chắc.",
+  "steps": [
+   "Gập đôi một đoạn dây tạo vòng treo.",
+   "Quấn phần gập quanh cổ vòng hai vòng để tạo cổ nút.",
+   "Siết chặt — được vòng treo hình giọt nước để máng vào móc."
+  ],
+  "note": "Tài liệu GĐPT còn ghi một công dụng khác: nối thật nhanh hai đầu dây mềm (rất chắc nhưng khó tháo)."
+ },
+ {
+  "no": 18,
+  "id": "chay",
+  "grp": "buoc",
+  "name": "Nút chạy",
+  "alias": "Taut-line hitch",
+  "use": "Tăng, giảm độ căng của dây lều (nút trượt dọc theo dây)",
+  "uses": "Nút chủ lực khi dựng lều: cụm nút trượt dọc theo dây chính để căng hay chùng dây lều, dây phơi; thả tay ra là tự hãm. Có chạy đơn và chạy kép; càng nhiều vòng càng hãm chắc, tối đa khoảng 10 vòng.",
+  "steps": [
+   "Đưa đầu dây vòng quanh dây chính (hoặc cọc), quấn hai vòng liên tiếp về phía trong.",
+   "Quấn thêm một vòng khóa ở phía ngoài rồi đưa đầu dây ra.",
+   "Trượt cả cụm nút dọc theo dây để tăng – giảm độ căng."
+  ]
+ },
+ {
+  "no": 19,
+  "id": "bocau",
+  "grp": "buoc",
+  "name": "Nút bồ câu",
+  "alias": "Trucker's hitch",
+  "use": "Tăng lực căng dây như ròng rọc; chằng hàng, căng dây thật chặt",
+  "uses": "Hệ thống có một vòng cố định giữa dây đóng vai trò ròng rọc, cho lực kéo gần gấp đôi: căng dây chằng hàng hóa, dây lều lớn, dây phơi chịu nặng, căng dây qua sông.",
+  "steps": [
+   "Buộc cố định một đầu dây vào điểm neo thứ nhất.",
+   "Giữa dây tạo một vòng cố định (thắt thòng lọng lưng chừng hoặc ghế đơn lưng chừng).",
+   "Đưa đầu dây còn lại vòng qua điểm neo thứ hai rồi xỏ ngược qua vòng cố định.",
+   "Kéo mạnh đầu dây cho dây thật căng, khóa bằng hai khóa quanh hai sợi dây (như 1 vòng 2 khóa)."
+  ]
+ },
+ {
+  "no": 20,
+  "id": "cotco",
+  "grp": "buoc",
+  "name": "Nút cột cờ",
+  "alias": "",
+  "use": "Buộc cờ vào dây kéo cờ trên cột cờ",
+  "uses": "Thắt ngay trên dây kéo cờ: phần giữa nút ôm chặt dây kéo, hai mắt vòng ở hai đầu nút dùng móc vào hai góc (khuyết) của lá cờ, kéo lên không tuột.",
+  "steps": [
+   "Trên dây kéo cờ, tạo hai vòng tròn liên tiếp.",
+   "Lật hai vòng chồng lên nhau và đan xen vào nhau.",
+   "Kéo hai phía cho nút ôm chặt dây kéo — được hai mắt vòng hai bên để móc góc cờ."
+  ]
+ },
+ {
+  "no": 21,
+  "id": "motvong2khoa",
+  "grp": "buoc",
+  "name": "Nút 1 vòng 2 khóa",
+  "alias": "Round turn & two half hitches",
+  "use": "Buộc dây vào cọc khi chịu lực lớn, neo thuyền",
+  "uses": "Vòng quấn quanh cọc chịu lực chính, hai khóa giữ đầu dây: buộc dây vào cọc/vòng khi kéo nặng — neo thuyền, buộc dây chịu tải; chắc hơn thuyền chài khi tải lớn, cọc trơn.",
+  "steps": [
+   "Quấn dây một vòng trọn quanh cọc (vòng này chịu lực chính).",
+   "Luồn đầu dây quanh thân dây chính, thắt khóa thứ nhất.",
+   "Thắt tiếp khóa thứ hai sát khóa đầu, kéo siết cả hai khóa."
+  ]
+ },
+ {
+  "no": 22,
+  "id": "vongbuom",
+  "grp": "buoc",
+  "name": "Nút vòng bướm",
+  "alias": "Butterfly loop",
+  "use": "Tạo vòng cố định ở giữa dây, chịu lực cả ba hướng",
+  "uses": "Vòng nằm giữa thân dây, không cần đến đầu dây; chịu kéo theo cả hai đầu dây lẫn chính vòng. Leo núi, làm điểm móc giữa dây, cách ly một đoạn dây bị sờn (vòng nằm ngoài đoạn sờn).",
+  "steps": [
+   "Quấn dây quanh bàn tay hai vòng như cuộn chỉ.",
+   "Nắm vòng ngoài cùng phía ngón tay, kéo qua phía dưới vòng còn lại.",
+   "Luồn vòng vừa kéo qua khe giữa hai vòng dây trên tay.",
+   "Tháo khỏi tay, kéo hai đầu dây và vòng cho nút cân đối hình cánh bướm."
+  ]
+ },
+ {
+  "no": 23,
+  "id": "vongso8",
+  "grp": "buoc",
+  "name": "Nút vòng số 8",
+  "alias": "Figure-eight loop",
+  "use": "Tạo vòng cố định ở đầu dây bằng dây gập đôi; dễ tháo sau khi chịu lực",
+  "uses": "Thắt nút số 8 bằng đoạn dây gập đôi, đầu gập thò ra thành vòng. Vòng đầu dây cho leo núi, móc carabiner, neo dây; chịu lực xong vẫn tháo dễ.",
+  "steps": [
+   "Gập đôi đầu dây một đoạn đủ làm vòng.",
+   "Thắt nút số 8 bằng cả đoạn dây đôi.",
+   "Đầu gập thò ra thành vòng; siết đều từng sợi cho nút gọn và cân."
+  ]
+ },
+ {
+  "no": 24,
+  "id": "taitho",
+  "grp": "buoc",
+  "name": "Nút tai thỏ",
+  "alias": "Double figure-eight loop",
+  "use": "Tạo hai vòng cố định ở đầu dây; neo hai điểm, chia đều lực",
+  "uses": "Hai vòng (hai tai) chung một nút ở đầu dây: neo vào hai điểm độc lập, chỉnh được độ dài từng vòng. Cứu hộ, leo núi, treo vật hai điểm.",
+  "steps": [
+   "Gập đôi đầu dây một đoạn dài; thắt nút số 8 bằng dây đôi nhưng chưa siết.",
+   "Lật vòng gập qua phía sau thân nút rồi kéo ngược qua vòng số 8.",
+   "Tách thành hai vòng tai thỏ, chỉnh to nhỏ từng vòng rồi siết chặt."
+  ]
+ },
+ {
+  "no": 25,
+  "id": "keogo",
+  "grp": "buoc",
+  "name": "Nút kéo gỗ",
+  "alias": "Timber hitch",
+  "use": "Buộc vào khúc gỗ để kéo; càng kéo càng siết, tháo rất dễ",
+  "uses": "Đầu dây tự quấn xoắn quanh chính nó nên khi kéo, nút tự siết chặt vào khúc gỗ, cây; hết kéo là tháo ngay. Kéo gỗ, bó củi; thường là nút mở đầu của ráp cây chéo.",
+  "steps": [
+   "Vòng đầu dây quanh khúc gỗ, rồi đưa đầu dây vòng quanh thân dây.",
+   "Quấn đầu dây quanh chính đoạn vừa vòng 3–4 vòng xoắn.",
+   "Kéo thân dây: các vòng xoắn tự siết, bám chặt khúc gỗ."
+  ]
+ },
+ {
+  "no": 26,
+  "id": "nutneo",
+  "grp": "buoc",
+  "name": "Nút neo",
+  "alias": "Anchor bend",
+  "use": "Buộc đầu dây vào vòng neo, khoen, móc; chịu lực lớn và rung lắc",
+  "uses": "Đầu dây vòng trọn qua khoen rồi khóa hai khóa quanh thân dây — chắc hơn 1 vòng 2 khóa thông thường. Chuyên buộc dây neo thuyền, dây vào móc cẩu, vòng sắt chịu lực.",
+  "steps": [
+   "Luồn đầu dây qua vòng neo hai vòng trọn.",
+   "Đưa đầu dây vòng qua thân dây, khóa một khóa nửa quanh thân dây.",
+   "Khóa thêm một khóa nửa nữa; siết chặt, chừa đầu dây đủ dài."
+  ]
+ },
+ {
+  "no": 27,
+  "id": "treoden",
+  "grp": "treo",
+  "name": "Nút treo đèn",
+  "alias": "",
+  "use": "Treo đèn bão, đèn dầu khi cắm trại",
+  "uses": "Mắt nút ôm chắc cổ đèn, phía trên có vòng treo để móc đèn lên cành cây hay xà lều; cũng áp dụng cho chai lọ có cổ.",
+  "steps": [
+   "Tạo hai vòng tròn liên tiếp trên dây.",
+   "Lật vòng sau chồng lên vòng trước và đan xen vào nhau.",
+   "Đặt cổ đèn vào giữa mắt nút, siết đều các phía; vòng phía trên để móc treo."
+  ],
+  "note": "Cùng họ kỹ thuật với nút thắt cổ chai (hai vòng đan xen tạo mắt ôm cổ vật)."
+ },
+ {
+  "no": 28,
+  "id": "treothung",
+  "grp": "treo",
+  "name": "Nút treo thùng",
+  "alias": "Barrel hitch",
+  "use": "Làm quai treo, xách thùng nước",
+  "uses": "Ôm chắc thân thùng tròn không có quai: dây vòng dưới đáy, quấn ngang bụng thùng, hai đầu nối thành vòng treo — treo/xách thùng, xô nước ở giếng và ở trại.",
+  "steps": [
+   "Luồn dây vòng dưới đáy thùng, đưa hai đầu lên hai bên thành thùng.",
+   "Quấn một vòng ngang quanh bụng thùng và khóa chéo để thùng không lật.",
+   "Nối hai đầu dây trên miệng thùng thành vòng treo."
+  ]
+ },
+ {
+  "no": 29,
+  "id": "thatcochai",
+  "grp": "treo",
+  "name": "Nút thắt cổ chai",
+  "alias": "Jug sling / Bottle sling",
+  "use": "Thắt cổ chai làm quai xách, treo chai",
+  "uses": "Mắt nút ôm khít cổ chai, phần dây phía trên thành hai quai: biến chai thành bình có quai để xách, treo chai lên cọc, mang nước khi đi trại.",
+  "steps": [
+   "Tạo hai vòng tròn liên tiếp trên dây.",
+   "Lật vòng sau chồng lên vòng trước, đan xen vào nhau.",
+   "Mở mắt nút đặt trùm qua miệng chai xuống cổ chai.",
+   "Siết đều các phía cho mắt nút ôm khít cổ chai; phần dây phía trên thành quai xách."
+  ],
+  "note": "Cùng họ kỹ thuật với nút treo đèn (hai vòng đan xen tạo mắt ôm cổ vật)."
+ },
+ {
+  "no": 30,
+  "id": "chancho",
+  "grp": "treo",
+  "name": "Nút chân chó",
+  "alias": "Sheepshank",
+  "use": "Thâu ngắn một sợi dây tạm thời mà không cắt dây",
+  "uses": "Rút ngắn đoạn dây chùng cho vừa dùng mà không phải cắt; cách ly đoạn dây bị sờn ở giữa (đoạn sờn nằm trong phần thâu, không chịu lực). Phải giữ sức căng hai đầu, hết căng nút dễ bung.",
+  "steps": [
+   "Gập đoạn dây cần thâu ngắn thành hai vòng (hai tai) ở hai đầu đoạn.",
+   "Mỗi đầu dây thắt một nút nửa ôm qua vòng gập gần nhất.",
+   "Kéo hai đầu dây cho nút ôm chặt các vòng gập."
+  ]
+ },
+ {
+  "no": 31,
+  "id": "chacba",
+  "grp": "rap",
+  "name": "Nút chạc ba",
+  "alias": "Tripod lashing",
+  "use": "Buộc chụm đầu ba cây làm giá ba chân",
+  "uses": "Ba cây buộc chung ở đầu bằng các vòng quấn và vòng siết chen giữa từng cặp cây; dựng lên xoè thành giá ba chân treo nồi, treo đèn, giá phơi đồ, giá đỡ dụng cụ.",
+  "steps": [
+   "Đặt ba cây song song, đầu cây bằng nhau; thắt thuyền chài vào cây ngoài cùng.",
+   "Quấn dây vòng quanh cả ba cây 4–5 vòng.",
+   "Quấn vòng siết chen giữa cây 1–2 và cây 2–3, mỗi khe 2 vòng.",
+   "Kết thúc bằng thuyền chài; dựng đứng, xoè ba chân cho cân."
+  ]
+ },
+ {
+  "no": 32,
+  "id": "rapchuthap",
+  "grp": "rap",
+  "name": "Nút ráp cây chữ thập",
+  "alias": "Square lashing",
+  "use": "Buộc hai cây vuông góc thành khung chắc",
+  "uses": "Các vòng quấn xen kẽ trong – ngoài quanh giao điểm hai cây vuông góc, thêm vòng siết giữa hai cây. Làm khung cổng trại, thang, bàn ghế, cầu khỉ, khung lều.",
+  "steps": [
+   "Thắt thuyền chài trên cây đứng, ngay dưới cây ngang.",
+   "Quấn vòng quanh giao điểm: qua trước cây ngang, vòng sau cây đứng — xen kẽ trong ngoài 3–4 vòng.",
+   "Quấn 2 vòng siết chen giữa hai cây, kéo thật chặt.",
+   "Kết thúc bằng thuyền chài trên cây ngang."
+  ]
+ },
+ {
+  "no": 33,
+  "id": "xichdu",
+  "grp": "tt",
+  "name": "Nút xích đu",
+  "alias": "",
+  "use": "Buộc ván ghế xích đu vào dây treo",
+  "uses": "Buộc ván ngồi vào hai dây treo của xích đu (và các ghế treo ở trại): các vòng quấn ôm chặt ván, giữ ván không lật, không trượt; hai đầu dây lên buộc vào xà hay cành cây.",
+  "steps": [
+   "Đặt ván ghế ngang, quấn dây ba vòng quanh ván ở mỗi đầu ván.",
+   "Khóa các vòng quấn bằng một vòng ngang để vòng không xô lệch.",
+   "Đưa hai đầu dây lên buộc vào xà/cành cây, chỉnh hai bên cho ván cân bằng."
+  ]
+ },
+ {
+  "no": 34,
+  "id": "cucao",
+  "grp": "tt",
+  "name": "Nút cúc áo",
+  "alias": "Button knot",
+  "use": "Làm cúc, nút chặn trang trí ở đầu dây",
+  "uses": "Làm cúc áo bằng dây; nút chặn trang trí to và đẹp ở đầu dây — trang trí dây đeo, móc khóa, đầu dây trang trí trại.",
+  "steps": [
+   "Tạo một vòng ở đầu dây.",
+   "Luồn đầu dây đan xen trên – dưới quanh vòng theo đường đan của mặt cúc, đi đủ một vòng đan.",
+   "Siết từ từ, đều tay — được cúc tròn nổi trên dây."
+  ]
+ },
+ {
+  "no": 35,
+  "id": "hoa3canh",
+  "grp": "tt",
+  "name": "Nút hoa 3 cánh",
+  "alias": "",
+  "use": "Nút trang trí hình hoa ba cánh trên dây",
+  "uses": "Nút trang trí truyền thống: trang trí đầu dây, làm móc khóa, dây đeo, điểm nhấn trên dây trang trí trại.",
+  "steps": [
+   "Gập dây tạo ba vòng (ba cánh): một vòng giữa, hai vòng hai bên.",
+   "Đan xen các vòng vào nhau quanh tâm hoa.",
+   "Siết đều từng cánh — được hoa ba cánh trên thân dây."
+  ]
+ }
 ];
+
 function kShuffle(a) {
   const r = a.slice();
   for (let i = r.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = r[i]; r[i] = r[j]; r[j] = t; }
@@ -2166,6 +2572,7 @@ function knotQuestion() {
   }
   return { kind: "use2img", knot: k, explain, opts: kShuffle([k].concat(others).map((x) => ({ s: x, ok: x === k }))) };
 }
+
 function openKnotModule() {
   const body = openPanel("🪢 Nút dây — Luyện tập & Kiểm tra", true);
   let mode = "luyen";
@@ -2195,7 +2602,7 @@ function openKnotModule() {
     const box = document.createElement("div");
     box.className = "tt-qbox";
     if (q.kind === "img2name") {
-      box.innerHTML = `<p style="text-align:center;margin:0 0 4px"><b>Nút dây này tên là gì?</b></p>${q.knot.draw()}`;
+      box.innerHTML = `<p style="text-align:center;margin:0 0 4px"><b>Nút dây này tên là gì?</b></p>${knotDraw(q.knot)}`;
       stage.appendChild(box);
       q.opts.forEach((o) => stage.appendChild(optBtn(esc(o.t), (ev) => onPick(o.ok, ev.currentTarget))));
     } else if (q.kind === "name2use") {
@@ -2208,7 +2615,7 @@ function openKnotModule() {
       const grid = document.createElement("div");
       grid.className = "tt-docgrid";
       q.opts.forEach((o) => {
-        const b = optBtn(o.s.draw(), (ev) => onPick(o.ok, ev.currentTarget));
+        const b = optBtn(knotDraw(o.s, true), (ev) => onPick(o.ok, ev.currentTarget));
         b.style.textAlign = "center";
         grid.appendChild(b);
       });
@@ -2274,7 +2681,7 @@ function openKnotDoc() {
   const body = openPanel("🪢 Tài liệu nút dây", true);
   const blocks = (g) => KNOTS.filter((k) => k.grp === g).map((k) => `
     <div style="display:flex;gap:10px;border:1.5px solid #dbe4f0;border-radius:12px;padding:10px;background:#fff;margin:0 0 10px">
-      <div style="flex:0 0 40%;max-width:190px">${k.draw()}</div>
+      <div style="flex:0 0 40%;max-width:190px">${knotDraw(k)}</div>
       <div style="flex:1;min-width:0">
         <b>${k.no}. ${esc(k.name)}</b>${k.alias ? ` <i style="color:#666">(${esc(k.alias)})</i>` : ""}
         <p style="margin:5px 0"><b>Công dụng:</b> ${esc(k.uses)}</p>
@@ -2284,9 +2691,9 @@ function openKnotDoc() {
       </div>
     </div>`).join("");
   body.innerHTML = `
-    <p><b>23 nút dây cơ bản</b> theo poster “Các nút dây cơ bản” dùng trong hoạt động Đội và cắm trại, chia 5 nhóm theo công dụng. Quy ước: <i>đầu dây</i> là đầu di chuyển khi thắt, <i>thân dây</i> là phần đứng yên chịu lực chính.</p>
+    <p><b>35 nút dây cơ bản, thông dụng</b> trong hoạt động Đội và cắm trại, chia 6 nhóm theo công dụng. Hình minh họa lấy nguyên từ tài liệu chuẩn (poster “Các nút dây cơ bản” của lớp và các tài liệu hướng đạo, quân đội quốc tế) — không vẽ lại để tránh sai nút chuẩn. Quy ước: <i>đầu dây</i> là đầu di chuyển khi thắt, <i>thân dây</i> là phần đứng yên chịu lực chính.</p>
     ${KNOT_GROUPS.map((g) => `<h3 style="margin:14px 0 6px">${esc(g.label)}</h3>${blocks(g.key)}`).join("")}
-    <p><b>Dễ nhầm:</b> <i>Nút dẹt</i> thắt sai chiều thành <i>nút bò</i> (hai đầu chỉa như sừng bò) — kém chắc, khó tháo. <i>Nút đầu bò</i> là nút nối riêng có mặt đan phẳng, không phải nút bò. <i>Chịu đơn</i> siết rồi khó tháo, cần nút chặn dễ tháo thì dùng <i>số 8</i>. <i>Ghế đơn</i> cho vòng cố định không siết, <i>thòng lọng đơn</i> cho vòng càng kéo càng siết — đừng dùng thay nhau khi cứu hộ.</p>`;
+    <p><b>Dễ nhầm:</b> <i>Nút dẹt</i> thắt sai chiều thành <i>nút bò</i> (hai đầu chỉa như sừng bò) — kém chắc, khó tháo. <i>Nút đầu bò</i> là nút nối riêng có mặt đan phẳng, không phải nút bò. <i>Chịu đơn</i> siết rồi khó tháo, cần nút chặn dễ tháo thì dùng <i>số 8</i>. <i>Ghế đơn</i> cho vòng cố định không siết, <i>thòng lọng đơn</i> cho vòng càng kéo càng siết — đừng dùng thay nhau khi cứu hộ. <i>Ghế kép</i> và <i>tai thỏ</i> đều cho hai vòng nhưng khác nút gốc (ghế / số 8); <i>thòng lọng kép</i> siết chắc hơn <i>thòng lọng đơn</i> nhờ nút chịu kép ở cổ vòng.</p>`;
 }
 
 /* ============================================================
