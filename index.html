@@ -1676,7 +1676,11 @@ const WHISTLE_F = 1638;
    HAI LOẠI ÂM CÒI MORSE (thầy chốt 17/11): âm hiện tại đặt
    tên là "CÒI LÁ" (mẫu trích từ file Morse_0_fkye.mp3, đã
    duyệt ở v57; nhịp tỉ lệ đo ở v62: nghỉ trong chữ 0,85 /
-   giữa lần NW-AR 1,4 / giữa chữ 2,2 / giữa từ 5,1 tích).
+   giữa lần NW-AR 1,4 / giữa chữ 2,2 / giữa từ 5,1 tích —
+   đến v71 thầy nghe Còi tròn thấy nhịp ngắt nghỉ rất tốt
+   nên chốt Còi lá dùng CHUNG tỉ lệ ngắt nghỉ của Còi tròn:
+   1,25 / 2,2 / 3,9 / 9,1; hai loại chỉ còn khác ÂM và nhả
+   tiếng theo file gốc của chúng).
    Thêm "CÒI TRÒN": mẫu trích nguyên vẹn từ file C_i_tr_n.MP3
    thầy gửi 17/11 + chuẩn tốc độ, ngắt nghỉ, nhả tiếng đo
    trên chính file đó (142 tiếng): tích ≈ 74 ms (tốc độ tự
@@ -1686,7 +1690,7 @@ const WHISTLE_F = 1638;
    2186 Hz. Mỗi loại nhớ riêng cao độ + tốc độ của nó.
    ============================================================ */
 const WHISTLE_PROFILES = {
-  la:   { label: "Còi lá",   ref: 1638, gaps: [0.85, 1.4, 2.2, 5.1], rel: 0.006, wpm: 12, pitchKey: "tt_pitch55",   loop: [0.1645, 0.262] },
+  la:   { label: "Còi lá",   ref: 1638, gaps: [1.25, 2.2, 3.9, 9.1], rel: 0.006, wpm: 12, pitchKey: "tt_pitch55",   loop: [0.1645, 0.262] },
   tron: { label: "Còi tròn", ref: 2186, gaps: [1.25, 2.2, 3.9, 9.1], rel: 0.014, wpm: 16, pitchKey: "tt_pitch_tron", loop: [0.203, 0.327] }
 };
 let whistleType = (() => { try { return localStorage.getItem("tt_whistle_type") === "tron" ? "tron" : "la"; } catch(e){ return "la"; } })();
@@ -1864,17 +1868,19 @@ function setLamp(lampEl, on){
   lampEl.classList.toggle("on", !!on);
   lampEl.classList.remove("dash");
 }
-/* NHỊP NGHỈ MORSE — tính theo TỈ LỆ đo thật trên file chuẩn
-   của TỪNG loại còi (xem WHISTLE_PROFILES): Còi lá đo trên
-   Morse_0_fkye.mp3 (52 tiếng): 0,85 / 1,4 / 2,2 / 5,1 tích.
-   Còi tròn đo trên C_i_tr_n.MP3 (142 tiếng): tích ≈ 74 ms,
+/* NHỊP NGHỈ MORSE — tính theo TỈ LỆ (xem WHISTLE_PROFILES):
+   tỉ lệ gốc đo trên C_i_tr_n.MP3 (142 tiếng): tích ≈ 74 ms,
    nghỉ trong chữ ≈ 93 ms = 1,25 tích, nghỉ giữa chữ
    ≈ 288 ms = 3,9 tích, giữa từ = 9,1 tích (7/3 của giữa
    chữ); khoảng lặng ~1,6 giây trong file là ngắt đoạn, không
-   dùng. Mọi khoảng nghỉ tính theo ĐƠN VỊ tích của tốc độ
-   đang chọn (unit = 1200/WPM ms) để nhịp co giãn đúng tỉ lệ
-   file ở mọi tốc độ. units quy ước: 1 = trong ký tự,
-   2 = giữa các lần lặp NW/AR, 3 = giữa ký tự, 7 = giữa từ. */
+   dùng. Từ v71 CẢ HAI loại còi dùng chung tỉ lệ này (thầy
+   chốt 17/11: nhịp ngắt nghỉ của Còi tròn rất tốt, Còi lá
+   làm giống Còi tròn) — trước đó Còi lá dùng tỉ lệ riêng đo
+   trên Morse_0_fkye.mp3: 0,85 / 1,4 / 2,2 / 5,1. Mọi khoảng
+   nghỉ tính theo ĐƠN VỊ tích của tốc độ đang chọn
+   (unit = 1200/WPM ms) để nhịp co giãn đúng tỉ lệ ở mọi
+   tốc độ. units quy ước: 1 = trong ký tự, 2 = bậc dự phòng
+   (không còn dùng từ v70), 3 = giữa ký tự, 7 = giữa từ. */
 function morseGapMs(units, unit){
   const g = whistleProfile().gaps;
   if (units <= 1) return unit * g[0];
@@ -2748,7 +2754,7 @@ renderHistory();
 
 
   <script src="app-config.js?v=29"></script>
-<script src="knot-images.js?v=70"></script>
-<script type="module" src="auth-layer.js?v=70"></script>
+<script src="knot-images.js?v=71"></script>
+<script type="module" src="auth-layer.js?v=71"></script>
 </body>
 </html>
