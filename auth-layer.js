@@ -2711,6 +2711,11 @@ function openKnotDoc() {
    trong panel, chèn được hình/video/âm thanh vào câu hỏi và
    từng phương án (file từ máy hoặc dán link; thẻ [[IMGn]] /
    [[VIDn]] / [[AUDn]] + mảng imgs/vids/auds trên doc câu).
+   v75: form nhập tay mặc định THU GỌN (bấm nút mới mở); mỗi
+   bộ đề có nút "Xem câu hỏi" mở danh sách câu trong bộ, mỗi
+   câu có nút Sửa (nạp lại vào form nhập tay, lưu bằng
+   updateDoc) và Xoá từng câu; tqLoadBank phải đọc cả
+   imgs/vids/auds (bản v72–v74 sót, đã bổ sung ở v75).
    Học sinh Luyện tập từng câu (báo đúng/sai ngay) hoặc Kiểm
    tra: chọn ngẫu nhiên tối đa 50 câu trong ngân hàng, xáo trộn
    thứ tự phương án (mỗi lần làm lại khác), đếm ngược 30 phút,
@@ -2728,7 +2733,7 @@ async function tqLoadBank(force) {
   if (tqBank && !force) return tqBank;
   const snap = await getDocs(collection(db, "trailQuiz"));
   const arr = [];
-  snap.forEach((d) => { const x = d.data() || {}; if (x.q && Array.isArray(x.opts) && x.opts.length >= 2 && typeof x.correct === "number" && x.correct >= 0 && x.correct < x.opts.length) arr.push({ id: d.id, q: String(x.q), opts: x.opts.map(String), correct: x.correct, setId: typeof x.setId === "string" ? x.setId : "" }); });
+  snap.forEach((d) => { const x = d.data() || {}; if (x.q && Array.isArray(x.opts) && x.opts.length >= 2 && typeof x.correct === "number" && x.correct >= 0 && x.correct < x.opts.length) arr.push({ id: d.id, q: String(x.q), opts: x.opts.map(String), correct: x.correct, setId: typeof x.setId === "string" ? x.setId : "", imgs: Array.isArray(x.imgs) ? x.imgs.map(String) : [], vids: Array.isArray(x.vids) ? x.vids.map(String) : [], auds: Array.isArray(x.auds) ? x.auds.map(String) : [] }); });
   tqBank = arr;
   return arr;
 }
@@ -2996,6 +3001,7 @@ async function openTrailQuiz() {
       <p class="tt-note" style="margin:6px 0">Định dạng file: mỗi câu bắt đầu bằng “Câu 1:”, các phương án ghi “A. …”, “B. …”, “C. …”, “D. …” và <b>phương án đúng phải IN ĐẬM</b> (bôi đen đáp án đúng rồi bấm Ctrl+B trong Word). Câu nào không có phương án in đậm sẽ bị bỏ qua và báo lại ở bước xem trước. File sẽ được nhập vào <b>bộ đề đang chọn</b> ở ô dưới. <b>Hình vẽ trong đề được giữ nguyên</b>: hình nằm trong câu hỏi hay trong phương án nào sẽ hiện đúng ở đó khi học sinh làm bài (hình quá lớn sẽ tự thu nhỏ lại cho nhẹ).</p>
       <div id="tqBankInfo">Đang đọc ngân hàng…</div>
       <div id="tqSetsBox" style="margin-top:8px">Đang đọc các bộ đề…</div>
+      <div id="tqSetQuestions"></div>
       <div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
         <input type="text" id="tqSetName" placeholder="Tên bộ đề mới (vd: Bộ đề giữa kỳ 1)" style="flex:1;min-width:180px;padding:8px;border:1.5px solid #ccd;border-radius:8px">
         <button type="button" class="tt-btn" id="tqSetAdd" style="width:auto;margin:0;padding:8px 14px">＋ Tạo bộ đề</button>
@@ -3005,7 +3011,8 @@ async function openTrailQuiz() {
       <input type="file" id="tqFile" accept=".docx" style="margin:8px 0">
       <div id="tqImportMsg"></div>
       <div id="tqPreview"></div>
-      <div style="margin-top:12px;border-top:1.5px dashed #d8c9a8;padding-top:10px">
+      <button type="button" class="tt-btn" id="tqEdToggle" style="width:auto;margin:10px 0 0;padding:8px 14px;background:#e8f1fa;color:#0b5cad">✍️ Nhập câu hỏi thủ công — bấm để mở</button>
+      <div id="tqEdBox" style="display:none;margin-top:12px;border-top:1.5px dashed #d8c9a8;padding-top:10px">
         <b>✍️ Nhập câu hỏi thủ công — chèn được hình, video, âm thanh</b>
         <p class="tt-note" style="margin:6px 0">Gõ câu hỏi và từng phương án vào các ô dưới. Muốn chèn đa phương tiện vào ô nào, bấm nút 🖼 (hình) / 🎬 (video) / 🔊 (âm thanh) ngay dưới ô đó (với phương án: các nút nhỏ bên phải ô) rồi chọn file từ máy hoặc dán đường link — nội dung chèn nằm đúng vị trí con trỏ trong ô. Đánh dấu phương án đúng bằng nút tròn ở đầu phương án. Câu hỏi lưu vào <b>bộ đề đang chọn</b> ở ô phía trên. Video dài/nặng nên dán link YouTube hoặc Google Drive; file video/âm thanh tải thẳng chỉ nhận file nhỏ (dưới ~500 KB) vì mỗi câu lưu trên Firestore tối đa 1 MB.</p>
         <label style="font-size:13px;font-weight:600">Nội dung câu hỏi:</label>
@@ -3031,6 +3038,7 @@ async function openTrailQuiz() {
         <div id="tqEdMsg" style="margin-top:6px"></div>
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
           <button type="button" class="tt-btn" id="tqEdSave" style="width:auto;margin:0;padding:8px 16px">💾 Lưu câu hỏi vào bộ đang chọn</button>
+          <button type="button" class="tt-btn" id="tqEdCancelEdit" style="display:none;width:auto;margin:0;padding:8px 16px;background:#fdecea;color:#c0392b">✖ Huỷ sửa</button>
           <button type="button" class="tt-btn" id="tqEdClear" style="width:auto;margin:0;padding:8px 16px;background:#eee;color:#333">🧹 Xoá trắng</button>
         </div>
       </div>
@@ -3042,6 +3050,9 @@ async function openTrailQuiz() {
     <div data-role="qstage"><p>Đang tải ngân hàng câu hỏi…</p></div>`;
   const stage = body.querySelector('[data-role="qstage"]');
   let bankAll = null, bank = null, sets = [], bankErr = "", setsErr = "";
+  let tqOpenSetId; /* bộ đề đang mở danh sách câu hỏi (v75); undefined = đang đóng, "" = câu chưa xếp bộ */
+  let paintSetQuestions = () => {}; /* bản thật được gán ở khối nhập tay phía dưới */
+  const tqEditHook = { load: null, cancel: null }; /* cầu nối: danh sách câu -> form sửa (v75) */
   try { bankAll = await tqLoadBank(); } catch (e) { bankErr = "Chưa đọc được ngân hàng câu hỏi từ máy chủ. Nếu thầy chưa dán rules bản v47 thì cần cập nhật rules trước (file firestore.rules trong gói v47)."; }
   try { sets = await tqLoadSets(); } catch (e) { setsErr = "Chưa đọc được danh sách bộ đề (cần dán rules bản v47)."; }
   bank = !bankAll ? null : (allowed === null ? bankAll : bankAll.filter((q) => allowed.includes(q.setId || "")));
@@ -3072,12 +3083,13 @@ async function openTrailQuiz() {
       if (sets.some((s) => s.id === cur)) sel.value = cur;
     }
     if (!box) return;
+    const wireView = () => box.querySelectorAll("[data-tqviewset]").forEach((b) => b.addEventListener("click", () => { tqOpenSetId = b.dataset.tqviewset; paintSetQuestions(); const qb = body.querySelector("#tqSetQuestions"); if (qb) qb.scrollIntoView({ block: "nearest", behavior: "smooth" }); }));
     if (setsErr) { box.innerHTML = esc(setsErr); return; }
-    if (!sets.length) { box.innerHTML = `<span style="color:#666">Chưa có bộ đề nào.${bankAll && bankAll.some((q) => !q.setId) ? ` Có <b>${bankAll.filter((q) => !q.setId).length} câu chưa xếp bộ</b> — thầy tạo bộ đề rồi dùng nút “Chuyển câu chưa xếp bộ” để xếp vào.</span>` : ""}</span>`; return; }
+    if (!sets.length) { box.innerHTML = `<span style="color:#666">Chưa có bộ đề nào.${bankAll && bankAll.some((q) => !q.setId) ? ` Có <b>${bankAll.filter((q) => !q.setId).length} câu chưa xếp bộ</b> — thầy tạo bộ đề rồi dùng nút “Chuyển câu chưa xếp bộ” để xếp vào. <button type="button" data-tqviewset="" style="background:#e8f1fa;color:#0b5cad;border:1px solid #b9d2ea;border-radius:7px;padding:3px 9px;cursor:pointer;font-size:12.5px">📋 Xem câu hỏi</button></span>` : ""}</span>`; wireView(); return; }
     box.innerHTML = `<b>Các bộ đề:</b>` + sets.map((s) => {
       const n = bankAll ? bankAll.filter((q) => q.setId === s.id).length : 0;
-      return `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee"><span>📁 <b>${esc(s.name)}</b> — ${n} câu</span><button type="button" data-tqdelset="${esc(s.id)}" data-tqdelname="${esc(s.name)}" data-tqdeln="${n}" style="background:#fff;color:#c0392b;border:1px solid #e5b4ae;border-radius:7px;padding:3px 9px;cursor:pointer;font-size:12.5px">Xoá bộ</button></div>`;
-    }).join("") + (bankAll && bankAll.some((q) => !q.setId) ? `<div style="padding:6px 0;color:#b26a00">📁 <b>Chưa xếp bộ</b> — ${bankAll.filter((q) => !q.setId).length} câu (nhập từ trước v47).</div>` : "");
+      return `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee"><span>📁 <b>${esc(s.name)}</b> — ${n} câu</span><span style="display:flex;gap:6px;flex:none"><button type="button" data-tqviewset="${esc(s.id)}" style="background:#e8f1fa;color:#0b5cad;border:1px solid #b9d2ea;border-radius:7px;padding:3px 9px;cursor:pointer;font-size:12.5px">📋 Xem câu hỏi</button><button type="button" data-tqdelset="${esc(s.id)}" data-tqdelname="${esc(s.name)}" data-tqdeln="${n}" style="background:#fff;color:#c0392b;border:1px solid #e5b4ae;border-radius:7px;padding:3px 9px;cursor:pointer;font-size:12.5px">Xoá bộ</button></span></div>`;
+    }).join("") + (bankAll && bankAll.some((q) => !q.setId) ? `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:6px 0;color:#b26a00"><span>📁 <b>Chưa xếp bộ</b> — ${bankAll.filter((q) => !q.setId).length} câu (nhập từ trước v47).</span><button type="button" data-tqviewset="" style="background:#e8f1fa;color:#0b5cad;border:1px solid #b9d2ea;border-radius:7px;padding:3px 9px;cursor:pointer;font-size:12.5px;flex:none">📋 Xem câu hỏi</button></div>` : "");
     box.querySelectorAll("[data-tqdelset]").forEach((b) => b.addEventListener("click", async () => {
       if (b.dataset.armed) {
         b.disabled = true; b.textContent = "Đang xoá…";
@@ -3089,7 +3101,7 @@ async function openTrailQuiz() {
           tqBank = null; tqSets = null;
           bankAll = await tqLoadBank(true); sets = await tqLoadSets(true);
           bank = allowed === null ? bankAll : bankAll.filter((q) => allowed.includes(q.setId || ""));
-          paintBankInfo(); paintSetsBox(); paintSetsLine(); showStage(currentMode);
+          paintBankInfo(); paintSetsBox(); paintSetQuestions(); paintSetsLine(); showStage(currentMode);
         } catch (e) { b.disabled = false; b.textContent = "Xoá không thành công — thử lại"; }
         return;
       }
@@ -3097,6 +3109,7 @@ async function openTrailQuiz() {
       b.textContent = `⚠️ Bấm nữa để xoá “${b.dataset.tqdelname}” + ${b.dataset.tqdeln} câu`;
       setTimeout(() => { const b2 = body.querySelector(`[data-tqdelset="${b.dataset.tqdelset}"]`); if (b2 && !b2.disabled) { delete b2.dataset.armed; b2.textContent = "Xoá bộ"; } }, 4000);
     }));
+    wireView();
   };
   paintSetsBox();
   /* ---------- Quản trị: nhập / xoá ngân hàng ---------- */
@@ -3129,7 +3142,7 @@ async function openTrailQuiz() {
         for (let i = 0; i < unset.length; i += 20) await Promise.all(unset.slice(i, i + 20).map((q) => updateDoc(doc(db, "trailQuiz", q.id), { setId: target })));
         tqBank = null; bankAll = await tqLoadBank(true);
         bank = allowed === null ? bankAll : bankAll.filter((q) => allowed.includes(q.setId || ""));
-        paintBankInfo(); paintSetsBox(); showStage(currentMode);
+        paintBankInfo(); paintSetsBox(); paintSetQuestions(); showStage(currentMode);
         msgEl.innerHTML = `<span style="color:#1d9d55">Đã chuyển <b>${unset.length} câu</b> vào bộ <b>${esc(tqSetName(sets, target))}</b>.</span>`;
       } catch (e) { msgEl.innerHTML = `<span style="color:#c0392b">Chuyển không thành công (${esc(e && e.message || e)}).</span>`; }
     });
@@ -3165,7 +3178,7 @@ async function openTrailQuiz() {
               tqBank = null;
               bankAll = await tqLoadBank(true);
               bank = allowed === null ? bankAll : bankAll.filter((q) => allowed.includes(q.setId || ""));
-              paintBankInfo(); paintSetsBox();
+              paintBankInfo(); paintSetsBox(); paintSetQuestions();
               msgEl.innerHTML = `<span style="color:#1d9d55"><b>Đã lưu xong ${parsed.length} câu vào ${targetSet ? `bộ <b>${esc(tqSetName(sets, targetSet))}</b>` : "ngân hàng (chưa xếp bộ)"}.</b></span>`;
               prevEl.innerHTML = "";
               showStage(currentMode);
@@ -3194,6 +3207,74 @@ async function openTrailQuiz() {
       let edTarget = null;
       const edRows = () => [...edOptsBox.querySelectorAll(".tq-ed-row")];
       const edRowTa = (row) => row.querySelector("textarea");
+      /* Thu/mở form nhập tay (v75) — mặc định ẩn cho đỡ tốn diện tích */
+      const edToggle = body.querySelector("#tqEdToggle");
+      const edBox = body.querySelector("#tqEdBox");
+      if (edToggle && edBox) edToggle.addEventListener("click", () => {
+        const open = edBox.style.display !== "none";
+        edBox.style.display = open ? "none" : "block";
+        edToggle.textContent = open ? "✍️ Nhập câu hỏi thủ công — bấm để mở" : "✍️ Nhập câu hỏi thủ công — bấm để thu gọn";
+      });
+      /* Danh sách câu hỏi của một bộ + Sửa/Xoá từng câu (v75) */
+      let tqEditId = null;
+      paintSetQuestions = () => {
+        const box = body.querySelector("#tqSetQuestions");
+        if (!box) return;
+        if (tqOpenSetId === undefined || !bankAll) { box.innerHTML = ""; return; }
+        if (tqOpenSetId && !sets.some((s) => s.id === tqOpenSetId)) { tqOpenSetId = undefined; box.innerHTML = ""; return; }
+        const list = bankAll.filter((q) => (q.setId || "") === tqOpenSetId);
+        const name = tqOpenSetId ? tqSetName(sets, tqOpenSetId) : "Chưa xếp bộ";
+        box.innerHTML = `<div style="background:#fff;border:1.5px solid #b08968;border-radius:10px;padding:10px;margin-top:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>📁 Bộ: ${esc(name)} — ${list.length} câu</b><button type="button" class="tt-btn" data-tqclose style="width:auto;margin:0;padding:5px 10px;background:#eee;color:#333">✖ Đóng danh sách</button></div>
+          ${list.length ? list.map((q, i) => `<div style="border-top:1px solid #eee;padding:8px 0">
+            <div style="color:#000"><b>Câu ${i + 1}:</b> ${tqHtml(q.q, q)}<br>${q.opts.map((o, j) => (j === q.correct ? `<b style="color:#1d9d55">${LETTERS[j]}. ${tqHtml(o, q)} ✓</b>` : `${LETTERS[j]}. ${tqHtml(o, q)}`)).join("<br>")}</div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button type="button" class="tt-btn" data-tqedit="${esc(q.id)}" style="width:auto;margin:0;padding:5px 12px;background:#e8f1fa;color:#0b5cad">✏️ Sửa</button>
+              <button type="button" class="tt-btn" data-tqdelq="${esc(q.id)}" style="width:auto;margin:0;padding:5px 12px;background:#fdecea;color:#c0392b">🗑 Xoá câu</button>
+            </div>
+          </div>`).join("") : `<p style="color:#666;margin:8px 0 0">Bộ này chưa có câu hỏi nào.</p>`}
+        </div>`;
+        box.querySelector("[data-tqclose]").addEventListener("click", () => { tqOpenSetId = undefined; paintSetQuestions(); });
+        box.querySelectorAll("[data-tqedit]").forEach((b) => b.addEventListener("click", () => { const q = bankAll.find((x) => x.id === b.dataset.tqedit); if (q && tqEditHook.load) tqEditHook.load(q); }));
+        box.querySelectorAll("[data-tqdelq]").forEach((b) => b.addEventListener("click", async () => {
+          if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "⚠️ Bấm nữa để xoá thật câu này"; setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = "🗑 Xoá câu"; } }, 4000); return; }
+          b.disabled = true; b.textContent = "Đang xoá…";
+          try {
+            await deleteDoc(doc(db, "trailQuiz", b.dataset.tqdelq));
+            if (tqEditId === b.dataset.tqdelq && tqEditHook.cancel) tqEditHook.cancel();
+            tqBank = null;
+            bankAll = await tqLoadBank(true);
+            bank = allowed === null ? bankAll : bankAll.filter((q) => allowed.includes(q.setId || ""));
+            paintBankInfo(); paintSetsBox(); paintSetQuestions();
+            showStage(currentMode);
+          } catch (e) { b.disabled = false; b.textContent = "Xoá không thành công — thử lại"; }
+        }));
+      };
+      /* Nạp một câu có sẵn vào form để sửa (v75) */
+      tqEditHook.load = (q) => {
+        tqEditId = q.id;
+        edMedia = { imgs: (q.imgs || []).slice(), vids: (q.vids || []).slice(), auds: (q.auds || []).slice() };
+        edQ.value = q.q || "";
+        edOptsBox.innerHTML = "";
+        (q.opts && q.opts.length ? q.opts : ["", "", "", ""]).forEach((o) => edAddOpt(o));
+        edRows().forEach((r, j) => { r.querySelector('input[type="radio"]').checked = j === q.correct; });
+        const sel = body.querySelector("#tqSetSel");
+        if (sel) sel.value = q.setId || "";
+        if (edBox) { edBox.style.display = "block"; if (edToggle) edToggle.textContent = "✍️ Nhập câu hỏi thủ công — bấm để thu gọn"; }
+        body.querySelector("#tqEdSave").textContent = "💾 Cập nhật câu hỏi";
+        body.querySelector("#tqEdCancelEdit").style.display = "";
+        edMsg.innerHTML = `<span style="color:#0b5cad"><b>Đang sửa một câu hỏi thuộc bộ “${esc(q.setId ? tqSetName(sets, q.setId) : "Chưa xếp bộ")}”.</b> Sửa xong bấm “Cập nhật câu hỏi”. Muốn chuyển câu sang bộ khác, chọn bộ ở ô phía trên trước khi lưu.</span>`;
+        edPreview();
+        if (edBox) edBox.scrollIntoView({ block: "start", behavior: "smooth" });
+      };
+      tqEditHook.cancel = () => {
+        if (!tqEditId) return;
+        tqEditId = null;
+        body.querySelector("#tqEdSave").textContent = "💾 Lưu câu hỏi vào bộ đang chọn";
+        body.querySelector("#tqEdCancelEdit").style.display = "none";
+        edReset();
+      };
+      body.querySelector("#tqEdCancelEdit").addEventListener("click", () => { tqEditHook.cancel(); edMsg.innerHTML = ""; });
       function edPaintLetters() {
         const rows = edRows();
         rows.forEach((row, i) => {
@@ -3311,18 +3392,28 @@ async function openTrailQuiz() {
         if (fin.auds.length) docData.auds = fin.auds;
         btn.disabled = true; btn.textContent = "Đang lưu…";
         try {
-          await addDoc(collection(db, "trailQuiz"), docData);
+          const wasEdit = !!tqEditId;
+          if (wasEdit) {
+            /* Sửa câu có sẵn: ghi đè cả 3 mảng đa phương tiện
+               (kể cả khi đã xoá hết) để media cũ biến mất hẳn */
+            await updateDoc(doc(db, "trailQuiz", tqEditId), Object.assign({}, docData, { imgs: fin.imgs, vids: fin.vids, auds: fin.auds }));
+          } else {
+            await addDoc(collection(db, "trailQuiz"), docData);
+          }
           tqBank = null;
           bankAll = await tqLoadBank(true);
           bank = allowed === null ? bankAll : bankAll.filter((q) => allowed.includes(q.setId || ""));
-          paintBankInfo(); paintSetsBox();
-          edMsg.innerHTML = `<span style="color:#1d9d55"><b>Đã lưu câu hỏi vào ${targetSet ? `bộ <b>${esc(tqSetName(sets, targetSet))}</b>` : "ngân hàng (chưa xếp bộ)"}.</b> Ngân hàng hiện có ${bankAll.length} câu — thầy nhập tiếp câu khác nếu muốn.</span>`;
-          edReset();
+          paintBankInfo(); paintSetsBox(); paintSetQuestions();
+          if (wasEdit) tqEditHook.cancel();
+          edMsg.innerHTML = wasEdit
+            ? `<span style="color:#1d9d55"><b>Đã cập nhật câu hỏi.</b> Ngân hàng hiện có ${bankAll.length} câu.</span>`
+            : `<span style="color:#1d9d55"><b>Đã lưu câu hỏi vào ${targetSet ? `bộ <b>${esc(tqSetName(sets, targetSet))}</b>` : "ngân hàng (chưa xếp bộ)"}.</b> Ngân hàng hiện có ${bankAll.length} câu — thầy nhập tiếp câu khác nếu muốn.</span>`;
+          if (!wasEdit) edReset();
           showStage(currentMode);
         } catch (e) {
           edMsg.innerHTML = `<span style="color:#c0392b">Lưu không thành công (${esc(e && e.message || e)}). Nếu báo lỗi quyền (permission), thầy cần dán rules bản v47 trước.</span>`;
         }
-        btn.disabled = false; btn.textContent = "💾 Lưu câu hỏi vào bộ đang chọn";
+        btn.disabled = false; btn.textContent = tqEditId ? "💾 Cập nhật câu hỏi" : "💾 Lưu câu hỏi vào bộ đang chọn";
       });
       edReset();
     }
@@ -3335,7 +3426,7 @@ async function openTrailQuiz() {
         const cur = await tqLoadBank(true);
         for (let i = 0; i < cur.length; i += 20) await Promise.all(cur.slice(i, i + 20).map((q) => deleteDoc(doc(db, "trailQuiz", q.id))));
         tqBank = []; bankAll = []; bank = [];
-        paintBankInfo(); paintSetsBox();
+        paintBankInfo(); paintSetsBox(); paintSetQuestions();
         btn.textContent = "Đã xoá sạch ngân hàng";
         showStage(currentMode);
       } catch (e) { btn.disabled = false; btn.textContent = "🗑 Xoá không thành công — thử lại"; }
