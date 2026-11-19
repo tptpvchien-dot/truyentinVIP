@@ -1738,11 +1738,23 @@ const WHISTLE_F = 1638;
    fade-in, điểm nối tìm lại đạt 1,71; hai mẫu tích/tè được
    fade-in 3 ms và fade-out 30 ms ở đuôi để đầu/cuối mẫu về
    đúng 0. Nội dung tiếng không đổi.)
+   (v82 — thầy nghe v81: vẫn còn bụp, và quan trọng hơn:
+   các ký tự ít tiếng (E, T, I, M…) nằm sát nhau chưa rõ
+   khoảng ngắt ký tự, dễ nhận nhầm; thầy yêu cầu tiếng phải
+   LIỀN trong cùng một ký tự nhưng NGẮT RÕ giữa các ký tự.
+   Bản v82 bỏ elemMode cho la2 — quay về cơ chế một hơi
+   thổi liên tục trong ký tự (cắt lưỡi chừa đáy ngân 5%,
+   dốc 9 ms — artFloor/artMs dùng lại) và TẮT HẲN giữa các
+   ký tự; nghỉ giữa chữ nâng từ 1,75 lên 3,0 tích và giữa
+   từ 7,0 tích cho ranh giới ký tự thật rõ (nghỉ trong chữ
+   giữ 0,8 tích như file). Việc bỏ các lần khởi phát mẫu
+   riêng cho từng tiếng cũng loại luôn nguồn bụp còn lại
+   của v81: mỗi ký tự chỉ còn một đầu tiếng duy nhất.)
    ============================================================ */
 const WHISTLE_PROFILES = {
   la:   { label: "Còi lá",   ref: 1638, gaps: [1.25, 2.2, 3.9, 9.1], rel: 0.006, wpm: 12, pitchKey: "tt_pitch55",   loop: [0.1645, 0.262] },
   tron: { label: "Còi tròn", ref: 2186, gaps: [1.25, 2.2, 3.9, 9.1], rel: 0.014, wpm: 16, pitchKey: "tt_pitch_tron", loop: [0.203, 0.327] },
-  la2:  { label: "Còi lá 2", ref: 1656, gaps: [0.8, 1.18, 1.75, 4.1], rel: 0.028, wpm: 16, pitchKey: "tt_pitch_la2", loop: [0.4009, 0.4859], cerBoost: 0.75, dashScale: 0.767, elemMode: true }
+  la2:  { label: "Còi lá 2", ref: 1656, gaps: [0.8, 1.4, 3.0, 7.0], rel: 0.028, wpm: 16, pitchKey: "tt_pitch_la2", loop: [0.4009, 0.4859], cerBoost: 0.75, dashScale: 0.767, artFloor: 0.05, artMs: 0.009 }
 };
 let whistleType = (() => { try { const t = localStorage.getItem("tt_whistle_type"); return WHISTLE_PROFILES[t] ? t : "la"; } catch(e){ return "la"; } })();
 function whistleProfile(){ return WHISTLE_PROFILES[whistleType]; }
@@ -1872,8 +1884,11 @@ function baseFreq(isDash){ return aidPitch ? (isDash ? AID_DASH : AID_DOT) : whi
    ============================================================ */
 let toneRun = false;
 /* ============================================================
-   PHÁT TỪNG TIẾNG THỔI THẬT (v80 — riêng hồ sơ có elemMode,
-   tức Còi lá 2): mỗi tiếng tích/tè là MỘT TIẾNG THỔI TRỌN
+   PHÁT TỪNG TIẾNG THỔI THẬT (v80 — cơ chế này hiện KHÔNG
+   còn hồ sơ nào dùng: Còi lá 2 đã bỏ elemMode ở v82 theo
+   yêu cầu của thầy — liền tiếng trong ký tự, ngắt rõ giữa
+   các ký tự. Mã giữ lại đây cho tham khảo.)
+   Nguyên bản v80: mỗi tiếng tích/tè là MỘT TIẾNG THỔI TRỌN
    VẸN trích nguyên từ file chuẩn — đầu tiếng (attack)
    riêng, thân tiếng và đuôi ngân tự nhiên — chứ không cắt
    từ một hơi thổi dài rồi dập xuống. Nhờ mỗi tiếng có đầu
@@ -2195,9 +2210,9 @@ function playMorseStep(){
   if (ev.on){
     const isDash = ev.dash || ev.units === 3;
     const prof = whistleProfile();
-    /* Còi lá 2 (v80): tè dài 2,3 tích như file chuẩn chứ
-       không phải 3 tích (dashScale); mỗi tiếng phát bằng
-       mẫu tiếng thổi thật riêng (elemMode). */
+    /* Còi lá 2: tè dài 2,3 tích như file chuẩn chứ không
+       phải 3 tích (dashScale, áp dụng từ v80; cơ chế từng
+       tiếng riêng elemMode đã bỏ ở v82). */
     waitMs = ev.longBlast ? Math.max(900 * cerBoost, 4 * u) : ev.units * u * (isDash && prof.dashScale ? prof.dashScale : 1);
     if (prof.elemMode) elemStart(isDash, !!ev.longBlast, waitMs);
     else beep(true, isDash);
@@ -2216,8 +2231,8 @@ function playMorseStep(){
        DASH_GAP_TRIM (72%) — xem chú thích ở morseGapMs. */
     let gapMs = morseGapMs(ev.units, u);
     if (ev.units <= 1 && player.prevOnDash) gapMs *= DASH_GAP_TRIM;
-    /* Còi lá 2 (elemMode): tiếng thổi thật tự ngân đuôi vào
-       khe nghỉ — không cắt lưỡi, không tắt thêm gì cả. */
+    /* Hồ sơ elemMode (không còn hồ sơ nào dùng từ v82):
+       tiếng tự ngân đuôi vào khe nghỉ — không cắt gì cả. */
     if (!whistleProfile().elemMode){
       if (ev.units <= 2) toneArticulate(gapMs);
       else beep(false);
@@ -2900,7 +2915,7 @@ renderHistory();
 
 
   <script src="app-config.js?v=29"></script>
-<script src="knot-images.js?v=81"></script>
-<script type="module" src="auth-layer.js?v=81"></script>
+<script src="knot-images.js?v=82"></script>
+<script type="module" src="auth-layer.js?v=82"></script>
 </body>
 </html>
